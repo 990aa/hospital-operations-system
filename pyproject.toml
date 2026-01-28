@@ -1,0 +1,16 @@
+[project]
+name = "hospital-management-system"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "flask>=3.1.2",
+    "flask-caching>=2.3.1",
+    "flask-mail>=0.10.0",
+    "flask-sqlalchemy>=3.1.1",
+    "plotly>=6.5.2",
+    "python-dotenv>=1.2.1",
+    "requests>=2.32.5",
+    "webhooks>=0.4.2",
+]
