@@ -1,23 +1,32 @@
 from flask import Flask, render_template
-from models.database import db, User, Department
-from backend.routes import api
-from flask_login import LoginManager
+from models.database import db, User, Role, Department
+from flask_security import Security, SQLAlchemyUserDatastore
+from flask_security.utils import hash_password
+from backend.routes.auth_routes import auth_bp
+from backend.routes.admin_routes import admin_bp
+from backend.routes.doctor_routes import doctor_bp
+from backend.routes.patient_routes import patient_bp
+import os
 
 app = Flask(__name__, template_folder='frontend', static_folder='frontend/static')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///hospital.db'
 app.config['SECRET_KEY'] = 'thisisasecretkey'
+app.config['SECURITY_PASSWORD_SALT'] = 'somesalt'
+app.config['SECURITY_REGISTERABLE'] = False
+app.config['SECURITY_SEND_REGISTER_EMAIL'] = False
+app.config['SECURITY_USERNAME_ENABLE'] = True 
 
 db.init_app(app)
 
-login_manager = LoginManager()
-login_manager.init_app(app)
-login_manager.login_view = 'login_page'
+# Setup Flask-Security
+user_datastore = SQLAlchemyUserDatastore(db, User, Role)
+security = Security(app, user_datastore)
 
-@login_manager.user_loader
-def load_user(user_id):
-    return User.query.get(int(user_id))
-
-app.register_blueprint(api, url_prefix='/api')
+# Register Blueprints
+app.register_blueprint(auth_bp, url_prefix='/api')
+app.register_blueprint(admin_bp, url_prefix='/api')
+app.register_blueprint(doctor_bp, url_prefix='/api')
+app.register_blueprint(patient_bp, url_prefix='/api')
 
 @app.route('/')
 def index():
@@ -27,10 +36,22 @@ def create_initial_data():
     with app.app_context():
         db.create_all()
         
+        # Create Roles
+        user_datastore.find_or_create_role(name='admin', description='Administrator')
+        user_datastore.find_or_create_role(name='doctor', description='Doctor')
+        user_datastore.find_or_create_role(name='patient', description='Patient')
+        db.session.commit()
+
         # Create Admin if not exists
-        if not User.query.filter_by(role='admin').first():
-            admin = User(username='admin', password='adminpassword', role='admin', name='Super Admin')
-            db.session.add(admin)
+        if not user_datastore.find_user(username='admin'):
+            user_datastore.create_user(
+                username='admin', 
+                password=hash_password('adminpassword'), 
+                roles=['admin'], 
+                name='Super Admin',
+                active=True,
+                fs_uniquifier='admin_uniq'
+            )
             db.session.commit()
             print("Admin created: username='admin', password='adminpassword'")
 

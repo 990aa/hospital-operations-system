@@ -7,7 +7,13 @@ requires-python = ">=3.8"
 dependencies = [
     "flask",
     "flask-sqlalchemy",
-    "flask-login",
-    "werkzeug"
+    "flask-security-too",
+    "bcrypt",
+    "werkzeug",
+    "email_validator"
 ]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
 

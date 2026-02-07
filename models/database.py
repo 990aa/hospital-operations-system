@@ -1,22 +1,37 @@
 from flask_sqlalchemy import SQLAlchemy
-from flask_login import UserMixin
+from flask_security import UserMixin, RoleMixin
+from datetime import datetime
 
 # Initialize the SQLAlchemy instance
 db = SQLAlchemy()
 
-class User(UserMixin, db.Model):
+# Association table for User-Role relationship
+roles_users = db.Table('roles_users',
+    db.Column('user_id', db.Integer(), db.ForeignKey('user.id')),
+    db.Column('role_id', db.Integer(), db.ForeignKey('role.id'))
+)
+
+class Role(db.Model, RoleMixin):
+    __tablename__ = 'role'
+    id = db.Column(db.Integer(), primary_key=True)
+    name = db.Column(db.String(80), unique=True)
+    description = db.Column(db.String(255))
+
+class User(db.Model, UserMixin):
     """
     User model for handling authentication and basic user details.
-    Roles: 'admin', 'doctor', 'patient'
     """
     __tablename__ = 'user'
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-    password = db.Column(db.String(200), nullable=False) # In a real app, hash this!
-    role = db.Column(db.String(20), nullable=False) # 'admin', 'doctor', 'patient'
+    username = db.Column(db.String(255), unique=True, nullable=False)
+    email = db.Column(db.String(255), unique=True, nullable=True)
+    password = db.Column(db.String(255), nullable=False)
+    active = db.Column(db.Boolean())
+    fs_uniquifier = db.Column(db.String(255), unique=True, nullable=False)
     name = db.Column(db.String(100), nullable=False)
     
     # Relationships
+    roles = db.relationship('Role', secondary=roles_users, backref=db.backref('users', lazy='dynamic'))
     doctor_profile = db.relationship('Doctor', backref='user', uselist=False)
     patient_profile = db.relationship('Patient', backref='user', uselist=False)
 
@@ -25,7 +40,7 @@ class User(UserMixin, db.Model):
         return {
             "id": self.id,
             "username": self.username,
-            "role": self.role,
+            "roles": [r.name for r in self.roles],
             "name": self.name
         }
 

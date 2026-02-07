@@ -1,0 +1,123 @@
+        <div class="container">
+            <h3>Admin Dashboard</h3>
+            <ul class="nav nav-tabs mb-3">
+                <li class="nav-item"><a class="nav-link" :class="{active: tab === 'stats'}" @click="tab='stats'" href="#">Stats</a></li>
+                <li class="nav-item"><a class="nav-link" :class="{active: tab === 'doctors'}" @click="tab='doctors'" href="#">Doctors</a></li>
+                <li class="nav-item"><a class="nav-link" :class="{active: tab === 'patients'}" @click="tab='patients'" href="#">Patients</a></li>
+                <li class="nav-item"><a class="nav-link" :class="{active: tab === 'appointments'}" @click="tab='appointments'" href="#">Appointments</a></li>
+            </ul>
+
+            <!-- Stats Tab -->
+            <div v-if="tab === 'stats'">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="card bg-secondary text-white mb-3">
+                            <div class="card-body">
+                                <h5 class="card-title">Doctors</h5>
+                                <p class="card-text display-4">{{ stats.total_doctors }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-secondary text-white mb-3">
+                            <div class="card-body">
+                                <h5 class="card-title">Patients</h5>
+                                <p class="card-text display-4">{{ stats.total_patients }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-secondary text-white mb-3">
+                            <div class="card-body">
+                                <h5 class="card-title">Appointments</h5>
+                                <p class="card-text display-4">{{ stats.total_appointments }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Doctors Tab -->
+            <div v-if="tab === 'doctors'">
+                <div class="d-flex justify-content-between mb-3">
+                    <button class="btn btn-secondary" @click="showAddDoctor = !showAddDoctor">Add New Doctor</button>
+                    <input v-model="searchDoc" placeholder="Search Doctor..." class="form-control w-25">
+                </div>
+                
+                <div v-if="showAddDoctor" class="card mb-3 p-3">
+                    <h5>Add Doctor</h5>
+                    <form @submit.prevent="addDoctor">
+                        <div class="row">
+                            <div class="col-md-6 mb-2">
+                                <input v-model="newDoctor.name" placeholder="Full Name" class="form-control" required>
+                            </div>
+                            <div class="col-md-6 mb-2">
+                                <input v-model="newDoctor.username" placeholder="Username" class="form-control" required>
+                            </div>
+                            <div class="col-md-6 mb-2">
+                                <input type="password" v-model="newDoctor.password" placeholder="Password" class="form-control" required>
+                            </div>
+                            <div class="col-md-6 mb-2">
+                                <select v-model="newDoctor.department_id" class="form-select" required>
+                                    <option value="" disabled>Select Department</option>
+                                    <option v-for="dept in departments" :value="dept.id">{{ dept.name }}</option>
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <button type="submit" class="btn btn-success">Save Doctor</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <table class="table table-bordered table-striped">
+                    <thead>
+                        <tr><th>ID</th><th>Name</th><th>Dept</th><th>Action</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="doc in filteredDoctors" :key="doc.id">
+                            <td>{{ doc.id }}</td>
+                            <td>{{ doc.name }}</td>
+                            <td>{{ doc.department }}</td>
+                            <td>
+                                <button class="btn btn-danger btn-sm" @click="deleteDoctor(doc.id)">Delete</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Patients Tab -->
+            <div v-if="tab === 'patients'">
+                <input v-model="searchPatient" placeholder="Search Patient..." class="form-control mb-3 w-50">
+                <table class="table table-bordered">
+                     <thead><tr><th>ID</th><th>Name</th><th>History (Summary)</th><th>Action</th></tr></thead>
+                     <tbody>
+                        <tr v-for="p in filteredPatients" :key="p.id">
+                            <td>{{ p.id }}</td>
+                            <td>{{ p.name }}</td>
+                            <td>{{ p.medical_history || 'N/A' }}</td>
+                            <td>
+                                <button class="btn btn-danger btn-sm" @click="deletePatient(p.id)">Delete</button>
+                            </td>
+                        </tr>
+                     </tbody>
+                </table>
+            </div>
+
+            <!-- Appointments Tab -->
+            <div v-if="tab === 'appointments'">
+                <table class="table table-bordered">
+                    <thead><tr><th>ID</th><th>Pt. Name</th><th>Dr. Name</th><th>Date</th><th>Status</th></tr></thead>
+                    <tbody>
+                        <tr v-for="appt in appointments" :key="appt.id">
+                            <td>{{ appt.id }}</td>
+                            <td>{{ appt.patient_name }}</td>
+                            <td>{{ appt.doctor_name }}</td>
+                            <td>{{ appt.date }} {{ appt.time }}</td>
+                            <td>{{ appt.status }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
