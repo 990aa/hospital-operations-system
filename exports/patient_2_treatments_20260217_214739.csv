@@ -1,2 +1,0 @@
-user_id,username,patient_name,patient_email,patient_phone,consulting_doctor,doctor_department,appointment_date,appointment_time,diagnosis,treatment,prescription,notes,next_visit_suggested,appointment_status
-5,workflowpatient,Workflow Patient,wfpatient@test.com,N/A,Dr. Workflow Test,General Medicine,2026-02-18,10:00,Test Diagnosis - Workflow,Test Prescription - Take twice daily,Test Prescription - Take twice daily,Patient responded well to treatment. Follow up in 2 weeks.,See notes,Completed
