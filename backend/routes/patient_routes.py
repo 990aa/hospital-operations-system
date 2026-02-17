@@ -617,3 +617,152 @@ def update_profile():
     current_app.cache.delete(f"user_{user.id}")
 
     return jsonify({"message": "Profile updated successfully"})
+
+
+# ============================================================
+# Payment Routes (Dummy Portal - No Real Processing)
+# ============================================================
+
+
+@patient_bp.route("/patient/payment/appointment/<int:appointment_id>", methods=["POST"])
+@roles_required("patient")
+def process_payment(appointment_id):
+    """
+    Process a payment for an appointment (dummy portal - no actual processing).
+
+    This is a demonstration feature that simulates a payment portal
+    without actual payment processing. It creates a payment record.
+
+    Request Body:
+        amount: Payment amount (float)
+        payment_method: 'credit_card', 'debit_card', or 'insurance'
+        card_number: Card number (only last 4 digits stored)
+        notes: Optional notes
+
+    Returns:
+        Payment confirmation with transaction ID
+    """
+    # Get current patient
+    patient = Patient.query.filter_by(user_id=current_user.id).first()
+    if not patient:
+        return jsonify({"message": "Patient profile not found"}), 404
+
+    # Get appointment
+    appointment = Appointment.query.get_or_404(appointment_id)
+
+    # Verify appointment belongs to the patient
+    if appointment.patient_id != patient.id:
+        return jsonify({"message": "Unauthorized - not your appointment"}), 403
+
+    # Get request data
+    data = request.json
+    if not data:
+        return jsonify({"message": "Request body required"}), 400
+
+    amount = data.get("amount")
+    payment_method = data.get("payment_method", "credit_card")
+    card_number = data.get("card_number", "")
+    notes = data.get("notes", "")
+
+    # Validate amount
+    if not amount or amount <= 0:
+        return jsonify({"message": "Invalid amount"}), 400
+
+    # Extract last 4 digits of card
+    card_last4 = card_number[-4:] if len(card_number) >= 4 else "0000"
+
+    # Generate mock transaction ID
+    transaction_id = f"TXN-{secrets.token_hex(8).upper()}"
+
+    # Create payment record
+    payment = Payment(
+        appointment_id=appointment_id,
+        patient_id=patient.id,
+        amount=amount,
+        payment_method=payment_method,
+        card_last4=card_last4,
+        status="completed",  # Always successful in dummy portal
+        transaction_id=transaction_id,
+        notes=notes,
+    )
+
+    db.session.add(payment)
+    db.session.commit()
+
+    return jsonify({
+        "message": "Payment processed successfully",
+        "payment": payment.to_dict(),
+        "transaction_id": transaction_id
+    }), 201
+
+
+@patient_bp.route("/patient/payments", methods=["GET"])
+@roles_required("patient")
+def get_patient_payments():
+    """
+    Get all payments made by the current patient.
+
+    Returns:
+        List of payment dictionaries ordered by date (most recent first)
+    """
+    # Get current patient
+    patient = Patient.query.filter_by(user_id=current_user.id).first()
+    if not patient:
+        return jsonify({"message": "Patient profile not found"}), 404
+
+    # Get all payments
+    payments = Payment.query.filter_by(patient_id=patient.id).order_by(
+        Payment.payment_date.desc()
+    ).all()
+
+    # Build result with appointment details
+    result = []
+    for payment in payments:
+        payment_dict = payment.to_dict()
+        payment_dict["appointment_date"] = payment.appointment.date.isoformat() if payment.appointment.date else None
+        payment_dict["doctor_name"] = payment.appointment.doctor.user.name if payment.appointment.doctor else "Unknown"
+        result.append(payment_dict)
+
+    return jsonify(result)
+
+
+@patient_bp.route("/patient/appointment/<int:appointment_id>/payment-status", methods=["GET"])
+@roles_required("patient")
+def check_payment_status(appointment_id):
+    """
+    Check if an appointment has been paid for.
+
+    Args:
+        appointment_id: Appointment ID
+
+    Returns:
+        Payment status and details if paid
+    """
+    # Get current patient
+    patient = Patient.query.filter_by(user_id=current_user.id).first()
+    if not patient:
+        return jsonify({"message": "Patient profile not found"}), 404
+
+    # Get appointment
+    appointment = Appointment.query.get_or_404(appointment_id)
+
+    # Verify appointment belongs to the patient
+    if appointment.patient_id != patient.id:
+        return jsonify({"message": "Unauthorized - not your appointment"}), 403
+
+    # Find payment for this appointment
+    payment = Payment.query.filter_by(
+        appointment_id=appointment_id,
+        patient_id=patient.id
+    ).first()
+
+    if payment:
+        return jsonify({
+            "paid": True,
+            "payment": payment.to_dict()
+        })
+    else:
+        return jsonify({
+            "paid": False,
+            "message": "No payment found for this appointment"
+        })
