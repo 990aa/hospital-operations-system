@@ -58,7 +58,7 @@ createApp({
      */
     data() {
         return {
-            // ========== Authentication State ==========
+            //  Authentication State 
             currentUser: null,              // Logged-in user object
             isLogin: true,                  // Toggle between login/register forms
             selectedRole: 'patient',        // Selected role for login
@@ -69,11 +69,11 @@ createApp({
                 email: ''
             },
             
-            // ========= Alert Messages ==========
+            //  Alert Messages 
             alertMsg: '',                   // Alert message text
             alertType: 'success',           // Alert type: 'success', 'danger', 'warning'
             
-            // ========== Admin Dashboard Data ==========
+            //  Admin Dashboard Data 
             adminTab: 'stats',              // Current tab in admin dashboard
             stats: {},                      // Statistics data
             doctors: [],                    // List of doctors
@@ -90,7 +90,7 @@ createApp({
             },
             patientSearch: '',              // Patient search query
             
-            // ========== Doctor Dashboard Data ==========
+            //  Doctor Dashboard Data 
             doctorTab: 'appointments',      // Current tab in doctor dashboard
             doctorAppointments: [],         // Doctor's appointments list
             selectedAppointment: null,      // Currently selected appointment for completion
@@ -102,7 +102,7 @@ createApp({
             reportMonth: new Date().getMonth() + 1,  // Month for PDF report
             reportYear: new Date().getFullYear(),    // Year for PDF report
             
-            // ========== Patient Dashboard Data ==========
+            //  Patient Dashboard Data 
             patientTab: 'book',             // Current tab in patient dashboard
             patientAppointments: [],        // Patient's appointments list
             availableDoctors: [],           // List of doctors for booking
@@ -141,9 +141,9 @@ createApp({
      * Methods - all functions for the application
      */
     methods: {
-        // ========================================
+        
         // AUTHENTICATION METHODS
-        // ========================================
+        
         
         /**
          * Check if user is logged in by calling /current-user endpoint
@@ -235,9 +235,9 @@ createApp({
             return role.charAt(0).toUpperCase() + role.slice(1);
         },
         
-        // ========================================
+        
         // ALERT METHODS
-        // ========================================
+        
         
         /**
          * Show alert message
@@ -254,9 +254,9 @@ createApp({
             }, 5000);
         },
         
-        // ========================================
+        
         // ADMIN METHODS
-        // ========================================
+        
         
         /**
          * Load admin statistics from backend
@@ -352,9 +352,9 @@ createApp({
             }
         },
         
-        // ========================================
+        
         // DOCTOR METHODS
-        // ========================================
+        
         
         /**
          * Load doctor's appointments
@@ -405,9 +405,9 @@ createApp({
             }
         },
         
-        // ========================================
+        
         // PATIENT METHODS
-        // ========================================
+        
         
         /**
          * Load list of doctors for booking
