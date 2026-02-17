@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify, current_app
-from flask_security import login_required, current_user, roles_required
+from flask_security import roles_required
 from flask_security.utils import hash_password
-from models.database import db, User, Doctor, Patient, Appointment, Department
+from models.database import db, User, Doctor, Patient, Appointment
 
 admin_bp = Blueprint('admin', __name__)
 

@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from flask_security import login_required, current_user, roles_required
+from flask_security import current_user, roles_required
 from models.database import db, Doctor, Appointment, Treatment
 
 doctor_bp = Blueprint('doctor', __name__)

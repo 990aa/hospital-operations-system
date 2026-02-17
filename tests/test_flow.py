@@ -1,4 +1,3 @@
-import pytest
 
 def test_appointment_flow(test_client):
     """Test full flow: Patient registers -> Books Appt -> Doctor sees it"""

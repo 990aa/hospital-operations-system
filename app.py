@@ -6,7 +6,6 @@ from backend.routes.auth_routes import auth_bp
 from backend.routes.admin_routes import admin_bp
 from backend.routes.doctor_routes import doctor_bp
 from backend.routes.patient_routes import patient_bp
-import os
 
 app = Flask(__name__, template_folder='frontend', static_folder='frontend/static')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///hospital.db'
@@ -46,14 +45,14 @@ def create_initial_data():
         if not user_datastore.find_user(username='admin'):
             user_datastore.create_user(
                 username='admin', 
-                password=hash_password('adminpassword'), 
+                password=hash_password('admin'), 
                 roles=['admin'], 
                 name='Super Admin',
                 active=True,
                 fs_uniquifier='admin_uniq'
             )
             db.session.commit()
-            print("Admin created: username='admin', password='adminpassword'")
+            print("Admin created: username='admin', password='admin'")
 
         # Create Departments if not exists
         if not Department.query.first():

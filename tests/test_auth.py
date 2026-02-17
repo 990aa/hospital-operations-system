@@ -3,7 +3,7 @@ def test_login_logout(test_client):
     # Login with valid credentials
     response = test_client.post('/api/login', json={
         'username': 'admin',
-        'password': 'adminpassword'
+        'password': 'admin'
     })
     assert response.status_code == 200
     data = response.get_json()

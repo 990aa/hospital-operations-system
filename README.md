@@ -26,4 +26,4 @@ A Flask + Vue.js web application for managing hospital operations.
 
 ## Initial Login
 - **Admin Username:** `admin`
-- **Admin Password:** `adminpassword`
+- **Admin Password:** `admin`

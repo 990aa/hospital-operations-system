@@ -1,6 +1,5 @@
 from app import app, db
 from sqlalchemy_schemadisplay import create_schema_graph
-from sqlalchemy import MetaData
 
 def generate_er():
     with app.app_context():

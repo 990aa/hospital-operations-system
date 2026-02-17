@@ -30,7 +30,7 @@ def test_client():
         user_datastore.create_user(
             username='admin', 
             email='admin@example.com',
-            password=hash_password('adminpassword'), 
+            password=hash_password('admin'), 
             roles=['admin'], 
             active=True
         )
@@ -69,7 +69,7 @@ def admin_token(test_client):
     # Since we use session based auth with Flask-Security, we just log in via client
     test_client.post('/api/login', json={
         'username': 'admin',
-        'password': 'adminpassword'
+        'password': 'admin'
     })
     return test_client
 
