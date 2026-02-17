@@ -8,9 +8,15 @@ dependencies = [
     "flask",
     "flask-sqlalchemy",
     "flask-security-too",
+    "flask-caching",
     "bcrypt",
     "werkzeug",
-    "email_validator"
+    "email_validator",
+    "celery",
+    "redis",
+    "pandas",
+    "bleach>=6.3.0",
+    "argon2-cffi>=25.1.0",
 ]
 
 [project.optional-dependencies]
