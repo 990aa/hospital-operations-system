@@ -12,8 +12,8 @@ def test_home_page_renders(test_client):
     response = test_client.get('/')
     assert response.status_code == 200
     assert b'Hospital Management System' in response.data
-    # Verify Vue.js is loaded
-    assert b'vue.global.js' in response.data
+    # Verify Vue.js is loaded (production build)
+    assert b'vue.global.prod.js' in response.data
 
 def test_api_health_check(test_client):
     """Verify that the health check endpoint is functional."""

@@ -2,17 +2,9 @@ const { createApp, ref, reactive, onMounted, computed, inject } = Vue;
 
 // --- API Helper ---
 async function apiCall(url, method = 'GET', body = null) {
-    """
-    Make an API call to the backend.
-
-    Args:
-        url: API endpoint path (without /api prefix)
-        method: HTTP method (GET, POST, PUT, DELETE)
-        body: Request body object (optional)
-
-    Returns:
-        Response data as JSON or throws error
-    """
+    // Make an API call to the backend
+    // Args: url (API endpoint path), method (HTTP method), body (optional request body)
+    // Returns: Response data as JSON or throws error
     const options = {
         method,
         headers: {

@@ -13,8 +13,10 @@ erDiagram
     DOCTOR ||--o{ APPOINTMENT : "assigned to"
     
     APPOINTMENT ||--o| TREATMENT : "has one"
+    APPOINTMENT ||--o{ PAYMENT : "paid with"
     
     PATIENT ||--o{ EXPORT_JOB : "requests"
+    PATIENT ||--o{ PAYMENT : "makes"
     
     USER {
         int id PK "Primary Key"
@@ -84,4 +86,17 @@ erDiagram
         datetime created_at "Job creation timestamp"
         datetime completed_at "Job completion timestamp"
         text error_message "Error message if failed"
+    }
+    
+    PAYMENT {
+        int id PK "Primary Key"
+        int appointment_id FK "Foreign Key to APPOINTMENT"
+        int patient_id FK "Foreign Key to PATIENT"
+        float amount "Payment amount in USD"
+        string payment_method "Payment method: credit_card, debit_card, insurance"
+        string card_last4 "Last 4 digits of card"
+        string status "Payment status: pending, completed, failed, refunded"
+        string transaction_id UK "Unique transaction identifier"
+        datetime payment_date "Payment timestamp"
+        text notes "Additional notes"
     }

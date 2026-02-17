@@ -8,19 +8,25 @@ from flask_security import (
 )
 from models.database import db, User, Patient
 from flask_security.utils import hash_password
+from backend.validators import (
+    validate_required_fields,
+    validate_email,
+    validate_password_strength,
+    validate_string_length,
+    sanitize_string,
+)
 
 auth_bp = Blueprint("auth", __name__)
 
 
 @auth_bp.route("/login", methods=["POST"])
+@validate_required_fields('username', 'password')
+@validate_string_length('username', min_length=3, max_length=50)
 def login():
     """Log in a user (Admin, Doctor, or Patient)."""
     data = request.json
-    username = data.get("username")
+    username = sanitize_string(data.get("username"), max_length=50)
     password = data.get("password")
-
-    if not username or not password:
-        return jsonify({"message": "Username and password required"}), 400
 
     user = User.query.filter_by(username=username).first()
 
@@ -56,10 +62,20 @@ def logout():
 
 
 @auth_bp.route("/register", methods=["POST"])
+@validate_required_fields('username', 'password', 'name')
+@validate_string_length('username', min_length=3, max_length=50)
+@validate_string_length('name', min_length=2, max_length=100)
+@validate_password_strength
+@validate_email
 def register():
     """Register a new patient."""
     data = request.json
-    if User.query.filter_by(username=data["username"]).first():
+    
+    # Sanitize inputs
+    username = sanitize_string(data["username"], max_length=50)
+    name = sanitize_string(data["name"], max_length=100)
+    
+    if User.query.filter_by(username=username).first():
         return jsonify({"message": "Username already exists"}), 400
 
     # Create User
@@ -71,9 +87,10 @@ def register():
     user_datastore = current_app.extensions["security"].datastore
 
     new_user = user_datastore.create_user(
-        username=data["username"],
+        username=username,
         password=hash_password(data["password"]),
-        name=data["name"],
+        name=name,
+        email=sanitize_string(data.get("email", ""), max_length=255) or None,
         active=True,
     )
     user_datastore.add_role_to_user(new_user, "patient")
