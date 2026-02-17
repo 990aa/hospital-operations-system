@@ -6,12 +6,14 @@ This module contains all routes for patient functionality including:
 - Appointment booking with conflict prevention
 - Treatment history viewing
 - Async CSV export of treatment history
+- Payment processing (dummy portal)
 - Profile management
 
 Author: Abdul Ahad
 """
 
 import os
+import secrets
 
 from flask import Blueprint, request, jsonify, current_app, send_file
 from flask_security import login_required, current_user, roles_required
@@ -26,6 +28,7 @@ from models.database import (
     Appointment,
     Department,
     ExportJob,
+    Payment,
 )
 from backend.tasks import export_patient_treatments
 
