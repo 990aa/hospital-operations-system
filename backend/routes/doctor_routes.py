@@ -25,9 +25,7 @@ from backend.pdf_reports import generate_monthly_report_pdf, generate_patient_hi
 doctor_bp = Blueprint("doctor", __name__)
 
 
-# ============================================================
 # Appointment Routes
-# ============================================================
 
 
 @doctor_bp.route("/doctor/appointments", methods=["GET"])
@@ -174,9 +172,7 @@ def complete_appointment(id):
     )
 
 
-# ============================================================
 # Patient History Routes
-# ============================================================
 
 
 @doctor_bp.route("/doctor/patients/<int:patient_id>/history", methods=["GET"])
@@ -332,9 +328,7 @@ def get_patient_summary(patient_id):
     return jsonify(result)
 
 
-# ============================================================
 # PDF Report Routes
-# ============================================================
 
 
 @doctor_bp.route("/doctor/monthly-report/<int:month>/<int:year>", methods=["GET"])

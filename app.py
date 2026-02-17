@@ -46,26 +46,20 @@ def create_app(test_config=None):
     if test_config:
         app.config.update(test_config)
 
-    # ============================================================
-    # Database Configuration
-    # ============================================================
-    # Using SQLite for simplicity - can be changed to PostgreSQL/MySQL in production
+        # Database Configuration
+        # Using SQLite for simplicity - can be changed to PostgreSQL/MySQL in production
     app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///hospital.db"
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False  # Disable warning
 
-    # ============================================================
-    # Security Configuration
-    # ============================================================
-    app.config["SECRET_KEY"] = "thisisasecretkey"  # Change in production
+        # Security Configuration
+        app.config["SECRET_KEY"] = "thisisasecretkey"  # Change in production
     app.config["SECURITY_PASSWORD_SALT"] = "somesalt"  # Change in production
     app.config["SECURITY_REGISTERABLE"] = False  # Only admin can register doctors
     app.config["SECURITY_SEND_REGISTER_EMAIL"] = False  # Disable email for now
     app.config["SECURITY_USERNAME_ENABLE"] = True  # Enable username login
 
-    # ============================================================
-    # Caching Configuration
-    # ============================================================
-    # Using Redis for caching - improves performance for frequently accessed data
+        # Caching Configuration
+        # Using Redis for caching - improves performance for frequently accessed data
     app.config.setdefault("CACHE_TYPE", "RedisCache")
     app.config.setdefault("CACHE_REDIS_URL", "redis://localhost:6379/0")
     app.config.setdefault(
@@ -79,10 +73,8 @@ def create_app(test_config=None):
     # Make cache available globally
     app.cache = cache
 
-    # ============================================================
-    # Initialize Extensions
-    # ============================================================
-    # Initialize SQLAlchemy
+        # Initialize Extensions
+        # Initialize SQLAlchemy
     db.init_app(app)
 
     # Initialize Flask-Security
@@ -109,19 +101,15 @@ def create_app(test_config=None):
 
     celery.Task = ContextTask
 
-    # ============================================================
-    # Register Blueprints
-    # ============================================================
-    # All routes are prefixed with /api
+        # Register Blueprints
+        # All routes are prefixed with /api
     app.register_blueprint(auth_bp, url_prefix="/api")
     app.register_blueprint(admin_bp, url_prefix="/api")
     app.register_blueprint(doctor_bp, url_prefix="/api")
     app.register_blueprint(patient_bp, url_prefix="/api")
 
-    # ============================================================
-    # Routes
-    # ============================================================
-    @app.route("/")
+        # Routes
+        @app.route("/")
     def index():
         """
         Serve the main application page.

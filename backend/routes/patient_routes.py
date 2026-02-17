@@ -36,9 +36,7 @@ from backend.tasks import export_patient_treatments
 patient_bp = Blueprint("patient", __name__)
 
 
-# ============================================================
 # Doctor Search Routes
-# ============================================================
 
 
 @patient_bp.route("/doctors", methods=["GET"])
@@ -115,9 +113,7 @@ def get_departments():
     return jsonify(result)
 
 
-# ============================================================
 # Appointment Routes
-# ============================================================
 
 
 @patient_bp.route("/appointments", methods=["POST"])
@@ -415,9 +411,7 @@ def update_appointment_status(id):
     )
 
 
-# ============================================================
 # Export Routes
-# ============================================================
 
 
 @patient_bp.route("/export/treatments", methods=["POST"])
@@ -550,9 +544,7 @@ def download_export(job_id):
     )
 
 
-# ============================================================
 # Profile Routes
-# ============================================================
 
 
 @patient_bp.route("/profile", methods=["POST", "GET"])
@@ -619,9 +611,7 @@ def update_profile():
     return jsonify({"message": "Profile updated successfully"})
 
 
-# ============================================================
 # Payment Routes (Dummy Portal - No Real Processing)
-# ============================================================
 
 
 @patient_bp.route("/patient/payment/appointment/<int:appointment_id>", methods=["POST"])

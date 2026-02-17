@@ -22,9 +22,7 @@ from models.database import db, User, Doctor, Patient, Appointment, ExportJob
 admin_bp = Blueprint("admin", __name__)
 
 
-# ============================================================
 # Statistics Routes
-# ============================================================
 
 
 @admin_bp.route("/admin/stats", methods=["GET"])
@@ -65,9 +63,7 @@ def admin_stats():
     return jsonify(stats)
 
 
-# ============================================================
 # Doctor Management Routes
-# ============================================================
 
 
 @admin_bp.route("/admin/doctors", methods=["GET", "POST"])
@@ -188,9 +184,7 @@ def delete_doctor(id):
     return jsonify({"message": "Doctor deleted"})
 
 
-# ============================================================
 # Patient Management Routes
-# ============================================================
 
 
 @admin_bp.route("/admin/patients", methods=["GET"])
@@ -292,9 +286,7 @@ def delete_patient(id):
     return jsonify({"message": "Patient deleted"})
 
 
-# ============================================================
 # Export Job Monitoring Routes
-# ============================================================
 
 
 @admin_bp.route("/admin/export-jobs", methods=["GET"])
