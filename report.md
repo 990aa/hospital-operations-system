@@ -991,22 +991,184 @@ http://localhost:5000/api
 
 #### Frontend: Vue.js 3
 
-**Component Architecture**:
-- Single-page application (SPA)
-- Reactive data binding
-- Component-based design
-- Props for parent-child communication
+**Implementation Approach**: Simplified Single-Page Application
+- **Structure**: Single HTML file with inline CSS + separate JavaScript file
+- **Vue.js Version**: 3.x via CDN (development build for debugging)
+- **Architecture**: Options API (simpler than Composition API)
+- **Jinja2 Integration**: Using `{% raw %}` blocks to prevent template conflicts
+
+**Professional Hospital UI Design**:
+- **Color Palette**:
+  - Medical Green: `#388e3c` (primary actions, success states)
+  - Medical Red: `#d32f2f` (alerts, danger states)
+  - Professional Grays: `#f5f5f5`, `#e0e0e0`, `#424242` (backgrounds, borders)
+  - Clean White: `#ffffff` (cards, containers)
+- **Design Philosophy**: No gradients, no bright blues/purples, no emojis
+- **Typography**: Segoe UI for clean, professional appearance
+- **Layout**: Bootstrap 5 grid system for responsive design
+
+**Application Structure** (`frontend/index.html`):
+```html
+<div id="app" v-cloak>
+  <!-- Navigation Bar -->
+  <nav>...</nav>
+  
+  <!-- Login/Register Page (v-if="!currentUser") -->
+  <div class="container">
+    <form @submit.prevent="handleAuth">
+      <input v-model="authForm.username">
+      <select v-model="authForm.role">
+        <option value="admin">Admin</option>
+        <option value="doctor">Doctor</option>
+        <option value="patient">Patient</option>
+      </select>
+    </form>
+  </div>
+  
+  <!-- Admin Dashboard (v-if="hasRole('admin')") -->
+  <div class="container">
+    <ul class="nav nav-tabs">
+      <li @click="adminTab = 'stats'">Statistics</li>
+      <li @click="adminTab = 'doctors'">Doctors</li>
+      <li @click="adminTab = 'patients'">Patients</li>
+    </ul>
+    <div v-if="adminTab === 'stats'">Stats cards...</div>
+    <div v-if="adminTab === 'doctors'">Doctors table...</div>
+    <div v-if="adminTab === 'patients'">Patients table...</div>
+  </div>
+  
+  <!-- Doctor Dashboard (v-if="hasRole('doctor')") -->
+  <div class="container">
+    <ul class="nav nav-tabs">
+      <li @click="doctorTab = 'appointments'">Appointments</li>
+      <li @click="doctorTab = 'reports'">Reports</li>
+    </ul>
+    <div v-if="doctorTab === 'appointments'">Appointments table...</div>
+    <div v-if="doctorTab === 'reports'">PDF report download...</div>
+  </div>
+  
+  <!-- Patient Dashboard (v-if="hasRole('patient')") -->
+  <div class="container">
+    <ul class="nav nav-tabs">
+      <li @click="patientTab = 'book'">Book Appointment</li>
+      <li @click="patientTab = 'appointments'">My Appointments</li>
+      <li @click="patientTab = 'payments'">Payments</li>
+    </ul>
+    <div v-if="patientTab === 'book'">Booking form...</div>
+    <div v-if="patientTab === 'appointments'">Appointments list...</div>
+    <div v-if="patientTab === 'payments'">Payment history...</div>
+  </div>
+</div>
+```
+
+**Application Logic** (`frontend/static/js/app.js`):
+```javascript
+// Central API helper function
+/**
+ * Make API calls to the backend
+ * @param {string} url - API endpoint URL
+ * @param {string} method - HTTP method (GET, POST, DELETE)
+ * @param {object} body - Request body for POST/DELETE
+ * @returns {Promise} - Response data or null on error
+ */
+async function apiCall(url, method = 'GET', body = null) {
+    const options = {
+        method,
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' }
+    };
+    if (body) options.body = JSON.stringify(body);
+    
+    const response = await fetch(url, options);
+    if (!response.ok) throw new Error(await response.text());
+    return response.json();
+}
+
+// Vue application with Options API
+const { createApp } = Vue;
+
+createApp({
+    data() {
+        return {
+            currentUser: null,        // Logged-in user object
+            isLogin: true,            // Toggle login/register
+            authForm: {...},          // Form data for auth
+            adminTab: 'stats',        // Active admin tab
+            doctorTab: 'appointments',// Active doctor tab
+            patientTab: 'book',       // Active patient tab
+            // ... 30+ more documented properties
+        };
+    },
+    
+    methods: {
+        // Auth methods
+        async checkLogin() { /* Check session on load */ },
+        async handleAuth() { /* Login/register */ },
+        async logout() { /* Clear session */ },
+        
+        // Admin methods
+        async loadStats() { /* Load system statistics */ },
+        async loadDoctors() { /* Load doctors table */ },
+        async addDoctor() { /* Add new doctor */ },
+        async deleteDoctor(id) { /* Delete doctor */ },
+        async loadPatients() { /* Load patients table */ },
+        async deletePatient(id) { /* Delete patient */ },
+        
+        // Doctor methods
+        async loadDoctorAppointments() { /* Load appointments */ },
+        async completeAppointment(id) { /* Mark complete + add treatment */ },
+        async downloadMonthlyReport() { /* Download PDF */ },
+        
+        // Patient methods
+        async bookAppointment() { /* Book new appointment */ },
+        async loadPatientAppointments() { /* Load appointments */ },
+        async cancelAppointment(id) { /* Cancel appointment */ },
+        async processPayment(appointmentId) { /* Process payment */ },
+        async loadPayments() { /* Load payment history */ },
+        
+        // Utility methods
+        hasRole(role) { /* Check user role */ },
+        showAlert(message, type) { /* Show success/error alert */ },
+        getUserRole() { /* Get readable role name */ }
+    },
+    
+    mounted() {
+        // Check if user already logged in on page load
+        this.checkLogin();
+    }
+}).mount('#app');
+```
+
+**Key Features**:
+- **Extensive Comments**: Every function and HTML section documented
+- **Centralized API Calls**: Single `apiCall()` function with error handling
+- **Role-Based UI**: Conditional rendering with `v-if="hasRole('admin')"`
+- **Tab Navigation**: Separate tabs for different functionalities
+- **Form Validation**: Client-side validation before API calls
+- **Error Handling**: User-friendly error messages with auto-hide alerts
+- **Responsive Design**: Mobile-friendly with Bootstrap grid
+- **Professional Theme**: Clean hospital aesthetic throughout
 
 **HTTP Client**: Fetch API
 - RESTful API communication
 - JSON request/response handling
 - Error handling and user feedback
+- CORS credentials included for sessions
 
 **UI Framework**: Bootstrap 5
 - Responsive grid system
-- Pre-styled components
+- Pre-styled components (buttons, forms, tables, cards)
 - Professional appearance
 - Mobile-first design
+- Bootstrap Icons for medical symbols
+
+**Troubleshooting Blank Page Issues**:
+1. **Problem**: Vue.js and Jinja2 both use `{{ }}` syntax
+   - **Solution**: Wrap Vue.js content in `{% raw %}` and `{% endraw %}` blocks
+2. **Problem**: Complex template strings failing to parse
+   - **Solution**: Move templates to inline HTML with v-if conditionals
+3. **Problem**: Production Vue build hiding errors
+   - **Solution**: Use development build (`vue.global.js`) for debugging
 
 ---
 

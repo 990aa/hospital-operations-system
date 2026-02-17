@@ -101,15 +101,15 @@ def create_app(test_config=None):
 
     celery.Task = ContextTask
 
-        # Register Blueprints
-        # All routes are prefixed with /api
+    # Register Blueprints
+    # All routes are prefixed with /api
     app.register_blueprint(auth_bp, url_prefix="/api")
     app.register_blueprint(admin_bp, url_prefix="/api")
     app.register_blueprint(doctor_bp, url_prefix="/api")
     app.register_blueprint(patient_bp, url_prefix="/api")
 
-        # Routes
-        @app.route("/")
+    # Routes
+    @app.route("/")
     def index():
         """
         Serve the main application page.
