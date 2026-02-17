@@ -321,3 +321,62 @@ class ExportJob(db.Model):
             else None,
             "error_message": self.error_message,
         }
+
+
+class Payment(db.Model):
+    """
+    Model for tracking patient payments (dummy portal - no actual processing).
+
+    This model stores payment records for appointments, demonstrating
+    a payment portal feature without actual payment processing.
+
+    Attributes:
+        id: Primary key for the payment
+        appointment_id: Foreign key to Appointment model
+        patient_id: Foreign key to Patient model
+        amount: Payment amount in dollars
+        payment_method: Payment method ('credit_card', 'debit_card', 'insurance')
+        card_last4: Last 4 digits of card number (for display)
+        status: Payment status ('pending', 'completed', 'failed', 'refunded')
+        transaction_id: Mock transaction ID (randomly generated)
+        payment_date: Timestamp when payment was made
+        notes: Additional notes about the payment
+    """
+
+    __tablename__ = "payment"
+    id = db.Column(db.Integer, primary_key=True)
+    appointment_id = db.Column(
+        db.Integer, db.ForeignKey("appointment.id"), nullable=False
+    )
+    patient_id = db.Column(db.Integer, db.ForeignKey("patient.id"), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    payment_method = db.Column(
+        db.String(20), default="credit_card"
+    )  # credit_card, debit_card, insurance
+    card_last4 = db.Column(db.String(4), nullable=True)  # Last 4 digits for display
+    status = db.Column(
+        db.String(20), default="completed"
+    )  # pending, completed, failed, refunded
+    transaction_id = db.Column(db.String(50), unique=True, nullable=False)
+    payment_date = db.Column(db.DateTime, default=db.func.current_timestamp())
+    notes = db.Column(db.Text, nullable=True)
+
+    # Relationships
+    appointment = db.relationship("Appointment", backref="payments")
+    patient = db.relationship("Patient", backref="payments")
+
+    def to_dict(self):
+        """Return dictionary representation of the payment."""
+        return {
+            "id": self.id,
+            "appointment_id": self.appointment_id,
+            "patient_id": self.patient_id,
+            "patient_name": self.patient.user.name,
+            "amount": self.amount,
+            "payment_method": self.payment_method,
+            "card_last4": self.card_last4,
+            "status": self.status,
+            "transaction_id": self.transaction_id,
+            "payment_date": self.payment_date.isoformat() if self.payment_date else None,
+            "notes": self.notes,
+        }
