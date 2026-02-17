@@ -27,6 +27,11 @@ body {
     flex-direction: column;
 }
 
+/* Hide Vue content until loaded to prevent flashing */
+[v-cloak] {
+    display: none !important;
+}
+
 #app {
     flex: 1;
     display: flex;

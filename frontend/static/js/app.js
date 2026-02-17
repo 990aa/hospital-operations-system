@@ -950,63 +950,98 @@ const PatientDashboard = {
 // --- Main App ---
 const MainApp = {
     setup() {
-        const user = ref(null);
+        const currentUser = ref(null);
         const authMode = ref('login'); // login or register
+        const userType = ref('patient'); // admin, doctor, or patient
         const authForm = reactive({ username: '', password: '', name: '', email: '', phone: '' });
-        const message = ref('');
-        const messageType = ref('success');
+        const alertMessage = ref('');
+        const alertType = ref('success');
 
         async function checkUser() {
             try {
                 const data = await apiCall('/current-user');
-                if (data) user.value = data;
+                if (data && !data.error) {
+                    currentUser.value = data;
+                }
             } catch (e) {
                 // Not logged in
             }
         }
 
-        async function authSubmit() {
-            message.value = '';
+        async function handleAuthSubmit() {
+            alertMessage.value = '';
             try {
                 if (authMode.value === 'login') {
                     const res = await apiCall('/login', 'POST', {
                         username: authForm.username,
                         password: authForm.password
                     });
-                    user.value = res.user;
+                    if (res.user) {
+                        currentUser.value = res.user;
+                        alertMessage.value = 'Welcome back!';
+                        alertType.value = 'success';
+                    }
                 } else {
-                    await apiCall('/register', 'POST', authForm);
-                    message.value = 'Registration successful! Please login.';
-                    messageType.value = 'success';
+                    // Registration - only for patients
+                    const res = await apiCall('/register', 'POST', {
+                        username: authForm.username,
+                        password: authForm.password,
+                        name: authForm.name,
+                        email: authForm.email || ''
+                    });
+                    alertMessage.value = 'Registration successful! Please login.';
+                    alertType.value = 'success';
                     authMode.value = 'login';
-                    authForm.password = ''; // Clear password
+                    authForm.password = '';
+                    authForm.name = '';
+                    authForm.email = '';
                 }
             } catch (e) {
-                message.value = e.message;
-                messageType.value = 'error';
+                alertMessage.value = e.message || 'Authentication failed';
+                alertType.value = 'danger';
             }
         }
 
-        async function logout() {
-            await apiCall('/logout', 'POST');
-            user.value = null;
-            authForm.username = '';
-            authForm.password = '';
+        async function handleLogout() {
+            try {
+                await apiCall('/logout', 'POST');
+                currentUser.value = null;
+                authForm.username = '';
+                authForm.password = '';
+                authMode.value = 'login';
+                userType.value = 'patient';
+                alertMessage.value = 'Logged out successfully';
+                alertType.value = 'success';
+            } catch (e) {
+                alertMessage.value = 'Logout failed';
+                alertType.value = 'danger';
+            }
         }
 
-        function hasRole(role) {
-            return user.value && user.value.roles && user.value.roles.includes(role);
+        function checkRole(role) {
+            return currentUser.value && currentUser.value.roles && currentUser.value.roles.includes(role);
         }
 
-        function getRoleDisplay(roles) {
-            if (!roles || !roles.length) return '';
-            const role = roles[0];
+        function getUserRole() {
+            if (!currentUser.value || !currentUser.value.roles || !currentUser.value.roles.length) return '';
+            const role = currentUser.value.roles[0];
             return role.charAt(0).toUpperCase() + role.slice(1);
         }
 
         onMounted(checkUser);
 
-        return { user, authMode, authForm, message, messageType, authSubmit, logout, hasRole, getRoleDisplay };
+        return { 
+            currentUser, 
+            authMode, 
+            userType,
+            authForm, 
+            alertMessage, 
+            alertType, 
+            handleAuthSubmit, 
+            handleLogout, 
+            checkRole, 
+            getUserRole 
+        };
     }
 };
 
