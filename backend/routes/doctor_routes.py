@@ -6,17 +6,20 @@ This module contains all routes for doctor functionality including:
 - Completing appointments with treatment records
 - Viewing patient full treatment history
 - Updating patient medical notes
+- Generating PDF reports
 
 All routes require doctor role authentication.
 
 Author: Abdul Ahad
 """
 
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app, send_file
 from flask_security import current_user, roles_required
 from sqlalchemy import and_
+from datetime import datetime
 
 from models.database import db, Doctor, Patient, Appointment, Treatment
+from backend.pdf_reports import generate_monthly_report_pdf, generate_patient_history_pdf
 
 # Create Blueprint for doctor routes
 doctor_bp = Blueprint("doctor", __name__)
@@ -327,3 +330,153 @@ def get_patient_summary(patient_id):
     }
 
     return jsonify(result)
+
+
+# ============================================================
+# PDF Report Routes
+# ============================================================
+
+
+@doctor_bp.route("/doctor/monthly-report/<int:month>/<int:year>", methods=["GET"])
+@roles_required("doctor")
+def download_monthly_report(month, year):
+    """
+    Generate and download a PDF monthly activity report for the doctor.
+
+    Args:
+        month: Month number (1-12)
+        year: Year (e.g., 2025)
+
+    Returns:
+        PDF file download
+    """
+    # Get current doctor
+    doctor = Doctor.query.filter_by(user_id=current_user.id).first()
+    if not doctor:
+        return jsonify({"message": "Doctor profile not found"}), 404
+
+    # Validate month and year
+    if not (1 <= month <= 12) or year < 2000:
+        return jsonify({"message": "Invalid month or year"}), 400
+
+    # Query appointments for the specified month
+    from datetime import date
+    start_date = date(year, month, 1)
+    if month == 12:
+        end_date = date(year + 1, 1, 1)
+    else:
+        end_date = date(year, month + 1, 1)
+
+    appointments = Appointment.query.filter(
+        and_(
+            Appointment.doctor_id == doctor.id,
+            Appointment.date >= start_date,
+            Appointment.date < end_date
+        )
+    ).order_by(Appointment.date.desc()).all()
+
+    # Build appointments data
+    appointments_data = []
+    for apt in appointments:
+        data = {
+            'appointment_date': apt.date.isoformat() if apt.date else '',
+            'patient_name': apt.patient.user.name if apt.patient else 'Unknown',
+            'status': apt.status,
+            'diagnosis': ''
+        }
+        if apt.treatment:
+            data['diagnosis'] = apt.treatment.diagnosis
+        appointments_data.append(data)
+
+    # Calculate statistics
+    stats = {
+        'total_appointments': len(appointments),
+        'completed': sum(1 for a in appointments if a.status == 'Completed'),
+        'cancelled': sum(1 for a in appointments if a.status == 'Cancelled'),
+        'unique_patients': len(set(a.patient_id for a in appointments))
+    }
+
+    # Generate PDF
+    pdf_bytes = generate_monthly_report_pdf(
+        doctor_name=doctor.user.name,
+        month=month,
+        year=year,
+        appointments_data=appointments_data,
+        stats=stats
+    )
+
+    # Send file
+    return send_file(
+        pdf_bytes,
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name=f'monthly_report_{month}_{year}_{doctor.user.name}.pdf'
+    )
+
+
+@doctor_bp.route("/doctor/patient-history-pdf/<int:patient_id>", methods=["GET"])
+@roles_required("doctor")
+def download_patient_history_pdf(patient_id):
+    """
+    Generate and download a PDF patient history report.
+
+    Args:
+        patient_id: Patient ID
+
+    Returns:
+        PDF file download
+    """
+    # Get current doctor
+    doctor = Doctor.query.filter_by(user_id=current_user.id).first()
+    if not doctor:
+        return jsonify({"message": "Doctor profile not found"}), 404
+
+    # Get patient
+    patient = Patient.query.get_or_404(patient_id)
+
+    # Check if doctor has treated this patient
+    has_treated = Appointment.query.filter(
+        and_(Appointment.patient_id == patient_id, Appointment.doctor_id == doctor.id)
+    ).first()
+
+    if not has_treated:
+        return jsonify(
+            {"message": "Unauthorized - no treatment relationship with this patient"}
+        ), 403
+
+    # Get all completed appointments with treatments
+    appointments = Appointment.query.filter(
+        and_(
+            Appointment.patient_id == patient_id,
+            Appointment.status == 'Completed'
+        )
+    ).order_by(Appointment.date.desc()).all()
+
+    # Build appointments data
+    appointments_data = []
+    for apt in appointments:
+        data = {
+            'appointment_date': apt.date.isoformat() if apt.date else '',
+            'doctor_name': apt.doctor.user.name if apt.doctor else 'Unknown',
+            'diagnosis': '',
+            'treatment_description': ''
+        }
+        if apt.treatment:
+            data['diagnosis'] = apt.treatment.diagnosis
+            data['treatment_description'] = apt.treatment.description
+        appointments_data.append(data)
+
+    # Generate PDF
+    pdf_bytes = generate_patient_history_pdf(
+        patient_name=patient.user.name,
+        patient_id=patient.id,
+        appointments_data=appointments_data
+    )
+
+    # Send file
+    return send_file(
+        pdf_bytes,
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name=f'patient_history_{patient.id}_{patient.user.name}.pdf'
+    )
