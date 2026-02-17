@@ -1,0 +1,87 @@
+erDiagram
+    %% Hospital Management System - Entity Relationship Diagram
+    %% Database Schema for Patient, Doctor, Admin, Appointments and Treatments
+    
+    USER ||--o{ ROLES_USERS : "has"
+    ROLE ||--o{ ROLES_USERS : "assigned to"
+    USER ||--o| DOCTOR : "has one profile"
+    USER ||--o| PATIENT : "has one profile"
+    
+    DEPARTMENT ||--o{ DOCTOR : "contains"
+    
+    PATIENT ||--o{ APPOINTMENT : "books"
+    DOCTOR ||--o{ APPOINTMENT : "assigned to"
+    
+    APPOINTMENT ||--o| TREATMENT : "has one"
+    
+    PATIENT ||--o{ EXPORT_JOB : "requests"
+    
+    USER {
+        int id PK "Primary Key"
+        string username UK "Unique username for login"
+        string email UK "User email address"
+        string phone "Contact phone number"
+        string password "Hashed password"
+        boolean active "Account active status"
+        string fs_uniquifier UK "Flask-Security unique identifier"
+        string name "Display name"
+    }
+    
+    ROLE {
+        int id PK "Primary Key"
+        string name UK "Role name: admin, doctor, patient"
+        string description "Role description"
+    }
+    
+    ROLES_USERS {
+        int user_id FK "Foreign Key to USER"
+        int role_id FK "Foreign Key to ROLE"
+    }
+    
+    DEPARTMENT {
+        int id PK "Primary Key"
+        string name UK "Department name (e.g., Cardiology)"
+        string description "Department description"
+    }
+    
+    DOCTOR {
+        int id PK "Primary Key"
+        int user_id FK "Foreign Key to USER"
+        int department_id FK "Foreign Key to DEPARTMENT"
+        string availability "Working hours schedule"
+        boolean email_notifications "Enable monthly reports"
+    }
+    
+    PATIENT {
+        int id PK "Primary Key"
+        int user_id FK "Foreign Key to USER"
+        text medical_history "Patient medical history"
+        string notification_pref "Notification preference: email, sms, chat, none"
+    }
+    
+    APPOINTMENT {
+        int id PK "Primary Key"
+        int patient_id FK "Foreign Key to PATIENT"
+        int doctor_id FK "Foreign Key to DOCTOR"
+        string date "Appointment date YYYY-MM-DD"
+        string time "Appointment time HH:MM"
+        string status "Status: Booked, Completed, Cancelled"
+    }
+    
+    TREATMENT {
+        int id PK "Primary Key"
+        int appointment_id FK "Foreign Key to APPOINTMENT"
+        text diagnosis "Medical diagnosis"
+        text prescription "Prescribed medications"
+        text notes "Additional doctor notes"
+    }
+    
+    EXPORT_JOB {
+        int id PK "Primary Key"
+        int patient_id FK "Foreign Key to PATIENT"
+        string status "Job status: pending, processing, completed, failed"
+        string file_path "Path to generated CSV file"
+        datetime created_at "Job creation timestamp"
+        datetime completed_at "Job completion timestamp"
+        text error_message "Error message if failed"
+    }

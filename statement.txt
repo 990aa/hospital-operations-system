@@ -1,0 +1,140 @@
+Hospital Management System
+Hospitals need efficient systems to manage patients, doctors, appointments, and treatments. Currently, many hospitals use manual registers or disconnected software, which makes it difficult to manage records, avoid scheduling conflicts, and track patient history.
+
+You are required to build a Hospital Management System (HMS) web application that allows Admins, Doctors, and Patients to interact with the system based on their roles.
+
+Frameworks to be used
+These are the mandatory frameworks on which the project has to be built.
+Flask for API
+VueJS for UI via CDN
+Jinja2 templates if using CDN only for entry point (Not to be used for UI)
+Bootstrap for HTML generation and styling (No other CSS framework is allowed)
+SQLite for database (No other database is permitted)
+Redis for caching
+Redis and Celery for batch jobs
+
+Note: 
+Any other framework/library will not be allowed apart from given above.
+The database must be created programmatically (via table creation or model code). Manual database creation, such as using DB Browser for SQLite, is NOT allowed.
+
+Roles & Functionalities
+This platform has three roles:
+
+Admin (Hospital Staff)
+Admin is the pre-existing superuser of the application
+Can add, update, and delete doctor profiles (name, specialization, availability).
+Can view and manage all appointments.
+Can search for patients or doctors by name/specialization.
+Doctor
+Can log in to view assigned appointments.
+Can mark a patient’s visit as completed and enter diagnosis & treatment notes.
+Can view and update patient history (previous diagnoses & prescriptions).
+Patient
+Can register, log in, and update their profile.
+Can search for doctors by specialization and availability.
+Can book, reschedule, or cancel an appointment.
+Can view their own appointment history and treatment details.
+
+Key Terminologies
+Admin (Hospital Staff): A user with the highest level of access who manages doctors, appointments, and overall hospital data.
+Doctor: A medical professional registered in the system who interacts with patients via the app.
+Patient: A user who seeks medical care and interacts with doctors via the system.
+
+Appointment: A scheduled meeting between a patient and a doctor for consultation or treatment.
+Attributes: 
+Patient ID
+Doctor ID
+Date
+Time
+Status (Booked/Completed/Cancelled).
+Extra fields etc.
+
+Treatment: A record of medical care provided to a patient during an appointment.
+Attributes: 
+Appointment ID
+Diagnosis
+Prescription
+Notes.
+Extra fields etc.
+
+Department/Specialization: A field of medical science in which a particular doctor is specialized in
+Attributes: 
+Department ID
+Department Name
+Description
+Doctors_registered
+Extra fields etc.
+Note: The above tables and fields are not exhaustive, students can add more tables and fields as per their requirements
+
+Core Features
+Admin and User Login functionality
+A login/register form with fields like username, password etc. for the patient and a login form for the admin, doctor.
+The application should have only one admin identified by its role.
+Use Flask security to implement role-based access control.
+The app must have a suitable model to store and differentiate all types of users.
+
+Admin functionalities:
+Admin dashboard must display total number of doctors, patients, and appointments.
+Admin should pre-exist in the app i.e. it must be created programmatically after the creation of the database. [No admin registration allowed]
+Admin can add/update doctor profiles.
+Admin can view all upcoming and past appointments.
+Admin can search for patients or doctors and view their details.
+Admin can add, edit doctor details such as name, specialization etc., and also patient info if needed.
+Admin can remove/blacklist doctors and patients from the system.
+
+
+Doctor functionalities:
+Doctor’s dashboard must display upcoming appointments for the day/week.
+Doctor’s dashboard must show list of patients assigned to the doctor.
+Doctor's dashboard must have the option to mark appointments as completed or cancelled.
+Doctors can provide their availability for the next 7 days.
+Doctors can update patient treatment history like provide diagnosis, treatment and prescriptions.
+Patient functionalities:
+Patients can register and login themselves on the app.
+Patients’ Dashboard must display all available specialization/departments
+Patients’ Dashboard must display availability of doctors for the coming 7 days (1 week) and patients can read doctors profiles.
+It must display upcoming appointments and their status.
+It must show past appointment history with diagnosis and prescriptions.
+Patients can edit their profile.
+Patients can book as well as cancel appointments with doctors.
+
+
+Backend Jobs
+a. Scheduled Job - Daily reminders - The application should send daily reminders to users on g-chat using Google Chat Webhooks or SMS or mail
+
+Check if a patient has a visit scheduled to the hospital on a particular day
+If yes, then send the alert asking them to visit the hospital at the scheduled time
+The reminder can be sent in the morning every day. (students can choose the time)
+b. Scheduled Job - Monthly Activity Report - Devise a monthly report for the doctor created using HTML and sent via mail.
+
+The activity report can include all the appointments done for that month, Information on the diagnosis provided and treatments suggested to the users etc.
+For the monthly report to be sent, start a job on the first day of every month → create a report using the above parameters → send it as an email
+c. User Triggered Async Job - Export as CSV - Devise a CSV format details for the treatments taken by the patient till date
+
+
+This export is meant to download the treatment details (user_id, username, consulting doctor, appointment date, diagnosis given in that appointment, treatment given in that appointment, next visit suggested by the doctor etc.)
+Have a dashboard from where the patient can trigger the export
+This should trigger a batch job, and send an alert once done.
+
+Performance and Caching
+Add caching where required to increase the performance
+Add cache expiry
+API Performance
+
+Other core functionalities
+Prevent multiple appointments at the same date and time for the same doctor.
+Update appointment status dynamically (Booked → Completed → Cancelled).
+Admin and Patient should be able to search for a specialization or by a doctor’s name
+Admin should be able to search patients by name, ID, or contact information.
+Store all completed appointment records for each patient.
+Include diagnosis, prescriptions, and doctor notes for each visit.
+Allow patients to view their own treatment history.
+Allow doctors to view the full history of their patients for informed consultation.
+
+
+Recommended functionalities
+Well-designed PDF reports using pymupdf for Monthly activity reports
+Implementing backend validation within your APIs
+Provide styling and aesthetics to your application by creating a beautiful and responsive front end using simple CSS or Bootstrap
+Implement a dummy payment portal -just a view taking payment details from patients for the received treatment.
+Any additional feature you feel is appropriate for the application.

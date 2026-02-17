@@ -1,31 +1,426 @@
-body {
-    background-color: #f8f9fa; /* Light grey background */
+/* Hospital Management System - Professional CSS */
+
+/* ===== Global Styles ===== */
+:root {
+    --primary-color: #212529;
+    --secondary-color: #6c757d;
+    --success-color: #198754;
+    --danger-color: #dc3545;
+    --warning-color: #ffc107;
+    --info-color: #0dcaf0;
+    --light-bg: #f8f9fa;
+    --border-color: #dee2e6;
 }
 
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background-color: var(--light-bg);
+    color: #212529;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+#app {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ===== Typography ===== */
+h1, h2, h3, h4, h5, h6 {
+    font-weight: 600;
+    margin-bottom: 1rem;
+    color: #212529;
+}
+
+.text-muted {
+    color: #6c757d !important;
+}
+
+/* ===== Navbar ===== */
+.navbar {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.navbar-brand {
+    font-size: 1.1rem;
+}
+
+/* ===== Cards ===== */
 .card {
-    border: none;
-    border-radius: 0; /* Professional, sharp edges */
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    margin-bottom: 1.5rem;
+    transition: box-shadow 0.3s ease;
+}
+
+.card:hover {
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
 }
 
 .card-header {
-    background-color: #6c757d; /* Grey */
-    border-radius: 0;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid var(--border-color);
+    font-weight: 600;
+    padding: 1rem 1.25rem;
 }
 
+.card-body {
+    padding: 1.25rem;
+}
+
+/* ===== Tables ===== */
+.table {
+    margin-bottom: 0;
+}
+
+.table thead th {
+    background-color: #f8f9fa;
+    border-bottom: 2px solid var(--border-color);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 0.5px;
+    color: #495057;
+}
+
+.table tbody tr {
+    transition: background-color 0.2s ease;
+}
+
+.table tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+.table-bordered {
+    border: 1px solid var(--border-color);
+}
+
+.table-striped tbody tr:nth-of-type(odd) {
+    background-color: rgba(0,0,0,0.02);
+}
+
+/* ===== Buttons ===== */
 .btn {
-    border-radius: 0;
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    border-radius: 0.375rem;
+    transition: all 0.2s ease;
+    border: none;
 }
 
-.alert {
-    border-radius: 0;
+.btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
 }
 
-/* Ensure no gradients */
+.btn:active {
+    transform: translateY(0);
+}
+
+.btn-dark {
+    background-color: #212529;
+    color: white;
+}
+
+.btn-dark:hover {
+    background-color: #1a1e21;
+    color: white;
+}
+
+.btn-secondary {
+    background-color: #6c757d;
+    color: white;
+}
+
+.btn-secondary:hover {
+    background-color: #5a6268;
+    color: white;
+}
+
+.btn-outline-dark {
+    border: 1px solid #212529;
+    color: #212529;
+}
+
+.btn-outline-dark:hover {
+    background-color: #212529;
+    color: white;
+}
+
+/* ===== Forms ===== */
+.form-control, .form-select {
+    border: 1px solid var(--border-color);
+    border-radius: 0.375rem;
+    padding: 0.5rem 0.75rem;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: #495057;
+    box-shadow: 0 0 0 0.2rem rgba(73,80,87,0.1);
+}
+
+.form-label {
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: #495057;
+}
+
+/* ===== Badges ===== */
+.badge {
+    font-weight: 500;
+    padding: 0.35em 0.65em;
+    border-radius: 0.25rem;
+}
+
+.bg-success {
+    background-color: var(--success-color) !important;
+}
+
+.bg-danger {
+    background-color: var(--danger-color) !important;
+}
+
+.bg-warning {
+    background-color: var(--warning-color) !important;
+}
+
+.bg-info {
+    background-color: var(--info-color) !important;
+}
+
+.bg-primary {
+    background-color: #0d6efd !important;
+}
+
 .bg-secondary {
-    background-color: #6c757d !important;
-    background-image: none !important;
+    background-color: var(--secondary-color) !important;
 }
 
-.navbar {
-    background-color: #343a40 !important; /* Dark grey navbar */
+/* ===== Navigation Tabs ===== */
+.nav-tabs {
+    border-bottom: 2px solid var(--border-color);
+    margin-bottom: 1.5rem;
+}
+
+.nav-tabs .nav-link {
+    border: none;
+    color: #6c757d;
+    font-weight: 500;
+    padding: 0.75rem 1.25rem;
+    transition: all 0.2s ease;
+}
+
+.nav-tabs .nav-link:hover {
+    color: #212529;
+    border-bottom: 2px solid #212529;
+}
+
+.nav-tabs .nav-link.active {
+    color: #212529;
+    background-color: transparent;
+    border-bottom: 2px solid #212529;
+}
+
+/* ===== Stat Cards ===== */
+.stat-card {
+    padding: 1.5rem;
+    border-radius: 0.5rem;
+    background: white;
+    border-left: 4px solid #212529;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.stat-card h5 {
+    color: #6c757d;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.5rem;
+}
+
+.stat-card .stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #212529;
+}
+
+/* ===== Alerts ===== */
+.alert {
+    border-radius: 0.375rem;
+    border: none;
+    padding: 1rem 1.25rem;
+}
+
+.alert-success {
+    background-color: #d1e7dd;
+    color: #0f5132;
+}
+
+.alert-danger {
+    background-color: #f8d7da;
+    color: #842029;
+}
+
+.alert-info {
+    background-color: #cfe2ff;
+    color: #084298;
+}
+
+.alert-warning {
+    background-color: #fff3cd;
+    color: #664d03;
+}
+
+/* ===== Doctor Cards ===== */
+.doctor-card {
+    transition: all 0.3s ease;
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    background: white;
+}
+
+.doctor-card:hover {
+    border-color: #212529;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    transform: translateY(-2px);
+}
+
+.doctor-card .card-title {
+    color: #212529;
+    font-weight: 600;
+}
+
+.doctor-card .card-subtitle {
+    color: #6c757d;
+    font-weight: 500;
+}
+
+/* ===== Appointment Cards ===== */
+.appointment-card {
+    margin-bottom: 1rem;
+    border-left: 4px solid #6c757d;
+}
+
+.appointment-card.status-booked {
+    border-left-color: #0d6efd;
+}
+
+.appointment-card.status-completed {
+    border-left-color: var(--success-color);
+}
+
+.appointment-card.status-cancelled {
+    border-left-color: var(--danger-color);
+}
+
+/* ===== Search Bars ===== */
+.search-input {
+    max-width: 400px;
+}
+
+/* ===== Footer ===== */
+.footer {
+    margin-top: auto;
+    padding: 1.5rem 0;
+    background-color: white;
+    border-top: 1px solid var(--border-color);
+}
+
+/* ===== Loading Spinner ===== */
+.spinner-border {
+    width: 1rem;
+    height: 1rem;
+    border-width: 0.15rem;
+}
+
+/* ===== Responsive Utilities ===== */
+@media (max-width: 768px) {
+    .stat-card {
+        margin-bottom: 1rem;
+    }
+    
+    .nav-tabs .nav-link {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.875rem;
+    }
+    
+    .table {
+        font-size: 0.875rem;
+    }
+}
+
+/* ===== Chart Containers ===== */
+.chart-container {
+    background: white;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+/* ===== Spacing Utilities ===== */
+.gap-2 {
+    gap: 0.5rem;
+}
+
+.gap-3 {
+    gap: 1rem;
+}
+
+/* ===== Custom Scrollbar ===== */
+::-webkit-scrollbar {
+    width: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* ===== No Results Message ===== */
+.no-results {
+    text-align: center;
+    padding: 3rem;
+    color: #6c757d;
+}
+
+.no-results svg {
+    width: 64px;
+    height: 64px;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+
+/* ===== Action Buttons ===== */
+.action-buttons {
+    display: flex;
+    gap: 0.5rem;
+}
+
+/* ===== Professional hover effects ===== */
+.clickable {
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.clickable:hover {
+    opacity: 0.8;
 }

@@ -16,7 +16,7 @@ dependencies = [
     "redis",
     "pandas",
     "bleach>=6.3.0",
-    "argon2-cffi>=25.1.0",
+    "argon2-cffi>=25.1.0"
 ]
 
 [project.optional-dependencies]
