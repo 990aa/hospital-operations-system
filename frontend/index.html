@@ -286,9 +286,7 @@
 
         <!-- Dashboard Container (shown when logged in) -->
         <div v-if="currentUser" class="container-fluid mt-4 mb-5">
-            <!-- ============================================ -->
             <!-- ADMIN DASHBOARD -->
-            <!-- ============================================ -->
             <div v-if="hasRole('admin')">
                 <h2 class="mb-4">Admin Dashboard</h2>
                 
@@ -434,9 +432,7 @@
                 </div>
             </div>
 
-            <!-- ============================================ -->
             <!-- DOCTOR DASHBOARD -->
-            <!-- ============================================ -->
             <div v-if="hasRole('doctor')">
                 <h2 class="mb-4">Doctor Dashboard</h2>
                 
@@ -538,9 +534,7 @@
                 </div>
             </div>
 
-            <!-- ============================================ -->
             <!-- PATIENT DASHBOARD -->
-            <!-- ============================================ -->
             <div v-if="hasRole('patient')">
                 <h2 class="mb-4">Patient Dashboard</h2>
                 

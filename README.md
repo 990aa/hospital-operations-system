@@ -1,76 +1,264 @@
-# Hospital Management System (HMS)
+# Hospital Management System
 
-A modern, professional Hospital Management System built with Flask (backend), Vue.js (frontend), and Celery/Redis (background jobs).
+A professional, production-grade Hospital Management System with role-based access control for Admins, Doctors, and Patients.
 
-## Key Features
+## Features
 
-### Role-Based Access Control
-- **Admin**: Full system management (doctors, patients, statistics).
-- **Doctor**: Appointment management, patient history access, and treatment recording.
-- **Patient**: Booking appointments, tracking treatment history, and profile management.
+### Core Functionality
+- **Role-Based Access**: Separate dashboards for Admin, Doctor, and Patient roles
+- **Appointment Management**: Book, complete, and cancel appointments with conflict prevention
+- **Patient Records**: Track medical history, treatments, and prescriptions
+- **Doctor Management**: Add/remove doctors, assign departments
+- **PDF Reports**: Generate professional monthly activity reports for doctors
+- **Payment Portal**: Dummy payment system for appointments (demonstration only)
+- **Background Jobs**: Automated email reminders and monthly reports via Celery
 
-### Enhanced Functionality
-- **Scheduled Reminders**: Automated daily alerts for patients with upcoming visits.
-- **Monthly Reports**: Automated activity summaries for doctors.
-- **Async Exports**: User-triggered CSV exports of treatment history processed in the background.
-- **Conflict Prevention**: Intelligent scheduling to prevent double-booking for doctors.
-- **Advanced Search**: Search for doctors by name or specialization; search for patients by name, ID, or contact.
-- **Performance**: Integrated caching with Redis for faster data access.
+### Technical Features
+- **Caching**: Redis-based caching for performance
+- **Security**: Argon2 password hashing, role-based authorization
+- **Validation**: Comprehensive backend input validation
+- **Testing**: 50+ test cases with pytest
+- **Professional UI**: Clean hospital-themed interface (no gradients, professional colors)
 
-### Professional UI
-- Clean, minimalist design following professional standards.
-- Interactive data visualizations using **Plotly**.
-- Responsive layout using Bootstrap 5.
+---
 
-## Technology Stack
-- **Backend**: Flask, Flask-SQLAlchemy, Flask-Security-Too, Flask-Caching.
-- **Task Queue**: Celery with Redis broker.
-- **Frontend**: Vue.js 3, Plotly.js, Bootstrap 5.
-- **Environment**: Managed via `uv`.
+## Requirements
 
-## Setup Instructions
+- **Python 3.14+** (or 3.10+)
+- **Redis** (for caching and Celery)
+- **uv** (Python package manager)
 
-### Prerequisites
-- Python 3.14+
-- Redis (running on `localhost:6379`)
+---
 
-### 1. Install Dependencies
-Using `uv`:
+## Quick Start
+
+### Step 1: Install Dependencies
+
 ```bash
-uv sync --all-extras
+# Using uv
+uv sync
+
+# Or using pip
+pip install -r requirements.txt
 ```
 
-### 2. Start Redis
-Ensure your Redis server is running. On Windows, you might use WSL or a native port.
+### Step 2: Start Redis Server
 
-### 3. Run Background Worker
-Start Celery worker and beat in separate terminals:
+**On Windows:**
+- Download and install Redis from: https://redis.io/download
+- Or use WSL: `sudo service redis-server start`
+- Or use Docker: `docker run -d -p 6379:6379 redis`
+
+### Step 3: Run the Application
+
 ```bash
-# Terminal 1: Worker
-uv run celery -A backend.celery_config worker --loglevel=info
+# Start the Flask development server
+uv run python app.py
 
-# Terminal 2: Beat (for scheduled jobs)
+# The application will be available at:
+# http://localhost:5000
+```
+
+The first time you run the app, it will automatically:
+- Create the database (`instance/hospital.db`)
+- Set up default roles (admin, doctor, patient)
+- Create admin user: **username:** `admin` **password:** `admin`
+- Create default departments (Cardiology, Neurology, etc.)
+
+### Step 4: Start Background Workers
+
+For background jobs like email reminders and monthly reports:
+
+**Terminal 1 - Celery Worker:**
+```bash
+uv run celery -A backend.celery_config worker --loglevel=info
+```
+
+**Terminal 2 - Celery Beat (Scheduler):**
+```bash
 uv run celery -A backend.celery_config beat --loglevel=info
 ```
 
-### 4. Run the Application
+---
+
+## Default Login Credentials
+
+### Admin
+- **Username:** `admin`
+- **Password:** `admin`
+
+### Doctor (Create via Admin Dashboard)
+1. Login as admin
+2. Go to "Doctors" tab
+3. Click "Add Doctor"
+
+### Patient
+1. Click "Register here" on login page
+2. Fill in details
+3. Login with your credentials
+
+---
+
+## Running Tests
+
 ```bash
-uv run python app.py
-```
-This will initialize the database (`hospital.db`) and create the initial Admin user on the first run.
-
-### 5. Access the App
-Open your browser to: `http://127.0.0.1:5000`
-
-## Initial Credentials
-- **Admin Username**: `admin`
-- **Admin Password**: `admin`
-
-## Testing
-Run the comprehensive test suite:
-```bash
+# Run all tests
 uv run pytest
+
+# Run specific test file
+uv run pytest tests/test_auth.py
+
+# Run with verbose output
+uv run pytest -v
+
+# Run with coverage
+uv run pytest --cov=backend --cov=models
+```
+
+All 50 tests should pass successfully.
+
+---
+
+## Database Schema
+
+The system uses 10 tables:
+
+1. **USER** - All system users (admin, doctors, patients)
+2. **ROLE** - User roles (admin, doctor, patient)
+3. **ROLES_USERS** - Many-to-many relationship for user roles
+4. **DEPARTMENT** - Medical departments (Cardiology, Neurology, etc.)
+5. **DOCTOR** - Doctor profiles linked to users
+6. **PATIENT** - Patient profiles linked to users
+7. **APPOINTMENT** - Appointment records
+8. **TREATMENT** - Treatment records for completed appointments
+9. **EXPORT_JOB** - Background CSV export jobs
+10. **PAYMENT** - Payment records (dummy portal)
+
+See `er_diagram.png` for visual representation.
+
+---
+
+## Configuration
+
+### Database
+- Default: SQLite (`instance/hospital.db`)
+- To use PostgreSQL/MySQL, update `SQLALCHEMY_DATABASE_URI` in `app.py`
+
+### Redis
+- Default: `redis://localhost:6379/0`
+- To change, update `CACHE_REDIS_URL` in `app.py`
+
+### Security Keys
+- `SECRET_KEY` in `app.py`
+- `SECURITY_PASSWORD_SALT` in `app.py`
+
+---
+
+## UI Design Philosophy
+
+The frontend follows a professional hospital aesthetic:
+
+✅ **DO:**
+- Clean white and gray backgrounds
+- Medical green (#388e3c) for primary actions
+- Medical red (#d32f2f) for alerts
+- Simple, readable fonts
+- Clear data tables
+
+❌ **DON'T:**
+- Gradients or fancy effects
+- Bright blues/purples
+- Emojis or informal language
+- Cluttered layouts
+
+---
+
+## API Endpoints
+
+### Authentication
+- `POST /api/login` - User login
+- `POST /api/logout` - User logout
+- `POST /api/register` - Patient registration
+- `GET /api/current-user` - Get current user info
+
+### Admin Routes
+- `GET /api/admin/stats` - System statistics
+- `GET /api/admin/doctors` - List doctors
+- `POST /api/admin/doctor` - Add doctor
+- `DELETE /api/admin/doctor/<id>` - Delete doctor
+- `GET /api/admin/patients` - List patients
+- `DELETE /api/admin/patient/<id>` - Delete patient
+
+### Doctor Routes
+- `GET /api/doctor/appointments` - List doctor's appointments
+- `POST /api/appointments/<id>/complete` - Complete appointment
+- `GET /api/doctor/monthly-report/<month>/<year>` - Download PDF report
+- `GET /api/doctor/patient-history-pdf/<patient_id>` - Patient history PDF
+
+### Patient Routes
+- `GET /api/doctors` - List available doctors
+- `GET /api/departments` - List departments
+- `POST /api/patient/appointment` - Book appointment
+- `GET /api/patient/appointments` - List patient's appointments
+- `DELETE /api/patient/appointment/<id>` - Cancel appointment
+- `POST /api/patient/payment/appointment/<id>` - Process payment
+- `GET /api/patient/payments` - List payment history
+
+For complete API documentation, see `report.md`.
+
+---
+
+## Troubleshooting
+
+### "Module not found" error
+```bash
+# Reinstall dependencies
+uv sync --reinstall
+```
+
+### "Redis connection refused"
+```bash
+# Ensure Redis is running
+redis-cli ping
+# Should return "PONG"
+```
+
+### Blank page on frontend
+```bash
+# Check browser console for JavaScript errors
+# Clear browser cache and refresh
+# Ensure Flask server is running on port 5000
+```
+
+### Database errors
+```bash
+# Delete and recreate database
+rm instance/hospital.db
+uv run python app.py
 ```
 
 ---
-*Developed by: Abdul Ahad*
+
+## Making Modifications
+
+The codebase is designed to be easily modifiable:
+
+### Add a new field to Doctor:
+1. Update `Doctor` model in `models/database.py`
+2. Update `to_dict()` method
+3. Update admin form in `frontend/index.html`
+4. Update `addDoctor()` method in `frontend/static/js/app.js`
+5. Update tests if needed
+
+### Add a new route:
+1. Add route function in appropriate file under `backend/routes/`
+2. Add validation decorators from `backend/validators.py`
+3. Add frontend method in `frontend/static/js/app.js`
+4. Add UI elements in `frontend/index.html`
+5. Test with pytest
+
+### Change colors:
+1. Update CSS variables in `frontend/index.html` `<style>` section
+2. Look for `:root` variables (e.g., `--hospital-green`)
+
+---
