@@ -16,9 +16,11 @@ Author: Abdul Ahad
 from flask import Blueprint, request, jsonify, current_app, send_file
 from flask_security import current_user, roles_required
 from sqlalchemy import and_
+from datetime import datetime, timedelta
 
 from models.database import db, Doctor, Patient, Appointment, Treatment, Payment
 from backend.pdf_reports import generate_monthly_report_pdf, generate_patient_history_pdf
+from backend.routes.patient_routes import _create_serial_appointment
 
 # Create Blueprint for doctor routes
 doctor_bp = Blueprint("doctor", __name__)
@@ -162,6 +164,42 @@ def complete_appointment(id):
     if not _has_active_completed_payment(appointment.id):
         return jsonify({"message": "Payment required before consultation completion"}), 400
 
+    # Optional doctor-scheduled follow-up date. Uses the same booking policy
+    # as patient booking: date format validation + within upcoming 7 days.
+    follow_up_date = data.get("next_visit_date")
+    follow_up_result = None
+    if follow_up_date:
+        try:
+            follow_up_dt = datetime.strptime(follow_up_date, "%Y-%m-%d").date()
+            if follow_up_dt < datetime.now().date():
+                return jsonify({"message": "Follow-up date cannot be in the past"}), 400
+            if follow_up_dt > datetime.now().date() + timedelta(days=6):
+                return jsonify(
+                    {"message": "Follow-up must be scheduled within the next 7 days"}
+                ), 400
+        except ValueError:
+            return jsonify({"message": "Invalid next_visit_date. Use YYYY-MM-DD"}), 400
+
+    if follow_up_date:
+        follow_up_appointment, follow_up_time = _create_serial_appointment(
+            doctor=doctor,
+            patient_id=appointment.patient_id,
+            date_str=follow_up_date,
+            is_follow_up=True,
+            follow_up_source_appointment_id=appointment.id,
+        )
+        if not follow_up_appointment:
+            return jsonify(
+                {
+                    "message": "Could not auto-schedule follow-up appointment for selected date",
+                }
+            ), 409
+        follow_up_result = {
+            "appointment_id": follow_up_appointment.id,
+            "date": follow_up_date,
+            "time": follow_up_time,
+        }
+
     # Update appointment status
     appointment.status = "Completed"
 
@@ -199,6 +237,7 @@ def complete_appointment(id):
             "message": "Appointment completed and treatment recorded successfully",
             "appointment_id": appointment.id,
             "treatment_id": treatment.id,
+            "follow_up": follow_up_result,
         }
     )
 

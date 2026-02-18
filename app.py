@@ -250,6 +250,46 @@ def create_initial_data(app):
         if migration_statements:
             db.session.commit()
 
+        # Appointment table additive migrations for follow-up workflow and
+        # race-safe uniqueness constraints during concurrent bookings.
+        appointment_columns = {
+            column["name"] for column in inspector.get_columns("appointment")
+        }
+        appointment_migrations = []
+        if "is_follow_up" not in appointment_columns:
+            appointment_migrations.append(
+                "ALTER TABLE appointment ADD COLUMN is_follow_up BOOLEAN DEFAULT 0"
+            )
+        if "follow_up_source_appointment_id" not in appointment_columns:
+            appointment_migrations.append(
+                "ALTER TABLE appointment ADD COLUMN follow_up_source_appointment_id INTEGER"
+            )
+
+        for statement in appointment_migrations:
+            db.session.execute(db.text(statement))
+
+        if appointment_migrations:
+            db.session.commit()
+
+        # Create unique index for doctor/date/time to prevent duplicate slots
+        # under simultaneous booking attempts.
+        existing_indexes = {
+            idx["name"] for idx in inspector.get_indexes("appointment") if idx.get("name")
+        }
+        if "uq_appointment_doctor_date_time" not in existing_indexes:
+            try:
+                db.session.execute(
+                    db.text(
+                        "CREATE UNIQUE INDEX uq_appointment_doctor_date_time ON appointment (doctor_id, date, time)"
+                    )
+                )
+                db.session.commit()
+            except Exception as error:
+                db.session.rollback()
+                app.logger.warning(
+                    "Could not create uq_appointment_doctor_date_time index: %s", error
+                )
+
         # Create default roles
         # Roles are used for access control in the application
         app.user_datastore.find_or_create_role(

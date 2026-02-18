@@ -237,12 +237,19 @@ class Appointment(db.Model):
     """
 
     __tablename__ = "appointment"
+    __table_args__ = (
+        db.UniqueConstraint("doctor_id", "date", "time", name="uq_appointment_doctor_date_time"),
+    )
     id = db.Column(db.Integer, primary_key=True)
     patient_id = db.Column(db.Integer, db.ForeignKey("patient.id"), nullable=False)
     doctor_id = db.Column(db.Integer, db.ForeignKey("doctor.id"), nullable=False)
     date = db.Column(db.String(20), nullable=False)  # YYYY-MM-DD
     time = db.Column(db.String(10), nullable=False)  # HH:MM
     status = db.Column(db.String(20), default="Booked")  # Booked, Completed, Cancelled
+    is_follow_up = db.Column(db.Boolean, default=False)
+    follow_up_source_appointment_id = db.Column(
+        db.Integer, db.ForeignKey("appointment.id"), nullable=True
+    )
 
     # Relationships
     patient = db.relationship("Patient", backref="appointments")
@@ -261,6 +268,8 @@ class Appointment(db.Model):
             "date": self.date,
             "time": self.time,
             "status": self.status,
+            "is_follow_up": bool(self.is_follow_up),
+            "follow_up_source_appointment_id": self.follow_up_source_appointment_id,
         }
 
 

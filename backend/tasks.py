@@ -81,11 +81,13 @@ def send_daily_reminders(self):
 
         # Prepare reminder message
         subject = "Hospital Appointment Reminder"
+        visit_type = "Follow-up Consultation" if getattr(appointment, "is_follow_up", False) else "Consultation"
         message = f"""
 Dear {patient.user.name},
 
 This is a friendly reminder that you have an appointment scheduled for today:
 
+    Visit Type: {visit_type}
 Doctor: Dr. {doctor.user.name}
 Department: {doctor.department.name}
 Date: {appointment.date}
@@ -229,7 +231,7 @@ def export_patient_treatments(self, patient_id, export_job_id):
         dict: Export result with file path or error
     """
     from flask import current_app
-    from models.database import db, Patient, Appointment, ExportJob
+    from models.database import db, Patient, Appointment, ExportJob, Payment
 
     # Get the export job record
     export_job = ExportJob.query.get(export_job_id)
@@ -246,11 +248,10 @@ def export_patient_treatments(self, patient_id, export_job_id):
         if not patient:
             raise Exception("Patient not found")
 
-        # Get all completed appointments for this patient
+        # Export all appointments so users always receive row data,
+        # even if no consultation has been completed yet.
         appointments = (
-            Appointment.query.filter(
-                Appointment.patient_id == patient_id, Appointment.status == "Completed"
-            )
+            Appointment.query.filter(Appointment.patient_id == patient_id)
             .order_by(Appointment.date.desc(), Appointment.time.desc())
             .all()
         )
@@ -282,6 +283,10 @@ def export_patient_treatments(self, patient_id, export_job_id):
                 "notes",
                 "next_visit_suggested",
                 "appointment_status",
+                "is_follow_up",
+                "follow_up_source_appointment_id",
+                "payment_status",
+                "payment_amount",
             ]
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
@@ -289,11 +294,14 @@ def export_patient_treatments(self, patient_id, export_job_id):
             for appointment in appointments:
                 treatment = appointment.treatment
                 doctor = appointment.doctor
+                latest_payment = (
+                    Payment.query.filter_by(appointment_id=appointment.id)
+                    .order_by(Payment.payment_date.desc(), Payment.id.desc())
+                    .first()
+                )
 
-                # Determine next visit suggestion (if any notes mention it)
                 next_visit = "N/A"
                 if treatment and treatment.notes:
-                    # Simple heuristic: check if notes mention "visit" or "follow"
                     notes_lower = treatment.notes.lower()
                     if "follow" in notes_lower or "visit" in notes_lower:
                         next_visit = "See notes"
@@ -315,6 +323,12 @@ def export_patient_treatments(self, patient_id, export_job_id):
                         "notes": treatment.notes if treatment else "N/A",
                         "next_visit_suggested": next_visit,
                         "appointment_status": appointment.status,
+                        "is_follow_up": bool(getattr(appointment, "is_follow_up", False)),
+                        "follow_up_source_appointment_id": getattr(
+                            appointment, "follow_up_source_appointment_id", None
+                        ),
+                        "payment_status": latest_payment.status if latest_payment else "unpaid",
+                        "payment_amount": latest_payment.amount if latest_payment else "N/A",
                     }
                 )
 

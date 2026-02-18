@@ -18,6 +18,7 @@ import secrets
 from flask import Blueprint, request, jsonify, current_app, send_file
 from flask_security import login_required, current_user, roles_required
 from sqlalchemy import or_, and_
+from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timedelta, date
 
 from models.database import (
@@ -156,6 +157,57 @@ def _doctor_availability_next_7_days(doctor):
             }
         )
     return results
+
+
+def _create_serial_appointment(doctor, patient_id, date_str, is_follow_up=False, follow_up_source_appointment_id=None):
+    """Create booked appointment using first available serial slot with retry.
+
+    This helper is shared by patient booking and doctor-scheduled follow-ups.
+    It retries slot assignment when a concurrent transaction takes the same slot.
+
+    Returns:
+        (Appointment|None, str|None): created appointment and assigned time.
+    """
+    appointment_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+
+    for _ in range(3):
+        available_slots = _available_slots_for_day(doctor, appointment_date)
+        if not available_slots:
+            return None, None
+
+        assigned_time = None
+        for slot in available_slots:
+            patient_conflict = Appointment.query.filter(
+                and_(
+                    Appointment.patient_id == patient_id,
+                    Appointment.date == date_str,
+                    Appointment.time == slot,
+                    Appointment.status == "Booked",
+                )
+            ).first()
+            if not patient_conflict:
+                assigned_time = slot
+                break
+
+        if not assigned_time:
+            return None, None
+        new_app = Appointment(
+            patient_id=patient_id,
+            doctor_id=doctor.id,
+            date=date_str,
+            time=assigned_time,
+            status="Booked",
+            is_follow_up=bool(is_follow_up),
+            follow_up_source_appointment_id=follow_up_source_appointment_id,
+        )
+        db.session.add(new_app)
+        try:
+            db.session.commit()
+            return new_app, assigned_time
+        except IntegrityError:
+            db.session.rollback()
+
+    return None, None
 
 
 # Doctor Search Routes
@@ -301,37 +353,14 @@ def book_appointment():
     except ValueError:
         return jsonify({"message": "Invalid date format. Use YYYY-MM-DD"}), 400
 
-    # Compute remaining slots and auto-assign the earliest one.
-    # Patients cannot pick arbitrary time values from UI.
-    available_slots = _available_slots_for_day(doctor, appointment_date)
-    if not available_slots:
-        return jsonify({"message": "Doctor is not available on this date"}), 409
-
-    assigned_time = available_slots[0]
-
-    # Prevent patient conflict at same auto-assigned slot.
-    patient_conflict = Appointment.query.filter(
-        and_(
-            Appointment.patient_id == patient.id,
-            Appointment.date == date_str,
-            Appointment.time == assigned_time,
-            Appointment.status == "Booked",
-        )
-    ).first()
-
-    if patient_conflict:
-        return jsonify({"message": "You already have an appointment at this time."}), 409
-
-    # Create new appointment using backend-assigned slot for deterministic ordering.
-    new_app = Appointment(
+    # Create appointment with retry-safe serial assignment.
+    new_app, assigned_time = _create_serial_appointment(
+        doctor=doctor,
         patient_id=patient.id,
-        doctor_id=doctor_id,
-        date=date_str,
-        time=assigned_time,
-        status="Booked",
+        date_str=date_str,
     )
-    db.session.add(new_app)
-    db.session.commit()
+    if not new_app:
+        return jsonify({"message": "Doctor is not available on this date"}), 409
 
     # Invalidate relevant caches so stats and appointment lists reflect changes immediately.
     current_app.cache.delete("admin_stats")
