@@ -11,6 +11,7 @@ erDiagram
     
     PATIENT ||--o{ APPOINTMENT : "books"
     DOCTOR ||--o{ APPOINTMENT : "assigned to"
+    APPOINTMENT ||--o{ APPOINTMENT : "follow-up source"
     
     APPOINTMENT ||--o| TREATMENT : "has one"
     APPOINTMENT ||--o{ PAYMENT : "paid with"
@@ -73,6 +74,8 @@ erDiagram
         string date "Appointment date YYYY-MM-DD"
         string time "Appointment time HH:MM"
         string status "Status: Booked, Completed, Cancelled"
+        boolean is_follow_up "True when auto-scheduled as follow-up"
+        int follow_up_source_appointment_id FK "Parent consultation appointment"
     }
     
     TREATMENT {
