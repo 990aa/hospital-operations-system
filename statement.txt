@@ -104,7 +104,7 @@ Backend Jobs
 a. Scheduled Job - Daily reminders - The application should send daily reminders to users on g-chat using Google Chat Webhooks or SMS or mail
 Check if a patient has a visit scheduled to the hospital on a particular day
 If yes, then send the alert asking them to visit the hospital at the scheduled time
-The reminder can be sent in the morning every day. (students can choose the time)
+The reminder can be sent in the morning every day. (choose the time)
 
 b. Scheduled Job - Monthly Activity Report - Devise a monthly report for the doctor created using HTML and sent via mail.
 The activity report can include all the appointments done for that month, Information on the diagnosis provided and treatments suggested to the users etc.
@@ -123,7 +123,7 @@ API Performance
 Other core functionalities
 Prevent multiple appointments at the same date and time for the same doctor.
 Update appointment status dynamically (Booked → Completed → Cancelled).
-Admin and Patient should be able to search for a specialization or by a doctor’s name
+Admin and Patient should be able to search for a specialization or by a doctor’s name.
 Admin should be able to search patients by name, ID, or contact information.
 Store all completed appointment records for each patient.
 Include diagnosis, prescriptions, and doctor notes for each visit.

@@ -6,8 +6,7 @@ PASS/FAIL with details. It is intended to run against a live local server.
 
 from __future__ import annotations
 
-import json
-from datetime import date, timedelta
+from datetime import date
 
 import requests
 

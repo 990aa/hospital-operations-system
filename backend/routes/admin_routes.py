@@ -16,7 +16,7 @@ from flask import Blueprint, request, jsonify, current_app
 from flask_security import roles_required, current_user
 from flask_security.utils import hash_password
 from sqlalchemy import or_
-from models.database import db, User, Doctor, Patient, Appointment, ExportJob, Department
+from models.database import db, User, Doctor, Patient, Appointment, ExportJob, Department, Payment
 
 # Create Blueprint for admin routes
 admin_bp = Blueprint("admin", __name__)
@@ -415,3 +415,52 @@ def get_export_job(id):
     """
     job = ExportJob.query.get_or_404(id)
     return jsonify(job.to_dict())
+
+
+@admin_bp.route("/admin/payments", methods=["GET"])
+@roles_required("admin")
+def admin_payments():
+    """Return payment and refund details for admin auditing."""
+    status_filter = request.args.get("status")
+    doctor_id = request.args.get("doctor_id", type=int)
+    patient_id = request.args.get("patient_id", type=int)
+
+    query = Payment.query.join(Appointment, Payment.appointment_id == Appointment.id)
+
+    if status_filter:
+        query = query.filter(Payment.status == status_filter)
+    if doctor_id:
+        query = query.filter(Appointment.doctor_id == doctor_id)
+    if patient_id:
+        query = query.filter(Payment.patient_id == patient_id)
+
+    payments = query.order_by(Payment.payment_date.desc(), Payment.id.desc()).all()
+
+    result = []
+    total_collected = 0.0
+    total_refunded = 0.0
+
+    for payment in payments:
+        row = payment.to_dict()
+        if payment.appointment:
+            row["appointment_date"] = payment.appointment.date
+            row["appointment_time"] = payment.appointment.time
+            row["doctor_name"] = payment.appointment.doctor.user.name
+            row["doctor_id"] = payment.appointment.doctor_id
+        result.append(row)
+
+        if payment.status == "completed":
+            total_collected += float(payment.amount)
+        elif payment.status == "refunded":
+            total_refunded += abs(float(payment.amount))
+
+    return jsonify(
+        {
+            "payments": result,
+            "summary": {
+                "total_collected": round(total_collected, 2),
+                "total_refunded": round(total_refunded, 2),
+                "net": round(total_collected - total_refunded, 2),
+            },
+        }
+    )

@@ -16,13 +16,32 @@ Author: Abdul Ahad
 from flask import Blueprint, request, jsonify, current_app, send_file
 from flask_security import current_user, roles_required
 from sqlalchemy import and_
-from datetime import datetime
 
-from models.database import db, Doctor, Patient, Appointment, Treatment
+from models.database import db, Doctor, Patient, Appointment, Treatment, Payment
 from backend.pdf_reports import generate_monthly_report_pdf, generate_patient_history_pdf
 
 # Create Blueprint for doctor routes
 doctor_bp = Blueprint("doctor", __name__)
+
+
+def _normalize_date_str(value):
+    """Return YYYY-MM-DD string for either date-like object or existing string."""
+    if value is None:
+        return ""
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return str(value)
+
+
+def _has_active_completed_payment(appointment_id):
+    """Return True when appointment has completed payment not offset by refund."""
+    completed_count = Payment.query.filter_by(
+        appointment_id=appointment_id, status="completed"
+    ).count()
+    refunded_count = Payment.query.filter_by(
+        appointment_id=appointment_id, status="refunded"
+    ).count()
+    return completed_count > refunded_count
 
 
 # Appointment Routes
@@ -84,6 +103,15 @@ def doctor_appointments():
             d["treatment"] = app.treatment.to_dict()
         # Include patient's medical history for context
         d["patient_medical_history"] = app.patient.medical_history
+        latest_payment = (
+            Payment.query.filter_by(appointment_id=app.id)
+            .order_by(Payment.payment_date.desc(), Payment.id.desc())
+            .first()
+        )
+        d["paid"] = _has_active_completed_payment(app.id)
+        d["payment_status"] = latest_payment.status if latest_payment else "unpaid"
+        d["payment_amount"] = latest_payment.amount if latest_payment else None
+        d["payment_transaction_id"] = latest_payment.transaction_id if latest_payment else None
         results.append(d)
 
     # Cache for 30 seconds
@@ -130,6 +158,9 @@ def complete_appointment(id):
 
     if appointment.status == "Cancelled":
         return jsonify({"message": "Cannot complete cancelled appointment"}), 400
+
+    if not _has_active_completed_payment(appointment.id):
+        return jsonify({"message": "Payment required before consultation completion"}), 400
 
     # Update appointment status
     appointment.status = "Completed"
@@ -361,11 +392,14 @@ def download_monthly_report(month, year):
     else:
         end_date = date(year, month + 1, 1)
 
+    start_date_str = start_date.strftime("%Y-%m-%d")
+    end_date_str = end_date.strftime("%Y-%m-%d")
+
     appointments = Appointment.query.filter(
         and_(
             Appointment.doctor_id == doctor.id,
-            Appointment.date >= start_date,
-            Appointment.date < end_date
+            Appointment.date >= start_date_str,
+            Appointment.date < end_date_str
         )
     ).order_by(Appointment.date.desc()).all()
 
@@ -373,7 +407,7 @@ def download_monthly_report(month, year):
     appointments_data = []
     for apt in appointments:
         data = {
-            'appointment_date': apt.date.isoformat() if apt.date else '',
+            'appointment_date': _normalize_date_str(apt.date),
             'patient_name': apt.patient.user.name if apt.patient else 'Unknown',
             'status': apt.status,
             'diagnosis': ''
@@ -450,14 +484,14 @@ def download_patient_history_pdf(patient_id):
     appointments_data = []
     for apt in appointments:
         data = {
-            'appointment_date': apt.date.isoformat() if apt.date else '',
+            'appointment_date': _normalize_date_str(apt.date),
             'doctor_name': apt.doctor.user.name if apt.doctor else 'Unknown',
             'diagnosis': '',
             'treatment_description': ''
         }
         if apt.treatment:
             data['diagnosis'] = apt.treatment.diagnosis
-            data['treatment_description'] = apt.treatment.description
+            data['treatment_description'] = apt.treatment.prescription
         appointments_data.append(data)
 
     # Generate PDF
@@ -473,4 +507,46 @@ def download_patient_history_pdf(patient_id):
         mimetype='application/pdf',
         as_attachment=True,
         download_name=f'patient_history_{patient.id}_{patient.user.name}.pdf'
+    )
+
+
+@doctor_bp.route("/doctor/payments", methods=["GET"])
+@roles_required("doctor")
+def doctor_payment_details():
+    """Return doctor-facing payment/refund ledger with earnings summary."""
+    doctor = Doctor.query.filter_by(user_id=current_user.id).first()
+    if not doctor:
+        return jsonify({"message": "Doctor profile not found"}), 404
+
+    payments = (
+        Payment.query.join(Appointment, Payment.appointment_id == Appointment.id)
+        .filter(Appointment.doctor_id == doctor.id)
+        .order_by(Payment.payment_date.desc(), Payment.id.desc())
+        .all()
+    )
+
+    items = []
+    total_earned = 0.0
+    total_refunded = 0.0
+    for payment in payments:
+        row = payment.to_dict()
+        row["appointment_date"] = payment.appointment.date if payment.appointment else None
+        row["appointment_time"] = payment.appointment.time if payment.appointment else None
+        row["patient_name"] = payment.patient.user.name if payment.patient else None
+        items.append(row)
+
+        if payment.status == "completed":
+            total_earned += float(payment.amount)
+        elif payment.status == "refunded":
+            total_refunded += abs(float(payment.amount))
+
+    return jsonify(
+        {
+            "payments": items,
+            "summary": {
+                "total_earned": round(total_earned, 2),
+                "total_refunded": round(total_refunded, 2),
+                "net_earned": round(total_earned - total_refunded, 2),
+            },
+        }
     )

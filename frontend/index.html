@@ -306,6 +306,9 @@
                         <a class="nav-link" :class="{active: adminTab === 'appointments'}" href="#" @click.prevent="adminTab = 'appointments'; loadAdminAppointments()">Appointments</a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" :class="{active: adminTab === 'payments'}" href="#" @click.prevent="adminTab = 'payments'; loadAdminPayments()">Payments</a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" :class="{active: adminTab === 'profile'}" href="#" @click.prevent="adminTab = 'profile'; loadProfile()">Profile</a>
                     </li>
                 </ul>
@@ -487,6 +490,9 @@
                                         <th>Patient</th>
                                         <th>Doctor</th>
                                         <th>Status</th>
+                                        <th>Payment</th>
+                                        <th>Diagnosis</th>
+                                        <th>Details</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -496,6 +502,43 @@
                                         <td>{{ apt.patient_name }}</td>
                                         <td>{{ apt.doctor_name }}</td>
                                         <td>{{ apt.status }}</td>
+                                        <td>{{ apt.payment_status }}</td>
+                                        <td>{{ apt.treatment ? apt.treatment.diagnosis : 'N/A' }}</td>
+                                        <td><button class="btn btn-sm btn-hospital-secondary" @click="showAppointmentDetails(apt)">View</button></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div v-if="adminTab === 'payments'">
+                    <div class="row mb-3">
+                        <div class="col-md-4"><div class="stat-card"><h3>${{ adminPaymentSummary.total_collected || 0 }}</h3><p>Total Collected</p></div></div>
+                        <div class="col-md-4"><div class="stat-card"><h3>${{ adminPaymentSummary.total_refunded || 0 }}</h3><p>Total Refunded</p></div></div>
+                        <div class="col-md-4"><div class="stat-card"><h3>${{ adminPaymentSummary.net || 0 }}</h3><p>Net</p></div></div>
+                    </div>
+                    <div class="card">
+                        <div class="card-body">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Patient</th>
+                                        <th>Doctor</th>
+                                        <th>Amount</th>
+                                        <th>Status</th>
+                                        <th>Transaction</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="payment in adminPayments" :key="payment.id">
+                                        <td>{{ payment.payment_date ? payment.payment_date.split('T')[0] : 'N/A' }}</td>
+                                        <td>{{ payment.patient_name }}</td>
+                                        <td>{{ payment.doctor_name }}</td>
+                                        <td>${{ payment.amount }}</td>
+                                        <td>{{ payment.status }}</td>
+                                        <td>{{ payment.transaction_id }}</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -531,6 +574,9 @@
                         <a class="nav-link" :class="{active: doctorTab === 'reports'}" href="#" @click.prevent="doctorTab = 'reports'">Reports</a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" :class="{active: doctorTab === 'payments'}" href="#" @click.prevent="doctorTab = 'payments'; loadDoctorPayments()">Payments</a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" :class="{active: doctorTab === 'profile'}" href="#" @click.prevent="doctorTab = 'profile'; loadProfile()">Profile</a>
                     </li>
                 </ul>
@@ -546,6 +592,7 @@
                                         <th>Time</th>
                                         <th>Patient</th>
                                         <th>Status</th>
+                                        <th>Payment</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
@@ -555,7 +602,9 @@
                                         <td>{{ apt.time }}</td>
                                         <td>{{ apt.patient_name }}</td>
                                         <td><span :class="'badge badge-' + apt.status.toLowerCase()">{{ apt.status }}</span></td>
+                                        <td>{{ apt.payment_status }}</td>
                                         <td>
+                                            <button @click="showAppointmentDetails(apt)" class="btn btn-sm btn-hospital-secondary me-1">Details</button>
                                             <button v-if="apt.status === 'Booked'" @click="showCompleteAppointment(apt)" class="btn btn-sm btn-hospital-primary">Complete</button>
                                         </td>
                                     </tr>
@@ -584,6 +633,38 @@
                                 <button type="submit" class="btn btn-hospital-primary">Save & Complete</button>
                                 <button type="button" @click="selectedAppointment = null" class="btn btn-hospital-secondary ms-2">Cancel</button>
                             </form>
+                        </div>
+                    </div>
+                </div>
+
+                <div v-if="doctorTab === 'payments'">
+                    <div class="row mb-3">
+                        <div class="col-md-4"><div class="stat-card"><h3>${{ doctorPaymentSummary.total_earned || 0 }}</h3><p>Total Earned</p></div></div>
+                        <div class="col-md-4"><div class="stat-card"><h3>${{ doctorPaymentSummary.total_refunded || 0 }}</h3><p>Total Refunded</p></div></div>
+                        <div class="col-md-4"><div class="stat-card"><h3>${{ doctorPaymentSummary.net_earned || 0 }}</h3><p>Net Earned</p></div></div>
+                    </div>
+                    <div class="card">
+                        <div class="card-body">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Patient</th>
+                                        <th>Amount</th>
+                                        <th>Status</th>
+                                        <th>Transaction</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="payment in doctorPayments" :key="payment.id">
+                                        <td>{{ payment.payment_date ? payment.payment_date.split('T')[0] : 'N/A' }}</td>
+                                        <td>{{ payment.patient_name }}</td>
+                                        <td>${{ payment.amount }}</td>
+                                        <td>{{ payment.status }}</td>
+                                        <td>{{ payment.transaction_id }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
@@ -709,6 +790,7 @@
                                         <th>Time</th>
                                         <th>Doctor</th>
                                         <th>Status</th>
+                                        <th>Payment</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
@@ -718,9 +800,11 @@
                                         <td>{{ apt.time }}</td>
                                         <td>{{ apt.doctor_name }}</td>
                                         <td><span :class="'badge badge-' + apt.status.toLowerCase()">{{ apt.status }}</span></td>
+                                        <td>{{ apt.payment_status }}</td>
                                         <td>
+                                            <button @click="showAppointmentDetails(apt)" class="btn btn-sm btn-hospital-secondary me-1">Details</button>
                                             <button v-if="apt.status === 'Booked'" @click="cancelAppointment(apt.id)" class="btn btn-sm btn-hospital-danger">Cancel</button>
-                                            <button v-if="apt.status === 'Completed' && !apt.paid" @click="showPaymentForm(apt)" class="btn btn-sm btn-hospital-primary">Pay</button>
+                                            <button v-if="apt.status === 'Booked' && !apt.paid" @click="showPaymentForm(apt)" class="btn btn-sm btn-hospital-primary">Pay</button>
                                         </td>
                                     </tr>
                                 </tbody>
@@ -811,6 +895,22 @@
                             <button type="submit" class="btn btn-hospital-primary">Save Profile</button>
                         </form>
                     </div>
+                </div>
+
+            </div>
+
+            <div v-if="appointmentDetails" class="card mt-3">
+                <div class="card-header">Appointment Details</div>
+                <div class="card-body">
+                    <p class="mb-1"><strong>Date:</strong> {{ appointmentDetails.date }} {{ appointmentDetails.time }}</p>
+                    <p class="mb-1"><strong>Patient:</strong> {{ appointmentDetails.patient_name || 'N/A' }}</p>
+                    <p class="mb-1"><strong>Doctor:</strong> {{ appointmentDetails.doctor_name || 'N/A' }}</p>
+                    <p class="mb-1"><strong>Status:</strong> {{ appointmentDetails.status }}</p>
+                    <p class="mb-1"><strong>Payment Status:</strong> {{ appointmentDetails.payment_status }}</p>
+                    <p class="mb-1"><strong>Diagnosis:</strong> {{ appointmentDetails.treatment ? appointmentDetails.treatment.diagnosis : 'N/A' }}</p>
+                    <p class="mb-1"><strong>Prescription:</strong> {{ appointmentDetails.treatment ? appointmentDetails.treatment.prescription : 'N/A' }}</p>
+                    <p class="mb-3"><strong>Notes:</strong> {{ appointmentDetails.treatment ? appointmentDetails.treatment.notes : 'N/A' }}</p>
+                    <button class="btn btn-hospital-secondary" @click="closeAppointmentDetails">Close</button>
                 </div>
             </div>
         </div>

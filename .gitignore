@@ -212,3 +212,5 @@ celerybeat-schedule-wal
 
 # Custom
 *.txt
+exports/
+

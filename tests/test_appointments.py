@@ -98,6 +98,18 @@ def test_complete_appointment(test_client):
         json={"doctor_id": doctor_id, "date": tomorrow},
     )
 
+    # Patient pays before consultation completion.
+    appointment_id = test_client.get("/api/my-appointments").get_json()[0]["id"]
+    pay_response = test_client.post(
+        f"/api/patient/payment/appointment/{appointment_id}",
+        json={
+            "amount": 500,
+            "payment_method": "credit_card",
+            "card_number": "1111222233334444",
+        },
+    )
+    assert pay_response.status_code == 201
+
     # Doctor completes it
     login(test_client, "doctor", "docpassword")
     resp = test_client.get("/api/doctor/appointments")
@@ -203,6 +215,16 @@ def test_doctor_view_patient_full_history(test_client):
     patient_id = resp.get_json()[0]["patient_id"]
     appointment_id = resp.get_json()[0]["id"]
 
+    # Pay before doctor can complete.
+    test_client.post(
+        f"/api/patient/payment/appointment/{appointment_id}",
+        json={
+            "amount": 400,
+            "payment_method": "debit_card",
+            "card_number": "9999000011112222",
+        },
+    )
+
     # Complete it
     login(test_client, "doctor", "docpassword")
     test_client.post(
@@ -284,3 +306,84 @@ def test_profile_update_reflects_in_get_profile(test_client):
     assert profile["name"] == "Updated Patient"
     assert profile["email"] == "updated.patient@test.com"
     assert profile["notification_pref"] == "chat"
+
+
+def test_doctor_cannot_complete_without_payment(test_client):
+    """Doctor completion requires successful pre-payment."""
+    login(test_client, "patient", "patientpassword")
+    doctor_id = test_client.get("/api/doctors").get_json()[0]["id"]
+    tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+    test_client.post("/api/appointments", json={"doctor_id": doctor_id, "date": tomorrow})
+
+    login(test_client, "doctor", "docpassword")
+    appointment_id = test_client.get("/api/doctor/appointments").get_json()[0]["id"]
+    response = test_client.post(
+        f"/api/appointments/{appointment_id}/complete",
+        json={"diagnosis": "No pay", "prescription": "None"},
+    )
+    assert response.status_code == 400
+
+
+def test_patient_cancel_triggers_refund_record(test_client):
+    """Paid appointment cancellation should produce refund record."""
+    login(test_client, "patient", "patientpassword")
+    doctor_id = test_client.get("/api/doctors").get_json()[0]["id"]
+    tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+    test_client.post("/api/appointments", json={"doctor_id": doctor_id, "date": tomorrow})
+
+    appointment_id = test_client.get("/api/my-appointments").get_json()[0]["id"]
+    test_client.post(
+        f"/api/patient/payment/appointment/{appointment_id}",
+        json={
+            "amount": 450,
+            "payment_method": "credit_card",
+            "card_number": "5555666677778888",
+        },
+    )
+
+    cancel_response = test_client.post(f"/api/appointments/{appointment_id}/cancel")
+    assert cancel_response.status_code == 200
+
+    payments = test_client.get("/api/patient/payments").get_json()
+    statuses = [payment["status"] for payment in payments]
+    assert "completed" in statuses
+    assert "refunded" in statuses
+
+
+def test_admin_and_doctor_payment_visibility_endpoints(test_client):
+    """Admin and doctor should view payment summary/ledger endpoints."""
+    login(test_client, "patient", "patientpassword")
+    doctor_id = test_client.get("/api/doctors").get_json()[0]["id"]
+    tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+    test_client.post("/api/appointments", json={"doctor_id": doctor_id, "date": tomorrow})
+    appointment_id = test_client.get("/api/my-appointments").get_json()[0]["id"]
+    test_client.post(
+        f"/api/patient/payment/appointment/{appointment_id}",
+        json={
+            "amount": 500,
+            "payment_method": "credit_card",
+            "card_number": "1234123412341234",
+        },
+    )
+
+    login(test_client, "admin", "admin")
+    admin_response = test_client.get("/api/admin/payments")
+    assert admin_response.status_code == 200
+    admin_payload = admin_response.get_json()
+    assert "payments" in admin_payload
+    assert "summary" in admin_payload
+
+    login(test_client, "doctor", "docpassword")
+    doctor_response = test_client.get("/api/doctor/payments")
+    assert doctor_response.status_code == 200
+    doctor_payload = doctor_response.get_json()
+    assert "payments" in doctor_payload
+    assert "summary" in doctor_payload
+
+
+def test_doctor_monthly_report_handles_string_dates(test_client):
+    """Monthly report endpoint should not fail on string-based appointment dates."""
+    login(test_client, "doctor", "docpassword")
+    today = datetime.now()
+    response = test_client.get(f"/api/doctor/monthly-report/{today.month}/{today.year}")
+    assert response.status_code == 200

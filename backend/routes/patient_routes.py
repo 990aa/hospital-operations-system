@@ -50,6 +50,26 @@ WEEKDAY_TO_INDEX = {
 INDEX_TO_WEEKDAY = {value: key for key, value in WEEKDAY_TO_INDEX.items()}
 
 
+def _has_active_completed_payment(appointment_id):
+    """Return True when appointment has a non-refunded completed payment."""
+    completed_count = Payment.query.filter_by(
+        appointment_id=appointment_id, status="completed"
+    ).count()
+    refunded_count = Payment.query.filter_by(
+        appointment_id=appointment_id, status="refunded"
+    ).count()
+    return completed_count > refunded_count
+
+
+def _latest_payment(appointment_id):
+    """Return latest payment record for appointment or None."""
+    return (
+        Payment.query.filter_by(appointment_id=appointment_id)
+        .order_by(Payment.payment_date.desc(), Payment.id.desc())
+        .first()
+    )
+
+
 def _parse_time_string(time_str, fallback):
     """Parse an HH:MM time string with a safe fallback.
 
@@ -393,6 +413,16 @@ def my_appointments():
         d = app.to_dict()
         if app.treatment:
             d["treatment"] = app.treatment.to_dict()
+        latest_payment = _latest_payment(app.id)
+        d["paid"] = _has_active_completed_payment(app.id)
+        d["payment_status"] = latest_payment.status if latest_payment else "unpaid"
+        d["payment_amount"] = latest_payment.amount if latest_payment else None
+        d["payment_date"] = (
+            latest_payment.payment_date.isoformat()
+            if latest_payment and latest_payment.payment_date
+            else None
+        )
+        d["transaction_id"] = latest_payment.transaction_id if latest_payment else None
         results.append(d)
 
     # Cache patient results for 30 seconds
@@ -447,6 +477,28 @@ def cancel_appointment(id):
 
     # Update status
     appointment.status = "Cancelled"
+
+    # Refund policy: if patient cancels a pre-paid appointment, create
+    # a refund ledger entry for admin/doctor visibility.
+    if current_user.has_role("patient") and _has_active_completed_payment(appointment.id):
+        latest_completed = (
+            Payment.query.filter_by(appointment_id=appointment.id, status="completed")
+            .order_by(Payment.payment_date.desc(), Payment.id.desc())
+            .first()
+        )
+        if latest_completed:
+            refund = Payment(
+                appointment_id=appointment.id,
+                patient_id=appointment.patient_id,
+                amount=-abs(latest_completed.amount),
+                payment_method=latest_completed.payment_method,
+                card_last4=latest_completed.card_last4,
+                status="refunded",
+                transaction_id=f"RFD-{secrets.token_hex(8).upper()}",
+                notes=f"Auto-refund for cancellation. Original transaction: {latest_completed.transaction_id}",
+            )
+            db.session.add(refund)
+
     db.session.commit()
 
     # Invalidate caches
@@ -772,6 +824,14 @@ def process_payment(appointment_id):
     if appointment.patient_id != patient.id:
         return jsonify({"message": "Unauthorized - not your appointment"}), 403
 
+    # Consultation payments must be completed before doctor marks appointment complete.
+    if appointment.status != "Booked":
+        return jsonify({"message": "Payments are only allowed for booked appointments"}), 400
+
+    # Avoid duplicate active payments for same appointment.
+    if _has_active_completed_payment(appointment_id):
+        return jsonify({"message": "Appointment already paid"}), 409
+
     # Get request data
     data = request.json
     if not data:
@@ -869,14 +929,11 @@ def check_payment_status(appointment_id):
         return jsonify({"message": "Unauthorized - not your appointment"}), 403
 
     # Find payment for this appointment
-    payment = Payment.query.filter_by(
-        appointment_id=appointment_id,
-        patient_id=patient.id
-    ).first()
+    payment = _latest_payment(appointment_id)
 
     if payment:
         return jsonify({
-            "paid": True,
+            "paid": _has_active_completed_payment(appointment_id),
             "payment": payment.to_dict()
         })
     else:

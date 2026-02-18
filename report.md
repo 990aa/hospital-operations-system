@@ -1537,3 +1537,30 @@ uv run python app.py
 
 The Hospital Management System successfully addresses the problem of manual hospital operations by providing a comprehensive, role-based web application.
 ---
+
+## Phase 2 Implementation Update (Payment, Refund, and Reporting Fixes)
+
+### 1. Payment Before Consultation Completion
+- Appointment completion now enforces pre-payment.
+- Doctors cannot mark a `Booked` appointment as `Completed` unless a valid completed payment exists.
+- This business rule is implemented in backend route logic (`doctor_routes.py`) and covered by tests.
+
+### 2. Automatic Refund on Patient Cancellation
+- If a patient cancels a paid appointment, the system automatically creates a refund ledger record.
+- Refunds are tracked as payment records with status `refunded`, a negative amount, and a dedicated refund transaction ID.
+- This ensures a complete financial audit trail without mutating historical payment rows.
+
+### 3. Admin/Doctor Payment Visibility
+- Added admin payment endpoint for system-wide collection/refund audit and summary totals.
+- Added doctor payment endpoint for doctor-wise earnings, refunds, and net payout visibility.
+- Frontend now includes dedicated payment tabs for both Admin and Doctor dashboards.
+
+### 4. Detailed Appointment Visibility Across Roles
+- Appointment listing payloads now include treatment, payment status, amount, payment timestamp, and transaction metadata.
+- Frontend provides an appointment details panel for Admin, Doctor, and Patient roles.
+- This improves transparency for consultation and billing lifecycle events.
+
+
+### 6. Frontend Real-Time Refresh Behavior
+- Post-action refresh is enforced for key operations (booking, payment, cancellation, completion, and admin management actions).
+- Dashboard tables and summaries update immediately via API re-fetch, without page reload.

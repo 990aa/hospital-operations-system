@@ -5,7 +5,6 @@ Verifies that the main entry point renders without syntax errors and all
 API endpoints return appropriate responses.
 """
 
-import pytest
 
 def test_home_page_renders(test_client):
     """Verify that index.html renders without Jinja2 TemplateSyntaxErrors."""

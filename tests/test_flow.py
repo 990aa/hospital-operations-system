@@ -112,6 +112,19 @@ def test_full_workflow(test_client):
     assert appointments[0]["status"] == "Booked"
     print(f"✓ Found {len(appointments)} appointment(s)")
 
+    # Step 6.1: Patient pays before consultation completion
+    print("\n=== Step 6.1: Patient Payment ===")
+    response = test_client.post(
+        f"/api/patient/payment/appointment/{appointment_id}",
+        json={
+            "amount": 500,
+            "payment_method": "credit_card",
+            "card_number": "1111222233334444",
+        },
+    )
+    assert response.status_code == 201
+    print("✓ Payment completed")
+
     # Step 7: Doctor login
     print("\n=== Step 7: Doctor Login ===")
     test_client.post("/api/logout")

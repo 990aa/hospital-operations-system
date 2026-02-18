@@ -141,7 +141,7 @@ def generate_monthly_report_pdf(doctor_name, month, year, appointments_data, sta
     page.draw_line((50, footer_y - 10), (545, footer_y - 10), color=light_gray, width=0.5)
     page.insert_text((50, footer_y), "Hospital Management System • Confidential Report", 
                      fontsize=8, color=light_gray)
-    page.insert_text((450, footer_y), f"Page 1 of 1", fontsize=8, color=light_gray)
+    page.insert_text((450, footer_y), "Page 1 of 1", fontsize=8, color=light_gray)
     
     # Save to BytesIO
     pdf_bytes = BytesIO()

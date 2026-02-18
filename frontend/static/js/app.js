@@ -91,6 +91,8 @@ createApp({
             newDepartmentName: '',
             patients: [],
             adminAppointments: [],
+            adminPayments: [],
+            adminPaymentSummary: {},
             showAddDoctor: false,
             newDoctor: {
                 name: '',
@@ -110,7 +112,10 @@ createApp({
             // Doctor dashboard state.
             doctorTab: 'appointments',
             doctorAppointments: [],
+            doctorPayments: [],
+            doctorPaymentSummary: {},
             selectedAppointment: null,
+            appointmentDetails: null,
             treatmentForm: { diagnosis: '', prescription: '', notes: '' },
             reportMonth: new Date().getMonth() + 1,
             reportYear: new Date().getFullYear(),
@@ -123,6 +128,12 @@ createApp({
             bookingForm: {
                 doctor_id: '',
                 date: ''
+            },
+            paymentAppointment: null,
+            paymentForm: {
+                amount: 500,
+                payment_method: 'credit_card',
+                card_number: ''
             },
             payments: [],
 
@@ -223,13 +234,16 @@ createApp({
                 await this.loadDoctors();
                 await this.loadPatients();
                 await this.loadAdminAppointments();
+                await this.loadAdminPayments();
             }
             if (this.hasRole('doctor')) {
                 await this.loadDoctorAppointments();
+                await this.loadDoctorPayments();
             }
             if (this.hasRole('patient')) {
                 await this.loadDoctorsForBooking();
                 await this.loadPatientAppointments();
+                await this.loadPayments();
             }
             await this.loadProfile();
         },
@@ -364,6 +378,7 @@ createApp({
             try {
                 await apiCall(`/admin/doctors/${doctorId}`, 'DELETE');
                 await this.loadDoctors();
+                await this.loadStats();
             } catch (error) {
                 await this.logError(error, 'deleteDoctor');
             }
@@ -384,6 +399,7 @@ createApp({
             try {
                 await apiCall(`/admin/patients/${patientId}`, 'DELETE');
                 await this.loadPatients();
+                await this.loadStats();
             } catch (error) {
                 await this.logError(error, 'deletePatient');
             }
@@ -396,6 +412,15 @@ createApp({
                 await this.logError(error, 'loadAdminAppointments');
             }
         },
+        async loadAdminPayments() {
+            try {
+                const response = await apiCall('/admin/payments', 'GET');
+                this.adminPayments = response.payments || [];
+                this.adminPaymentSummary = response.summary || {};
+            } catch (error) {
+                await this.logError(error, 'loadAdminPayments');
+            }
+        },
 
         // --- Doctor methods ---
         async loadDoctorAppointments() {
@@ -404,6 +429,21 @@ createApp({
             } catch (error) {
                 await this.logError(error, 'loadDoctorAppointments');
             }
+        },
+        async loadDoctorPayments() {
+            try {
+                const response = await apiCall('/doctor/payments', 'GET');
+                this.doctorPayments = response.payments || [];
+                this.doctorPaymentSummary = response.summary || {};
+            } catch (error) {
+                await this.logError(error, 'loadDoctorPayments');
+            }
+        },
+        showAppointmentDetails(appointment) {
+            this.appointmentDetails = appointment;
+        },
+        closeAppointmentDetails() {
+            this.appointmentDetails = null;
         },
         // Opens treatment form for selected booked appointment.
         showCompleteAppointment(appointment) {
@@ -416,6 +456,7 @@ createApp({
                 await apiCall(`/appointments/${this.selectedAppointment.id}/complete`, 'POST', this.treatmentForm);
                 this.selectedAppointment = null;
                 await this.loadDoctorAppointments();
+                await this.loadDoctorPayments();
                 this.showSuccess('Appointment completed.');
             } catch (error) {
                 await this.logError(error, 'completeAppointment');
@@ -452,6 +493,7 @@ createApp({
                 });
                 await this.loadDoctorsForBooking();
                 await this.loadPatientAppointments();
+                await this.loadPayments();
                 this.showSuccess(`Appointment booked at ${response.assigned_time}`);
             } catch (error) {
                 await this.logError(error, 'bookAppointment');
@@ -473,8 +515,35 @@ createApp({
             try {
                 await apiCall(`/appointments/${appointmentId}/cancel`, 'POST');
                 await this.loadPatientAppointments();
+                await this.loadPayments();
             } catch (error) {
                 await this.logError(error, 'cancelAppointment');
+            }
+        },
+        showPaymentForm(appointment) {
+            this.paymentAppointment = appointment;
+            this.paymentForm = {
+                amount: 500,
+                payment_method: 'credit_card',
+                card_number: ''
+            };
+        },
+        async processPayment() {
+            if (!this.paymentAppointment) {
+                return;
+            }
+            try {
+                await apiCall(
+                    `/patient/payment/appointment/${this.paymentAppointment.id}`,
+                    'POST',
+                    this.paymentForm
+                );
+                this.paymentAppointment = null;
+                await this.loadPatientAppointments();
+                await this.loadPayments();
+                this.showSuccess('Payment completed.');
+            } catch (error) {
+                await this.logError(error, 'processPayment');
             }
         },
         // Payment history loader (dummy payment portal backend).
