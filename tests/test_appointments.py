@@ -36,11 +36,12 @@ def test_book_appointment_success(test_client):
 
     response = test_client.post(
         "/api/appointments",
-        json={"doctor_id": doctor_id, "date": tomorrow, "time": "10:00"},
+        json={"doctor_id": doctor_id, "date": tomorrow},
     )
     assert response.status_code == 201
     data = response.get_json()
     assert "appointment_id" in data
+    assert "assigned_time" in data
 
 
 def test_book_appointment_past_date(test_client):
@@ -55,15 +56,13 @@ def test_book_appointment_past_date(test_client):
 
     response = test_client.post(
         "/api/appointments",
-        json={"doctor_id": doctor_id, "date": yesterday, "time": "10:00"},
+        json={"doctor_id": doctor_id, "date": yesterday},
     )
     assert response.status_code == 400
 
 
-def test_book_appointment_double_booking_doctor(test_client):
-    """
-    Test preventing double booking for same doctor at same time.
-    """
+def test_book_appointment_serial_slots_for_same_doctor(test_client):
+    """Test serial slot assignment for same doctor/day."""
     login(test_client, "patient", "patientpassword")
     resp = test_client.get("/api/doctors")
     doctor_id = resp.get_json()[0]["id"]
@@ -71,17 +70,18 @@ def test_book_appointment_double_booking_doctor(test_client):
     tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
 
     # First booking
-    test_client.post(
+    first = test_client.post(
         "/api/appointments",
-        json={"doctor_id": doctor_id, "date": tomorrow, "time": "14:00"},
+        json={"doctor_id": doctor_id, "date": tomorrow},
     )
+    assert first.status_code == 201
 
-    # Second booking same time - should fail
-    response = test_client.post(
+    second = test_client.post(
         "/api/appointments",
-        json={"doctor_id": doctor_id, "date": tomorrow, "time": "14:00"},
+        json={"doctor_id": doctor_id, "date": tomorrow},
     )
-    assert response.status_code == 409
+    assert second.status_code == 201
+    assert first.get_json()["assigned_time"] != second.get_json()["assigned_time"]
 
 
 def test_complete_appointment(test_client):
@@ -95,7 +95,7 @@ def test_complete_appointment(test_client):
     tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
     test_client.post(
         "/api/appointments",
-        json={"doctor_id": doctor_id, "date": tomorrow, "time": "11:00"},
+        json={"doctor_id": doctor_id, "date": tomorrow},
     )
 
     # Doctor completes it
@@ -125,7 +125,7 @@ def test_doctor_view_patient_summary(test_client):
     tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
     test_client.post(
         "/api/appointments",
-        json={"doctor_id": doctor_id, "date": tomorrow, "time": "09:00"},
+        json={"doctor_id": doctor_id, "date": tomorrow},
     )
 
     # Get patient ID
@@ -151,30 +151,17 @@ def test_patient_export_trigger(test_client):
     assert "job_id" in data
 
 
-def test_book_appointment_double_booking_patient(test_client):
-    """
-    Test preventing patient from booking multiple appointments at same time.
-    """
+def test_book_appointment_outside_7_day_window(test_client):
+    """Test appointments cannot be booked outside upcoming 7 days."""
     login(test_client, "patient", "patientpassword")
     resp = test_client.get("/api/doctors")
-    doctors = resp.get_json()
-
-    tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
-
-    # First booking
-    test_client.post(
-        "/api/appointments",
-        json={"doctor_id": doctors[0]["id"], "date": tomorrow, "time": "15:00"},
-    )
-
-    # Try to book with same doctor at same time - should fail (covered by other test)
-    # Actually, try to book with DIFFERENT doctor at same time
-    # (If multiple doctors exist)
+    doctor_id = resp.get_json()[0]["id"]
+    outside_range = (datetime.now() + timedelta(days=8)).strftime("%Y-%m-%d")
     response = test_client.post(
         "/api/appointments",
-        json={"doctor_id": doctors[0]["id"], "date": tomorrow, "time": "15:00"},
+        json={"doctor_id": doctor_id, "date": outside_range},
     )
-    assert response.status_code == 409
+    assert response.status_code == 400
 
 
 def test_cancel_appointment_patient(test_client):
@@ -187,7 +174,7 @@ def test_cancel_appointment_patient(test_client):
     tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
     test_client.post(
         "/api/appointments",
-        json={"doctor_id": doctor_id, "date": tomorrow, "time": "13:00"},
+        json={"doctor_id": doctor_id, "date": tomorrow},
     )
 
     resp = test_client.get("/api/my-appointments")
@@ -208,7 +195,7 @@ def test_doctor_view_patient_full_history(test_client):
     tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
     test_client.post(
         "/api/appointments",
-        json={"doctor_id": doctor_id, "date": tomorrow, "time": "16:00"},
+        json={"doctor_id": doctor_id, "date": tomorrow},
     )
 
     # Get patient ID
@@ -261,3 +248,39 @@ def test_search_doctors(test_client):
     response = test_client.get("/api/doctors?search=General")
     assert response.status_code == 200
     assert len(response.get_json()) > 0
+
+
+def test_doctor_availability_next_7_days_endpoint(test_client):
+    """Test doctor-specific upcoming availability endpoint."""
+    login(test_client, "patient", "patientpassword")
+    doctors = test_client.get("/api/doctors").get_json()
+    doctor_id = doctors[0]["id"]
+
+    response = test_client.get(f"/api/doctors/{doctor_id}/availability")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert len(data["availability"]) == 7
+    assert "remaining_slots" in data["availability"][0]
+
+
+def test_profile_update_reflects_in_get_profile(test_client):
+    """Test patient profile updates are retrievable immediately."""
+    login(test_client, "patient", "patientpassword")
+    update_response = test_client.post(
+        "/api/profile",
+        json={
+            "name": "Updated Patient",
+            "email": "updated.patient@test.com",
+            "phone": "9998887777",
+            "history": "Updated medical history",
+            "notification_pref": "chat",
+        },
+    )
+    assert update_response.status_code == 200
+
+    profile_response = test_client.get("/api/profile")
+    assert profile_response.status_code == 200
+    profile = profile_response.get_json()
+    assert profile["name"] == "Updated Patient"
+    assert profile["email"] == "updated.patient@test.com"
+    assert profile["notification_pref"] == "chat"

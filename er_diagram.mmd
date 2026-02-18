@@ -50,7 +50,12 @@ erDiagram
         int id PK "Primary Key"
         int user_id FK "Foreign Key to USER"
         int department_id FK "Foreign Key to DEPARTMENT"
-        string availability "Working hours schedule"
+        string availability "Availability summary"
+        string availability_days "Allowed weekdays e.g. Mon,Tue"
+        string availability_start "Daily start time HH:MM"
+        string availability_end "Daily end time HH:MM"
+        int slot_minutes "Consultation slot duration in minutes"
+        text bio "Doctor profile information"
         boolean email_notifications "Enable monthly reports"
     }
     

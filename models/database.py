@@ -134,6 +134,13 @@ class Doctor(db.Model):
     availability = db.Column(
         db.String(500), default="Mon-Fri, 9AM-5PM"
     )  # Simple string for simplicity
+    availability_days = db.Column(
+        db.String(100), default="Mon,Tue,Wed,Thu,Fri"
+    )
+    availability_start = db.Column(db.String(5), default="09:00")
+    availability_end = db.Column(db.String(5), default="17:00")
+    slot_minutes = db.Column(db.Integer, default=30)
+    bio = db.Column(db.Text, default="")
     email_notifications = db.Column(
         db.Boolean, default=True
     )  # Enable/disable monthly reports
@@ -152,8 +159,18 @@ class Doctor(db.Model):
             "phone": self.user.phone,
             "department": self.department.name,
             "availability": self.availability,
+            "availability_days": self.get_availability_days(),
+            "availability_start": self.availability_start or "09:00",
+            "availability_end": self.availability_end or "17:00",
+            "slot_minutes": self.slot_minutes or 30,
+            "bio": self.bio or "",
             "email_notifications": self.email_notifications,
         }
+
+    def get_availability_days(self):
+        """Return normalized list of available weekday abbreviations."""
+        days = self.availability_days or "Mon,Tue,Wed,Thu,Fri"
+        return [day.strip() for day in days.split(",") if day.strip()]
 
 
 class Patient(db.Model):

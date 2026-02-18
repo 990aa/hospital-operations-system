@@ -22,7 +22,6 @@ def test_login_logout(test_client):
     )
     assert response.status_code == 200
     data = response.get_json()
-    assert data["message"] == "Login successful"
     assert data["role"] == "admin"
     assert "user" in data
     assert data["user"]["name"] == "Test Admin"

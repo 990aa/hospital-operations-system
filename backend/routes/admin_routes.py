@@ -13,13 +13,16 @@ Author: Abdul Ahad
 """
 
 from flask import Blueprint, request, jsonify, current_app
-from flask_security import roles_required
+from flask_security import roles_required, current_user
 from flask_security.utils import hash_password
 from sqlalchemy import or_
-from models.database import db, User, Doctor, Patient, Appointment, ExportJob
+from models.database import db, User, Doctor, Patient, Appointment, ExportJob, Department
 
 # Create Blueprint for admin routes
 admin_bp = Blueprint("admin", __name__)
+
+
+WEEKDAY_ORDER = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
 
 # Statistics Routes
@@ -95,6 +98,18 @@ def manage_doctors():
         data = request.json
         user_datastore = current_app.extensions["security"].datastore
 
+        days = data.get("availability_days") or ["Mon", "Tue", "Wed", "Thu", "Fri"]
+        if not isinstance(days, list):
+            return jsonify({"message": "availability_days must be a list"}), 400
+
+        normalized_days = [day for day in WEEKDAY_ORDER if day in set(days)]
+        if not normalized_days:
+            return jsonify({"message": "At least one availability day is required"}), 400
+
+        availability_start = data.get("availability_start", "09:00")
+        availability_end = data.get("availability_end", "17:00")
+        slot_minutes = data.get("slot_minutes", 30)
+
         # Check for duplicate username
         if User.query.filter_by(username=data["username"]).first():
             return jsonify({"message": "Username already exists"}), 400
@@ -119,7 +134,12 @@ def manage_doctors():
         new_doctor = Doctor(
             user_id=new_user.id,
             department_id=data["department_id"],
-            availability=data.get("availability", "Mon-Fri 9AM-5PM"),
+            availability=f"{','.join(normalized_days)} {availability_start}-{availability_end}",
+            availability_days=",".join(normalized_days),
+            availability_start=availability_start,
+            availability_end=availability_end,
+            slot_minutes=slot_minutes,
+            bio=data.get("bio", ""),
             email_notifications=data.get("email_notifications", True),
         )
         db.session.add(new_doctor)
@@ -152,6 +172,41 @@ def manage_doctors():
 
     doctors = query.all()
     return jsonify([d.to_dict() for d in doctors])
+
+
+@admin_bp.route("/departments", methods=["GET", "POST"])
+def manage_departments():
+    """List departments or create a new department (admin only for POST)."""
+    if request.method == "POST":
+        if not current_user.is_authenticated or not current_user.has_role("admin"):
+            return jsonify({"message": "Unauthorized"}), 403
+
+        data = request.json or {}
+        name = (data.get("name") or "").strip()
+        description = (data.get("description") or "").strip()
+
+        if not name:
+            return jsonify({"message": "Department name is required"}), 400
+
+        existing = Department.query.filter(
+            Department.name.ilike(name)
+        ).first()
+        if existing:
+            return jsonify({"message": "Department already exists", "department": existing.to_dict()}), 200
+
+        department = Department(name=name, description=description)
+        db.session.add(department)
+        db.session.commit()
+
+        current_app.cache.delete("all_departments")
+        return jsonify({"message": "Department created", "department": department.to_dict()}), 201
+
+    search = request.args.get("search", "").strip()
+    query = Department.query
+    if search:
+        query = query.filter(Department.name.ilike(f"%{search}%"))
+    departments = query.order_by(Department.name.asc()).all()
+    return jsonify([department.to_dict() for department in departments])
 
 
 @admin_bp.route("/admin/doctors/<int:id>", methods=["DELETE"])

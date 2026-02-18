@@ -18,7 +18,7 @@ import secrets
 from flask import Blueprint, request, jsonify, current_app, send_file
 from flask_security import login_required, current_user, roles_required
 from sqlalchemy import or_, and_
-from datetime import datetime
+from datetime import datetime, timedelta, date
 
 from models.database import (
     db,
@@ -34,6 +34,85 @@ from backend.tasks import export_patient_treatments
 
 # Create Blueprint for patient routes
 patient_bp = Blueprint("patient", __name__)
+
+
+WEEKDAY_TO_INDEX = {
+    "Mon": 0,
+    "Tue": 1,
+    "Wed": 2,
+    "Thu": 3,
+    "Fri": 4,
+    "Sat": 5,
+    "Sun": 6,
+}
+INDEX_TO_WEEKDAY = {value: key for key, value in WEEKDAY_TO_INDEX.items()}
+
+
+def _parse_time_string(time_str, fallback):
+    value = time_str or fallback
+    try:
+        return datetime.strptime(value, "%H:%M")
+    except ValueError:
+        return datetime.strptime(fallback, "%H:%M")
+
+
+def _doctor_days(doctor):
+    days = doctor.get_availability_days() if hasattr(doctor, "get_availability_days") else []
+    return {day for day in days if day in WEEKDAY_TO_INDEX}
+
+
+def _available_slots_for_day(doctor, target_date):
+    """Return available HH:MM slots for doctor on target_date."""
+    available_days = _doctor_days(doctor)
+    if not available_days:
+        available_days = {"Mon", "Tue", "Wed", "Thu", "Fri"}
+
+    weekday = INDEX_TO_WEEKDAY[target_date.weekday()]
+    if weekday not in available_days:
+        return []
+
+    start = _parse_time_string(getattr(doctor, "availability_start", None), "09:00")
+    end = _parse_time_string(getattr(doctor, "availability_end", None), "17:00")
+    slot_minutes = int(getattr(doctor, "slot_minutes", 30) or 30)
+    if slot_minutes <= 0:
+        slot_minutes = 30
+
+    slots = []
+    current = start
+    while current < end:
+        slots.append(current.strftime("%H:%M"))
+        current += timedelta(minutes=slot_minutes)
+
+    booked_times = {
+        appointment.time
+        for appointment in Appointment.query.filter(
+            and_(
+                Appointment.doctor_id == doctor.id,
+                Appointment.date == target_date.strftime("%Y-%m-%d"),
+                Appointment.status == "Booked",
+            )
+        ).all()
+    }
+
+    return [slot for slot in slots if slot not in booked_times]
+
+
+def _doctor_availability_next_7_days(doctor):
+    results = []
+    today = date.today()
+    for offset in range(7):
+        day = today + timedelta(days=offset)
+        available_slots = _available_slots_for_day(doctor, day)
+        results.append(
+            {
+                "date": day.strftime("%Y-%m-%d"),
+                "day": INDEX_TO_WEEKDAY[day.weekday()],
+                "available_slots": available_slots,
+                "next_available_slot": available_slots[0] if available_slots else None,
+                "remaining_slots": len(available_slots),
+            }
+        )
+    return results
 
 
 # Doctor Search Routes
@@ -79,7 +158,11 @@ def search_doctors():
     if cached:
         return jsonify(cached)
 
-    result = [d.to_dict() for d in doctors]
+    result = []
+    for doctor in doctors:
+        doctor_data = doctor.to_dict()
+        doctor_data["upcoming_availability"] = _doctor_availability_next_7_days(doctor)
+        result.append(doctor_data)
 
     # Cache for 1 minute (60 seconds)
     current_app.cache.set(cache_key, result, timeout=60)
@@ -87,7 +170,7 @@ def search_doctors():
     return jsonify(result)
 
 
-@patient_bp.route("/departments", methods=["GET"])
+@patient_bp.route("/patient/departments", methods=["GET"])
 @login_required
 def get_departments():
     """
@@ -111,6 +194,20 @@ def get_departments():
     current_app.cache.set(cache_key, result, timeout=300)
 
     return jsonify(result)
+
+
+@patient_bp.route("/doctors/<int:doctor_id>/availability", methods=["GET"])
+def doctor_availability(doctor_id):
+    """Get upcoming 7-day availability for a specific doctor."""
+    doctor = Doctor.query.get_or_404(doctor_id)
+    return jsonify(
+        {
+            "doctor_id": doctor.id,
+            "doctor_name": doctor.user.name,
+            "department": doctor.department.name,
+            "availability": _doctor_availability_next_7_days(doctor),
+        }
+    )
 
 
 # Appointment Routes
@@ -140,51 +237,47 @@ def book_appointment():
     if not patient:
         return jsonify({"message": "Patient profile not found"}), 404
 
-    # Validate date is not in the past
+    doctor_id = data.get("doctor_id")
+    date_str = data.get("date")
+    doctor = Doctor.query.get(doctor_id)
+    if not doctor:
+        return jsonify({"message": "Doctor not found"}), 404
+
+    # Validate date is not in the past and within next 7 days
     try:
-        appointment_date = datetime.strptime(data["date"], "%Y-%m-%d").date()
+        appointment_date = datetime.strptime(date_str, "%Y-%m-%d").date()
         if appointment_date < datetime.now().date():
             return jsonify({"message": "Cannot book appointments in the past"}), 400
+        if appointment_date > datetime.now().date() + timedelta(days=6):
+            return jsonify({"message": "Appointments can be booked only within next 7 days"}), 400
     except ValueError:
         return jsonify({"message": "Invalid date format. Use YYYY-MM-DD"}), 400
 
-    # Check for booking conflicts
-    # Prevent multiple appointments at same date/time for same doctor
-    existing = Appointment.query.filter(
-        and_(
-            Appointment.doctor_id == data["doctor_id"],
-            Appointment.date == data["date"],
-            Appointment.time == data["time"],
-            Appointment.status.in_(["Booked"]),  # Only check booked appointments
-        )
-    ).first()
+    available_slots = _available_slots_for_day(doctor, appointment_date)
+    if not available_slots:
+        return jsonify({"message": "Doctor is not available on this date"}), 409
 
-    if existing:
-        return jsonify(
-            {"message": "This time slot is already booked. Please select another time."}
-        ), 409  # HTTP 409 Conflict
+    assigned_time = available_slots[0]
 
-    # Check if patient already has appointment at same time
+    # Check if patient already has appointment at assigned time
     patient_conflict = Appointment.query.filter(
         and_(
             Appointment.patient_id == patient.id,
-            Appointment.date == data["date"],
-            Appointment.time == data["time"],
+            Appointment.date == date_str,
+            Appointment.time == assigned_time,
             Appointment.status == "Booked",
         )
     ).first()
 
     if patient_conflict:
-        return jsonify(
-            {"message": "You already have an appointment at this time."}
-        ), 409
+        return jsonify({"message": "You already have an appointment at this time."}), 409
 
     # Create new appointment
     new_app = Appointment(
         patient_id=patient.id,
-        doctor_id=data["doctor_id"],
-        date=data["date"],
-        time=data["time"],
+        doctor_id=doctor_id,
+        date=date_str,
+        time=assigned_time,
         status="Booked",
     )
     db.session.add(new_app)
@@ -198,7 +291,12 @@ def book_appointment():
     current_app.cache.delete(f"patient_appointments_{patient.id}_Cancelled")
 
     return jsonify(
-        {"message": "Appointment booked successfully", "appointment_id": new_app.id}
+        {
+            "message": "Appointment booked successfully",
+            "appointment_id": new_app.id,
+            "assigned_time": assigned_time,
+            "date": date_str,
+        }
     ), 201
 
 
@@ -709,7 +807,7 @@ def get_patient_payments():
     result = []
     for payment in payments:
         payment_dict = payment.to_dict()
-        payment_dict["appointment_date"] = payment.appointment.date.isoformat() if payment.appointment.date else None
+        payment_dict["appointment_date"] = payment.appointment.date if payment.appointment.date else None
         payment_dict["doctor_name"] = payment.appointment.doctor.user.name if payment.appointment.doctor else "Unknown"
         result.append(payment_dict)
 

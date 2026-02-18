@@ -66,6 +66,10 @@ def test_add_doctor(admin_token):
             "email": "newdoc@test.com",
             "phone": "5559876543",
             "department_id": dept_id,
+            "availability_days": ["Mon", "Wed", "Fri"],
+            "availability_start": "10:00",
+            "availability_end": "14:00",
+            "slot_minutes": 30,
         },
     )
     assert response.status_code == 201
@@ -74,7 +78,23 @@ def test_add_doctor(admin_token):
     # Verify doctor added
     response = admin_token.get("/api/admin/doctors")
     data = response.get_json()
-    assert any(d["username"] == "newdoc" for d in data)
+    added = [d for d in data if d["username"] == "newdoc"][0]
+    assert added["availability_start"] == "10:00"
+    assert added["availability_end"] == "14:00"
+
+
+def test_create_department_and_case_insensitive_filter(admin_token):
+    """Test admin can create department and filter by name case-insensitively."""
+    create_response = admin_token.post(
+        "/api/departments",
+        json={"name": "Endocrinology", "description": "Hormonal care"},
+    )
+    assert create_response.status_code in [200, 201]
+
+    filter_response = admin_token.get("/api/departments?search=endo")
+    assert filter_response.status_code == 200
+    departments = filter_response.get_json()
+    assert any(department["name"] == "Endocrinology" for department in departments)
 
 
 def test_add_doctor_duplicate_username(admin_token):

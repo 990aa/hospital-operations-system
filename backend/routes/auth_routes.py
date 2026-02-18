@@ -46,9 +46,7 @@ def login():
         elif user.has_role("doctor"):
             role = "doctor"
 
-        return jsonify(
-            {"message": "Login successful", "role": role, "user": user.to_dict()}
-        )
+        return jsonify({"role": role, "user": user.to_dict()})
 
     return jsonify({"message": "Invalid credentials"}), 401
 

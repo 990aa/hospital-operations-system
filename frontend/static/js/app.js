@@ -1,509 +1,464 @@
-/**
- * Hospital Management System - Frontend Application
- * 
- * This file contains all the Vue.js logic for the single-page application.
- * It handles authentication, role-based dashboards, and API communications.
- * 
- * Structure:
- * - API Helper Function
- * - Vue App Setup with Data and Methods
- * - Dashboard-specific logic (Admin, Doctor, Patient)
- */
-
-
-// API HELPER FUNCTION
-
-/**
- * Makes an HTTP request to the backend API
- * @param {string} url - API endpoint (e.g., '/login', '/admin/stats')
- * @param {string} method - HTTP method ('GET', 'POST', 'PUT', 'DELETE')
- * @param {object} body - Request body for POST/PUT requests
- * @returns {Promise} Response data or error
- */
-async function apiCall(url, method = 'GET', body = null) {
-    const options = {
-        method: method,
-        headers: { 'Content-Type': 'application/json' }
-    };
-    
-    // Add body for POST/PUT requests
-    if (body) {
-        options.body = JSON.stringify(body);
-    }
-    
+async function sendClientLog(payload) {
     try {
-        // Make the fetch request
-        const response = await fetch('/api' + url, options);
-        const data = await response.json();
-        
-        // Handle errors
-        if (!response.ok) {
-            throw new Error(data.message || 'Request failed');
-        }
-        
-        return data;
-    } catch (error) {
-        throw error;
+        await fetch('/api/client-log', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+    } catch (_) {
+        // intentionally ignored
     }
 }
 
+async function apiCall(url, method = 'GET', body = null) {
+    const options = {
+        method,
+        headers: { 'Content-Type': 'application/json' }
+    };
 
-// VUE.JS APPLICATION
+    if (body) {
+        options.body = JSON.stringify(body);
+    }
+
+    const response = await fetch('/api' + url, options);
+    const raw = await response.text();
+    let data = null;
+
+    try {
+        data = raw ? JSON.parse(raw) : null;
+    } catch (error) {
+        await sendClientLog({
+            type: 'JSON_PARSE_ERROR',
+            url,
+            method,
+            status: response.status,
+            raw,
+            parseError: error.message
+        });
+        throw new Error('Request failed');
+    }
+
+    if (!response.ok) {
+        await sendClientLog({
+            type: 'API_ERROR',
+            url,
+            method,
+            status: response.status,
+            requestBody: body,
+            response: data
+        });
+        throw new Error((data && data.message) || 'Request failed');
+    }
+
+    return data;
+}
 
 const { createApp } = Vue;
 
 createApp({
-    /**
-     * Data function - defines all reactive state variables
-     */
     data() {
         return {
-            //  Authentication State 
-            currentUser: null,              // Logged-in user object
-            isLogin: true,                  // Toggle between login/register forms
-            selectedRole: 'patient',        // Selected role for login
-            authForm: {                     // Form data for login/register
+            currentUser: null,
+            isLogin: true,
+            selectedRole: 'patient',
+            authForm: {
                 username: '',
                 password: '',
                 name: '',
                 email: ''
             },
-            
-            //  Alert Messages 
-            alertMsg: '',                   // Alert message text
-            alertType: 'success',           // Alert type: 'success', 'danger', 'warning'
-            
-            //  Admin Dashboard Data 
-            adminTab: 'stats',              // Current tab in admin dashboard
-            stats: {},                      // Statistics data
-            doctors: [],                    // List of doctors
-            departments: [],                // List of departments
-            patients: [],                   // List of patients
-            showAddDoctor: false,           // Show/hide add doctor form
-            newDoctor: {                    // Form data for new doctor
+            alertMsg: '',
+            alertType: 'success',
+
+            adminTab: 'stats',
+            stats: {},
+            doctors: [],
+            departments: [],
+            departmentSearch: '',
+            newDepartmentName: '',
+            patients: [],
+            adminAppointments: [],
+            showAddDoctor: false,
+            newDoctor: {
                 name: '',
                 username: '',
                 password: '',
                 email: '',
                 phone: '',
-                department_id: ''
+                department_id: '',
+                availability_days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+                availability_start: '09:00',
+                availability_end: '17:00',
+                slot_minutes: 30,
+                bio: ''
             },
-            patientSearch: '',              // Patient search query
-            
-            //  Doctor Dashboard Data 
-            doctorTab: 'appointments',      // Current tab in doctor dashboard
-            doctorAppointments: [],         // Doctor's appointments list
-            selectedAppointment: null,      // Currently selected appointment for completion
-            treatmentForm: {                // Form data for completing appointment
-                diagnosis: '',
-                prescription: '',
-                notes: ''
-            },
-            reportMonth: new Date().getMonth() + 1,  // Month for PDF report
-            reportYear: new Date().getFullYear(),    // Year for PDF report
-            
-            //  Patient Dashboard Data 
-            patientTab: 'book',             // Current tab in patient dashboard
-            patientAppointments: [],        // Patient's appointments list
-            availableDoctors: [],           // List of doctors for booking
-            bookingForm: {                  // Form data for booking appointment
+            patientSearch: '',
+
+            doctorTab: 'appointments',
+            doctorAppointments: [],
+            selectedAppointment: null,
+            treatmentForm: { diagnosis: '', prescription: '', notes: '' },
+            reportMonth: new Date().getMonth() + 1,
+            reportYear: new Date().getFullYear(),
+
+            patientTab: 'book',
+            patientAppointments: [],
+            availableDoctors: [],
+            selectedDoctorProfile: null,
+            bookingForm: {
                 doctor_id: '',
-                date: '',
-                time: ''
+                date: ''
             },
-            paymentAppointment: null,       // Currently selected appointment for payment
-            paymentForm: {                  // Form data for payment
-                amount: 100.00,
-                payment_method: 'credit_card',
-                card_number: ''
+            payments: [],
+
+            profileForm: {
+                name: '',
+                email: '',
+                phone: '',
+                history: '',
+                notification_pref: 'email'
             },
-            payments: []                    // List of patient payments
+            weekdayOptions: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
         };
     },
-    
-    /**
-     * Mounted lifecycle hook - runs when component is mounted
-     */
-    async mounted() {
-        // Check if user is already logged in
-        await this.checkLogin();
-        
-        // Load initial data based on role
-        if (this.currentUser) {
-            if (this.hasRole('admin')) {
-                await this.loadStats();
-                await this.loadDepartments();
+
+    computed: {
+        filteredDepartments() {
+            const q = (this.departmentSearch || '').trim().toLowerCase();
+            if (!q) {
+                return this.departments;
             }
+            return this.departments.filter((department) =>
+                (department.name || '').toLowerCase().includes(q)
+            );
+        },
+        selectedDoctor() {
+            return this.availableDoctors.find((doctor) => String(doctor.id) === String(this.bookingForm.doctor_id)) || null;
+        },
+        selectableDates() {
+            if (!this.selectedDoctor || !this.selectedDoctor.upcoming_availability) {
+                return [];
+            }
+            return this.selectedDoctor.upcoming_availability.filter((day) => day.remaining_slots > 0);
         }
     },
-    
-    /**
-     * Methods - all functions for the application
-     */
+
+    async mounted() {
+        await this.checkLogin();
+        if (this.currentUser) {
+            await this.loadInitialDataForRole();
+        }
+    },
+
     methods: {
-        
-        // AUTHENTICATION METHODS
-        
-        
-        /**
-         * Check if user is logged in by calling /current-user endpoint
-         */
+        showSuccess(message) {
+            this.alertType = 'success';
+            this.alertMsg = message;
+            setTimeout(() => {
+                this.alertMsg = '';
+            }, 3000);
+        },
+        async logError(error, context) {
+            const payload = {
+                type: 'FRONTEND_RUNTIME_ERROR',
+                context,
+                message: error && error.message ? error.message : String(error),
+                stack: error && error.stack ? error.stack : null
+            };
+            console.error(context, error);
+            await sendClientLog(payload);
+        },
+        hasRole(role) {
+            return this.currentUser && this.currentUser.roles && this.currentUser.roles.includes(role);
+        },
+        getUserRole() {
+            if (!this.currentUser || !this.currentUser.roles || !this.currentUser.roles.length) {
+                return '';
+            }
+            const role = this.currentUser.roles[0];
+            return role.charAt(0).toUpperCase() + role.slice(1);
+        },
         async checkLogin() {
             try {
                 const data = await apiCall('/current-user', 'GET');
                 if (data && data.id) {
                     this.currentUser = data;
+                    this.syncProfileForm(data);
                 }
-            } catch (error) {
-                // User not logged in, stay on login page
-                console.log('Not logged in');
+            } catch (_) {
+                // not logged in
             }
         },
-        
-        /**
-         * Handle login or registration form submission
-         */
+        async loadInitialDataForRole() {
+            if (this.hasRole('admin')) {
+                await this.loadStats();
+                await this.loadDepartments();
+                await this.loadDoctors();
+                await this.loadPatients();
+                await this.loadAdminAppointments();
+            }
+            if (this.hasRole('doctor')) {
+                await this.loadDoctorAppointments();
+            }
+            if (this.hasRole('patient')) {
+                await this.loadDoctorsForBooking();
+                await this.loadPatientAppointments();
+            }
+            await this.loadProfile();
+        },
+        syncProfileForm(user) {
+            this.profileForm.name = user.name || '';
+            this.profileForm.email = user.email || '';
+            this.profileForm.phone = user.phone || '';
+        },
         async handleAuth() {
             try {
                 if (this.isLogin) {
-                    // LOGIN
                     const response = await apiCall('/login', 'POST', {
                         username: this.authForm.username,
                         password: this.authForm.password
                     });
-                    
-                    // Set current user and load appropriate data
                     this.currentUser = response.user;
-                    this.showAlert('Login successful!', 'success');
-                    
-                    // Load data based on role
-                    if (this.hasRole('admin')) {
-                        await this.loadStats();
-                        await this.loadDepartments();
-                    }
+                    this.syncProfileForm(response.user);
+                    await this.loadInitialDataForRole();
                 } else {
-                    // REGISTER (Patient only)
                     await apiCall('/register', 'POST', {
                         username: this.authForm.username,
                         password: this.authForm.password,
                         name: this.authForm.name,
                         email: this.authForm.email || ''
                     });
-                    
-                    this.showAlert('Registration successful! Please login.', 'success');
                     this.isLogin = true;
-                    
-                    // Clear form
                     this.authForm = { username: '', password: '', name: '', email: '' };
+                    this.showSuccess('Registration successful. Please login.');
                 }
             } catch (error) {
-                this.showAlert(error.message, 'danger');
+                await this.logError(error, 'handleAuth');
             }
         },
-        
-        /**
-         * Logout the current user
-         */
         async logout() {
             try {
                 await apiCall('/logout', 'POST');
-                this.currentUser = null;
-                this.authForm = { username: '', password: '', name: '', email: '' };
-                this.isLogin = true;
-                this.showAlert('Logged out successfully', 'success');
             } catch (error) {
-                this.showAlert('Logout failed', 'danger');
+                await this.logError(error, 'logout');
             }
+            this.currentUser = null;
+            this.alertMsg = '';
+            this.isLogin = true;
+            this.authForm = { username: '', password: '', name: '', email: '' };
         },
-        
-        /**
-         * Check if current user has a specific role
-         * @param {string} role - Role name ('admin', 'doctor', 'patient')
-         * @returns {boolean}
-         */
-        hasRole(role) {
-            return this.currentUser && this.currentUser.roles && this.currentUser.roles.includes(role);
-        },
-        
-        /**
-         * Get formatted role name for display
-         * @returns {string} Capitalized role name
-         */
-        getUserRole() {
-            if (!this.currentUser || !this.currentUser.roles) return '';
-            const role = this.currentUser.roles[0];
-            return role.charAt(0).toUpperCase() + role.slice(1);
-        },
-        
-        
-        // ALERT METHODS
-        
-        
-        /**
-         * Show alert message
-         * @param {string} message - Alert message text
-         * @param {string} type - Alert type ('success', 'danger', 'warning', 'info')
-         */
-        showAlert(message, type = 'success') {
-            this.alertMsg = message;
-            this.alertType = type;
-            
-            // Auto-hide after 5 seconds
-            setTimeout(() => {
-                this.alertMsg = '';
-            }, 5000);
-        },
-        
-        
-        // ADMIN METHODS
-        
-        
-        /**
-         * Load admin statistics from backend
-         */
+
         async loadStats() {
             try {
                 this.stats = await apiCall('/admin/stats', 'GET');
             } catch (error) {
-                this.showAlert('Failed to load statistics', 'danger');
+                await this.logError(error, 'loadStats');
             }
         },
-        
-        /**
-         * Load list of departments
-         */
         async loadDepartments() {
             try {
-                this.departments = await apiCall('/departments', 'GET');
+                const query = this.departmentSearch ? `?search=${encodeURIComponent(this.departmentSearch)}` : '';
+                this.departments = await apiCall('/departments' + query, 'GET');
             } catch (error) {
-                this.showAlert('Failed to load departments', 'danger');
+                await this.logError(error, 'loadDepartments');
             }
         },
-        
-        /**
-         * Load list of doctors
-         */
+        async createDepartment() {
+            const name = (this.newDepartmentName || '').trim();
+            if (!name) {
+                return;
+            }
+            try {
+                const response = await apiCall('/departments', 'POST', {
+                    name,
+                    description: ''
+                });
+                this.newDepartmentName = '';
+                await this.loadDepartments();
+                if (response && response.department) {
+                    this.newDoctor.department_id = response.department.id;
+                }
+                this.showSuccess('Department saved.');
+            } catch (error) {
+                await this.logError(error, 'createDepartment');
+            }
+        },
+        toggleDoctorDay(day) {
+            const days = new Set(this.newDoctor.availability_days);
+            if (days.has(day)) {
+                days.delete(day);
+            } else {
+                days.add(day);
+            }
+            this.newDoctor.availability_days = Array.from(days);
+        },
         async loadDoctors() {
             try {
                 this.doctors = await apiCall('/admin/doctors', 'GET');
             } catch (error) {
-                this.showAlert('Failed to load doctors', 'danger');
+                await this.logError(error, 'loadDoctors');
             }
         },
-        
-        /**
-         * Add a new doctor
-         */
         async addDoctor() {
             try {
-                await apiCall('/admin/doctor', 'POST', this.newDoctor);
-                this.showAlert('Doctor added successfully', 'success');
-                
-                // Reset form and reload doctors
-                this.newDoctor = { name: '', username: '', password: '', email: '', phone: '', department_id: '' };
+                await apiCall('/admin/doctors', 'POST', this.newDoctor);
+                this.newDoctor = {
+                    name: '',
+                    username: '',
+                    password: '',
+                    email: '',
+                    phone: '',
+                    department_id: '',
+                    availability_days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+                    availability_start: '09:00',
+                    availability_end: '17:00',
+                    slot_minutes: 30,
+                    bio: ''
+                };
                 this.showAddDoctor = false;
                 await this.loadDoctors();
+                this.showSuccess('Doctor added.');
             } catch (error) {
-                this.showAlert(error.message, 'danger');
+                await this.logError(error, 'addDoctor');
             }
         },
-        
-        /**
-         * Delete a doctor
-         * @param {number} doctorId - Doctor ID to delete
-         */
         async deleteDoctor(doctorId) {
-            if (!confirm('Are you sure you want to delete this doctor?')) return;
-            
+            if (!confirm('Delete this doctor?')) {
+                return;
+            }
             try {
-                await apiCall(`/admin/doctor/${doctorId}`, 'DELETE');
-                this.showAlert('Doctor deleted successfully', 'success');
+                await apiCall(`/admin/doctors/${doctorId}`, 'DELETE');
                 await this.loadDoctors();
             } catch (error) {
-                this.showAlert(error.message, 'danger');
+                await this.logError(error, 'deleteDoctor');
             }
         },
-        
-        /**
-         * Load list of patients with search
-         */
         async loadPatients() {
             try {
-                const query = this.patientSearch ? `?search=${this.patientSearch}` : '';
-                this.patients = await apiCall('/admin/patients' + query, 'GET');
+                const query = this.patientSearch ? `?search=${encodeURIComponent(this.patientSearch)}` : '';
+                const response = await apiCall('/admin/patients' + query, 'GET');
+                this.patients = response.patients || [];
             } catch (error) {
-                this.showAlert('Failed to load patients', 'danger');
+                await this.logError(error, 'loadPatients');
             }
         },
-        
-        /**
-         * Delete a patient
-         * @param {number} patientId - Patient ID to delete
-         */
         async deletePatient(patientId) {
-            if (!confirm('Are you sure you want to delete this patient?')) return;
-            
+            if (!confirm('Delete this patient?')) {
+                return;
+            }
             try {
-                await apiCall(`/admin/patient/${patientId}`, 'DELETE');
-                this.showAlert('Patient deleted successfully', 'success');
+                await apiCall(`/admin/patients/${patientId}`, 'DELETE');
                 await this.loadPatients();
             } catch (error) {
-                this.showAlert(error.message, 'danger');
+                await this.logError(error, 'deletePatient');
             }
         },
-        
-        
-        // DOCTOR METHODS
-        
-        
-        /**
-         * Load doctor's appointments
-         */
+        async loadAdminAppointments() {
+            try {
+                this.adminAppointments = await apiCall('/my-appointments', 'GET');
+            } catch (error) {
+                await this.logError(error, 'loadAdminAppointments');
+            }
+        },
+
         async loadDoctorAppointments() {
             try {
                 this.doctorAppointments = await apiCall('/doctor/appointments', 'GET');
             } catch (error) {
-                this.showAlert('Failed to load appointments', 'danger');
+                await this.logError(error, 'loadDoctorAppointments');
             }
         },
-        
-        /**
-         * Show complete appointment form
-         * @param {object} appointment - Appointment object
-         */
         showCompleteAppointment(appointment) {
             this.selectedAppointment = appointment;
             this.treatmentForm = { diagnosis: '', prescription: '', notes: '' };
         },
-        
-        /**
-         * Complete an appointment with treatment details
-         */
         async completeAppointment() {
             try {
                 await apiCall(`/appointments/${this.selectedAppointment.id}/complete`, 'POST', this.treatmentForm);
-                this.showAlert('Appointment completed successfully', 'success');
-                
-                // Reset and reload
                 this.selectedAppointment = null;
                 await this.loadDoctorAppointments();
+                this.showSuccess('Appointment completed.');
             } catch (error) {
-                this.showAlert(error.message, 'danger');
+                await this.logError(error, 'completeAppointment');
             }
         },
-        
-        /**
-         * Download monthly PDF report
-         */
-        async downloadMonthlyReport() {
-            try {
-                // Open PDF in new window
-                window.open(`/api/doctor/monthly-report/${this.reportMonth}/${this.reportYear}`, '_blank');
-                this.showAlert('Downloading report...', 'success');
-            } catch (error) {
-                this.showAlert('Failed to download report', 'danger');
-            }
+        downloadMonthlyReport() {
+            window.open(`/api/doctor/monthly-report/${this.reportMonth}/${this.reportYear}`, '_blank');
         },
-        
-        
-        // PATIENT METHODS
-        
-        
-        /**
-         * Load list of doctors for booking
-         */
+
         async loadDoctorsForBooking() {
             try {
                 this.availableDoctors = await apiCall('/doctors', 'GET');
             } catch (error) {
-                this.showAlert('Failed to load doctors', 'danger');
+                await this.logError(error, 'loadDoctorsForBooking');
             }
         },
-        
-        /**
-         * Book a new appointment
-         */
+        onDoctorChange() {
+            this.selectedDoctorProfile = this.selectedDoctor;
+            const firstDate = this.selectableDates.length ? this.selectableDates[0].date : '';
+            this.bookingForm.date = firstDate;
+        },
         async bookAppointment() {
+            if (!this.bookingForm.doctor_id || !this.bookingForm.date) {
+                return;
+            }
             try {
-                await apiCall('/patient/appointment', 'POST', this.bookingForm);
-                this.showAlert('Appointment booked successfully!', 'success');
-                
-                // Reset form
-                this.bookingForm = { doctor_id: '', date: '', time: '' };
-                
-                // Switch to appointments tab
-                this.patientTab = 'appointments';
+                const response = await apiCall('/appointments', 'POST', {
+                    doctor_id: Number(this.bookingForm.doctor_id),
+                    date: this.bookingForm.date
+                });
+                await this.loadDoctorsForBooking();
                 await this.loadPatientAppointments();
+                this.showSuccess(`Appointment booked at ${response.assigned_time}`);
             } catch (error) {
-                this.showAlert(error.message, 'danger');
+                await this.logError(error, 'bookAppointment');
             }
         },
-        
-        /**
-         * Load patient's appointments
-         */
         async loadPatientAppointments() {
             try {
-                this.patientAppointments = await apiCall('/patient/appointments', 'GET');
+                this.patientAppointments = await apiCall('/my-appointments', 'GET');
             } catch (error) {
-                this.showAlert('Failed to load appointments', 'danger');
+                await this.logError(error, 'loadPatientAppointments');
             }
         },
-        
-        /**
-         * Cancel an appointment
-         * @param {number} appointmentId - Appointment ID to cancel
-         */
         async cancelAppointment(appointmentId) {
-            if (!confirm('Are you sure you want to cancel this appointment?')) return;
-            
+            if (!confirm('Cancel this appointment?')) {
+                return;
+            }
             try {
-                await apiCall(`/patient/appointment/${appointmentId}`, 'DELETE');
-                this.showAlert('Appointment cancelled successfully', 'success');
+                await apiCall(`/appointments/${appointmentId}/cancel`, 'POST');
                 await this.loadPatientAppointments();
             } catch (error) {
-                this.showAlert(error.message, 'danger');
+                await this.logError(error, 'cancelAppointment');
             }
         },
-        
-        /**
-         * Show payment form for an appointment
-         * @param {object} appointment - Appointment object
-         */
-        showPaymentForm(appointment) {
-            this.paymentAppointment = appointment;
-            this.paymentForm = {
-                amount: 100.00,
-                payment_method: 'credit_card',
-                card_number: ''
-            };
-        },
-        
-        /**
-         * Process payment for an appointment
-         */
-        async processPayment() {
-            try {
-                await apiCall(`/patient/payment/appointment/${this.paymentAppointment.id}`, 'POST', this.paymentForm);
-                this.showAlert('Payment processed successfully!', 'success');
-                
-                // Reset and reload
-                this.paymentAppointment = null;
-                await this.loadPatientAppointments();
-            } catch (error) {
-                this.showAlert(error.message, 'danger');
-            }
-        },
-        
-        /**
-         * Load patient's payment history
-         */
         async loadPayments() {
             try {
                 this.payments = await apiCall('/patient/payments', 'GET');
             } catch (error) {
-                this.showAlert('Failed to load payments', 'danger');
+                await this.logError(error, 'loadPayments');
+            }
+        },
+
+        async loadProfile() {
+            try {
+                const profile = await apiCall('/profile', 'GET');
+                this.syncProfileForm(profile);
+                this.profileForm.history = profile.medical_history || '';
+                this.profileForm.notification_pref = profile.notification_pref || 'email';
+            } catch (error) {
+                await this.logError(error, 'loadProfile');
+            }
+        },
+        async saveProfile() {
+            try {
+                await apiCall('/profile', 'POST', this.profileForm);
+                const user = await apiCall('/current-user', 'GET');
+                this.currentUser = user;
+                this.showSuccess('Profile updated.');
+            } catch (error) {
+                await this.logError(error, 'saveProfile');
             }
         }
     }
-}).mount('#app');  // Mount the Vue app to the #app div
+}).mount('#app');

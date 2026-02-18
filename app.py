@@ -11,7 +11,12 @@ This is the main Flask application that initializes all components:
 Author: Abdul Ahad
 """
 
-from flask import Flask, render_template
+import logging
+import traceback
+from sqlalchemy import inspect
+from werkzeug.exceptions import HTTPException
+
+from flask import Flask, render_template, jsonify, request
 from flask_caching import Cache
 from models.database import db, User, Role, Department
 from flask_security import Security, SQLAlchemyUserDatastore
@@ -43,12 +48,9 @@ def create_app(test_config=None):
     # Create Flask app with custom template and static folders
     app = Flask(__name__, template_folder="frontend", static_folder="frontend/static")
 
-    if test_config:
-        app.config.update(test_config)
-
     # Database Configuration
     # Using SQLite
-    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///hospital.db"
+    app.config.setdefault("SQLALCHEMY_DATABASE_URI", "sqlite:///hospital.db")
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False  # Disable warning
 
     # Security Configuration
@@ -57,6 +59,12 @@ def create_app(test_config=None):
     app.config["SECURITY_REGISTERABLE"] = False  # Only admin can register doctors
     app.config["SECURITY_SEND_REGISTER_EMAIL"] = False  # Disable email for now
     app.config["SECURITY_USERNAME_ENABLE"] = True  # Enable username login
+
+    if test_config:
+        app.config.update(test_config)
+
+    # Logging configuration
+    app.logger.setLevel(logging.INFO)
 
     # Caching Configuration
     # Using Redis for caching - improves performance for frequently accessed data
@@ -134,6 +142,46 @@ def create_app(test_config=None):
             "cache": "connected" if app.cache else "not configured",
         }
 
+    @app.route("/api/client-log", methods=["POST"])
+    def client_log():
+        """Log frontend/runtime errors to backend terminal logs."""
+        payload = request.get_json(silent=True) or {}
+        app.logger.error("CLIENT_ERROR %s", payload)
+        return jsonify({"logged": True})
+
+    @app.errorhandler(404)
+    def not_found_error(error):
+        if request.path.startswith("/api"):
+            app.logger.error("API_404 path=%s", request.path)
+            return jsonify({"message": "Route not found"}), 404
+        return error, 404
+
+    @app.errorhandler(Exception)
+    def unhandled_exception(error):
+        if isinstance(error, HTTPException):
+            if request.path.startswith("/api"):
+                app.logger.error(
+                    "API_HTTP_EXCEPTION path=%s method=%s status=%s description=%s",
+                    request.path,
+                    request.method,
+                    error.code,
+                    error.description,
+                )
+                return jsonify({"message": error.description}), error.code
+            return error
+
+        if request.path.startswith("/api"):
+            app.logger.error(
+                "API_EXCEPTION path=%s method=%s error=%s\n%s",
+                request.path,
+                request.method,
+                str(error),
+                traceback.format_exc(),
+            )
+            return jsonify({"message": "Internal server error"}), 500
+        app.logger.error("WEB_EXCEPTION %s\n%s", str(error), traceback.format_exc())
+        return "Internal server error", 500
+
     return app
 
 
@@ -152,6 +200,37 @@ def create_initial_data(app):
     with app.app_context():
         # Create all database tables
         db.create_all()
+
+        # Lightweight schema migration for existing SQLite databases
+        inspector = inspect(db.engine)
+        doctor_columns = {column["name"] for column in inspector.get_columns("doctor")}
+        migration_statements = []
+        if "availability_days" not in doctor_columns:
+            migration_statements.append(
+                "ALTER TABLE doctor ADD COLUMN availability_days VARCHAR(100) DEFAULT 'Mon,Tue,Wed,Thu,Fri'"
+            )
+        if "availability_start" not in doctor_columns:
+            migration_statements.append(
+                "ALTER TABLE doctor ADD COLUMN availability_start VARCHAR(5) DEFAULT '09:00'"
+            )
+        if "availability_end" not in doctor_columns:
+            migration_statements.append(
+                "ALTER TABLE doctor ADD COLUMN availability_end VARCHAR(5) DEFAULT '17:00'"
+            )
+        if "slot_minutes" not in doctor_columns:
+            migration_statements.append(
+                "ALTER TABLE doctor ADD COLUMN slot_minutes INTEGER DEFAULT 30"
+            )
+        if "bio" not in doctor_columns:
+            migration_statements.append(
+                "ALTER TABLE doctor ADD COLUMN bio TEXT DEFAULT ''"
+            )
+
+        for statement in migration_statements:
+            db.session.execute(db.text(statement))
+
+        if migration_statements:
+            db.session.commit()
 
         # Create default roles
         # Roles are used for access control in the application
@@ -189,6 +268,20 @@ def create_initial_data(app):
             db.session.add_all(depts)
             db.session.commit()
             print("Initial departments created")
+
+        # Clean invalid/orphan patient rows so patients only exist after registration
+        from models.database import Patient
+
+        invalid_patients = (
+            Patient.query.join(User, Patient.user_id == User.id, isouter=True)
+            .filter((User.id.is_(None)) | (User.name.is_(None)) | (User.name == ""))
+            .all()
+        )
+        for patient in invalid_patients:
+            db.session.delete(patient)
+        if invalid_patients:
+            db.session.commit()
+            print(f"Removed {len(invalid_patients)} invalid patient profiles")
 
 
 # Create the Flask application instance
