@@ -1571,3 +1571,15 @@ The Hospital Management System successfully addresses the problem of manual hosp
 - Functional and regression tests were extended for payment-before-completion, refund generation, follow-up creation, CSV row completeness, and duplicate-slot prevention.
 - A dedicated stress script (`scripts/stress_test.py`) executes concurrent booking/payment/completion/refund workflows against a live server.
 - This approach validates both correctness and operational behavior during heavy usage scenarios.
+
+### Validation Snapshot (Current Build)
+- Automated test suite result: `60 passed`.
+- Stress execution (stable server run) produced:
+  - Doctors created: `4`
+  - Patients created: `18`
+  - Concurrent booking successes/conflicts: `16 / 2`
+  - Payments successful: `16`
+  - Consultations completed: `8`
+  - Follow-ups auto-created: `8`
+  - Refund records observed: `4`
+  - Duplicate doctor/date/time slots: `0`
