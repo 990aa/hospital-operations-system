@@ -177,12 +177,21 @@ createApp({
         // Ensure detail/popup state never leaks across role switches or tab navigation.
         adminTab() {
             this.closeAppointmentDetails();
+            if (this.adminTab === 'stats') {
+                this.$nextTick(() => this.renderAdminCharts());
+            }
         },
         doctorTab() {
             this.closeAppointmentDetails();
+            if (this.doctorTab === 'appointments') {
+                this.$nextTick(() => this.renderDoctorCharts());
+            }
         },
         patientTab() {
             this.closeAppointmentDetails();
+            if (this.patientTab === 'appointments') {
+                this.$nextTick(() => this.renderPatientCharts());
+            }
         },
         currentUser() {
             this.closeAppointmentDetails();
@@ -322,40 +331,44 @@ createApp({
             if (typeof Plotly === 'undefined') {
                 return;
             }
-            Plotly.newPlot(
-                'adminStatsChart',
-                [
-                    {
-                        type: 'bar',
-                        x: ['Doctors', 'Patients', 'Appointments'],
-                        y: [
-                            this.stats.total_doctors || 0,
-                            this.stats.total_patients || 0,
-                            this.stats.total_appointments || 0
-                        ],
-                        marker: { color: ['#388e3c', '#1976d2', '#424242'] }
-                    }
-                ],
-                { margin: { t: 20, r: 10, l: 40, b: 40 }, height: 280 },
-                { displayModeBar: false, responsive: true }
-            );
+            if (document.getElementById('adminStatsChart')) {
+                Plotly.newPlot(
+                    'adminStatsChart',
+                    [
+                        {
+                            type: 'bar',
+                            x: ['Doctors', 'Patients', 'Appointments'],
+                            y: [
+                                this.stats.total_doctors || 0,
+                                this.stats.total_patients || 0,
+                                this.stats.total_appointments || 0
+                            ],
+                            marker: { color: ['#388e3c', '#1976d2', '#424242'] }
+                        }
+                    ],
+                    { margin: { t: 20, r: 10, l: 40, b: 40 }, height: 280 },
+                    { displayModeBar: false, responsive: true }
+                );
+            }
 
-            Plotly.newPlot(
-                'adminPaymentsChart',
-                [
-                    {
-                        type: 'pie',
-                        labels: ['Collected', 'Refunded'],
-                        values: [
-                            this.adminPaymentSummary.total_collected || 0,
-                            this.adminPaymentSummary.total_refunded || 0
-                        ],
-                        marker: { colors: ['#388e3c', '#d32f2f'] }
-                    }
-                ],
-                { margin: { t: 20, r: 10, l: 10, b: 10 }, height: 280 },
-                { displayModeBar: false, responsive: true }
-            );
+            if (document.getElementById('adminPaymentsChart')) {
+                Plotly.newPlot(
+                    'adminPaymentsChart',
+                    [
+                        {
+                            type: 'pie',
+                            labels: ['Collected', 'Refunded'],
+                            values: [
+                                this.adminPaymentSummary.total_collected || 0,
+                                this.adminPaymentSummary.total_refunded || 0
+                            ],
+                            marker: { colors: ['#388e3c', '#d32f2f'] }
+                        }
+                    ],
+                    { margin: { t: 20, r: 10, l: 10, b: 10 }, height: 280 },
+                    { displayModeBar: false, responsive: true }
+                );
+            }
         },
 
         // Render doctor charts from appointment statuses and earnings summary.
@@ -367,36 +380,40 @@ createApp({
             const completed = this.doctorAppointments.filter((a) => a.status === 'Completed').length;
             const cancelled = this.doctorAppointments.filter((a) => a.status === 'Cancelled').length;
 
-            Plotly.newPlot(
-                'doctorAppointmentsChart',
-                [
-                    {
-                        type: 'bar',
-                        x: ['Booked', 'Completed', 'Cancelled'],
-                        y: [booked, completed, cancelled],
-                        marker: { color: ['#1976d2', '#388e3c', '#d32f2f'] }
-                    }
-                ],
-                { margin: { t: 20, r: 10, l: 40, b: 40 }, height: 260 },
-                { displayModeBar: false, responsive: true }
-            );
+            if (document.getElementById('doctorAppointmentsChart')) {
+                Plotly.newPlot(
+                    'doctorAppointmentsChart',
+                    [
+                        {
+                            type: 'bar',
+                            x: ['Booked', 'Completed', 'Cancelled'],
+                            y: [booked, completed, cancelled],
+                            marker: { color: ['#1976d2', '#388e3c', '#d32f2f'] }
+                        }
+                    ],
+                    { margin: { t: 20, r: 10, l: 40, b: 40 }, height: 260 },
+                    { displayModeBar: false, responsive: true }
+                );
+            }
 
-            Plotly.newPlot(
-                'doctorEarningsChart',
-                [
-                    {
-                        type: 'pie',
-                        labels: ['Earned', 'Refunded'],
-                        values: [
-                            this.doctorPaymentSummary.total_earned || 0,
-                            this.doctorPaymentSummary.total_refunded || 0
-                        ],
-                        marker: { colors: ['#388e3c', '#d32f2f'] }
-                    }
-                ],
-                { margin: { t: 20, r: 10, l: 10, b: 10 }, height: 260 },
-                { displayModeBar: false, responsive: true }
-            );
+            if (document.getElementById('doctorEarningsChart')) {
+                Plotly.newPlot(
+                    'doctorEarningsChart',
+                    [
+                        {
+                            type: 'pie',
+                            labels: ['Earned', 'Refunded'],
+                            values: [
+                                this.doctorPaymentSummary.total_earned || 0,
+                                this.doctorPaymentSummary.total_refunded || 0
+                            ],
+                            marker: { colors: ['#388e3c', '#d32f2f'] }
+                        }
+                    ],
+                    { margin: { t: 20, r: 10, l: 10, b: 10 }, height: 260 },
+                    { displayModeBar: false, responsive: true }
+                );
+            }
         },
 
         // Render patient charts from appointment and payment data.
@@ -410,33 +427,37 @@ createApp({
             const paid = this.payments.filter((p) => p.status === 'completed').length;
             const refunded = this.payments.filter((p) => p.status === 'refunded').length;
 
-            Plotly.newPlot(
-                'patientAppointmentsChart',
-                [
-                    {
-                        type: 'bar',
-                        x: ['Booked', 'Completed', 'Cancelled'],
-                        y: [booked, completed, cancelled],
-                        marker: { color: ['#1976d2', '#388e3c', '#d32f2f'] }
-                    }
-                ],
-                { margin: { t: 20, r: 10, l: 40, b: 40 }, height: 260 },
-                { displayModeBar: false, responsive: true }
-            );
+            if (document.getElementById('patientAppointmentsChart')) {
+                Plotly.newPlot(
+                    'patientAppointmentsChart',
+                    [
+                        {
+                            type: 'bar',
+                            x: ['Booked', 'Completed', 'Cancelled'],
+                            y: [booked, completed, cancelled],
+                            marker: { color: ['#1976d2', '#388e3c', '#d32f2f'] }
+                        }
+                    ],
+                    { margin: { t: 20, r: 10, l: 40, b: 40 }, height: 260 },
+                    { displayModeBar: false, responsive: true }
+                );
+            }
 
-            Plotly.newPlot(
-                'patientPaymentsChart',
-                [
-                    {
-                        type: 'pie',
-                        labels: ['Paid', 'Refunded'],
-                        values: [paid, refunded],
-                        marker: { colors: ['#388e3c', '#d32f2f'] }
-                    }
-                ],
-                { margin: { t: 20, r: 10, l: 10, b: 10 }, height: 260 },
-                { displayModeBar: false, responsive: true }
-            );
+            if (document.getElementById('patientPaymentsChart')) {
+                Plotly.newPlot(
+                    'patientPaymentsChart',
+                    [
+                        {
+                            type: 'pie',
+                            labels: ['Paid', 'Refunded'],
+                            values: [paid, refunded],
+                            marker: { colors: ['#388e3c', '#d32f2f'] }
+                        }
+                    ],
+                    { margin: { t: 20, r: 10, l: 10, b: 10 }, height: 260 },
+                    { displayModeBar: false, responsive: true }
+                );
+            }
         },
 
         // --- Admin methods ---

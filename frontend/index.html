@@ -183,6 +183,14 @@
             color: white;
             border-color: var(--hospital-green);
         }
+
+        .chart-admin {
+            height: 280px;
+        }
+
+        .chart-small {
+            height: 260px;
+        }
     </style>
 </head>
 <body>
@@ -336,8 +344,8 @@
                         </div>
                     </div>
                     <div class="row">
-                        <div class="col-md-6"><div id="adminStatsChart" style="height:280px;"></div></div>
-                        <div class="col-md-6"><div id="adminPaymentsChart" style="height:280px;"></div></div>
+                        <div class="col-md-6"><div id="adminStatsChart" class="chart-admin"></div></div>
+                        <div class="col-md-6"><div id="adminPaymentsChart" class="chart-admin"></div></div>
                     </div>
                 </div>
 
@@ -495,6 +503,7 @@
                                         <th>Doctor</th>
                                         <th>Status</th>
                                         <th>Payment</th>
+                                        <th>Type</th>
                                         <th>Diagnosis</th>
                                         <th>Details</th>
                                     </tr>
@@ -507,6 +516,7 @@
                                         <td>{{ apt.doctor_name }}</td>
                                         <td>{{ apt.status }}</td>
                                         <td>{{ apt.payment_status }}</td>
+                                        <td>{{ apt.is_follow_up ? 'Follow-up' : 'Consultation' }}</td>
                                         <td>{{ apt.treatment ? apt.treatment.diagnosis : 'N/A' }}</td>
                                         <td><button class="btn btn-sm btn-hospital-secondary" @click="showAppointmentDetails(apt)">View</button></td>
                                     </tr>
@@ -647,8 +657,8 @@
                     </div>
 
                     <div class="row">
-                        <div class="col-md-6"><div id="doctorAppointmentsChart" style="height:260px;"></div></div>
-                        <div class="col-md-6"><div id="doctorEarningsChart" style="height:260px;"></div></div>
+                        <div class="col-md-6"><div id="doctorAppointmentsChart" class="chart-small"></div></div>
+                        <div class="col-md-6"><div id="doctorEarningsChart" class="chart-small"></div></div>
                     </div>
                 </div>
 
@@ -857,8 +867,8 @@
                     </div>
 
                     <div class="row">
-                        <div class="col-md-6"><div id="patientAppointmentsChart" style="height:260px;"></div></div>
-                        <div class="col-md-6"><div id="patientPaymentsChart" style="height:260px;"></div></div>
+                        <div class="col-md-6"><div id="patientAppointmentsChart" class="chart-small"></div></div>
+                        <div class="col-md-6"><div id="patientPaymentsChart" class="chart-small"></div></div>
                     </div>
                 </div>
 
