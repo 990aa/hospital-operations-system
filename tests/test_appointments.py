@@ -405,8 +405,12 @@ def test_complete_with_follow_up_schedules_next_visit(test_client):
         json={"amount": 500, "payment_method": "credit_card", "card_number": "1111222233334444"},
     )
 
+    # Select a valid availability date for deterministic follow-up scheduling.
+    availability = test_client.get(f"/api/doctors/{doctor_id}/availability").get_json()["availability"]
+    candidate_dates = [day["date"] for day in availability if day.get("remaining_slots", 0) > 0 and day["date"] != tomorrow]
+    follow_up_date = candidate_dates[0] if candidate_dates else tomorrow
+
     login(test_client, "doctor", "docpassword")
-    follow_up_date = (datetime.now() + timedelta(days=3)).strftime("%Y-%m-%d")
     response = test_client.post(
         f"/api/appointments/{appointment_id}/complete",
         json={
@@ -438,8 +442,12 @@ def test_export_contains_data_rows_not_only_headers(test_client):
     job_id = trigger.get_json()["job_id"]
 
     with test_client.application.app_context():
+        from backend.tasks import export_patient_treatments
+
         job = ExportJob.query.get(job_id)
         assert job is not None
+        export_patient_treatments.run(job.patient_id, job_id)
+        db.session.refresh(job)
         assert job.file_path is not None
         with open(job.file_path, "r", encoding="utf-8") as handle:
             lines = [line.strip() for line in handle.readlines() if line.strip()]

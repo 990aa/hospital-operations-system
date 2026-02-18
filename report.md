@@ -1538,29 +1538,36 @@ uv run python app.py
 The Hospital Management System successfully addresses the problem of manual hospital operations by providing a comprehensive, role-based web application.
 ---
 
-## Phase 2 Implementation Update (Payment, Refund, and Reporting Fixes)
+## Consolidated Implementation Enhancements
 
-### 1. Payment Before Consultation Completion
-- Appointment completion now enforces pre-payment.
-- Doctors cannot mark a `Booked` appointment as `Completed` unless a valid completed payment exists.
-- This business rule is implemented in backend route logic (`doctor_routes.py`) and covered by tests.
+### Appointment, Payment, and Refund Workflow
+- Consultation completion now strictly requires a successful pre-payment.
+- Patient cancellation of a paid appointment auto-generates a refund ledger entry.
+- Admin and doctor dashboards expose payment/refund summaries and transaction-level records.
+- Appointment payloads include payment and follow-up metadata for consistent cross-role visibility.
 
-### 2. Automatic Refund on Patient Cancellation
-- If a patient cancels a paid appointment, the system automatically creates a refund ledger record.
-- Refunds are tracked as payment records with status `refunded`, a negative amount, and a dedicated refund transaction ID.
-- This ensures a complete financial audit trail without mutating historical payment rows.
+### Follow-up Scheduling and Continuity of Care
+- Doctors can schedule follow-up visits while completing consultations using `next_visit_date`.
+- Follow-up allocation uses the same serial slot-allocation policy as standard patient booking.
+- Follow-ups are stored as standard appointments with explicit follow-up markers, enabling unified reminder and dashboard handling.
 
-### 3. Admin/Doctor Payment Visibility
-- Added admin payment endpoint for system-wide collection/refund audit and summary totals.
-- Added doctor payment endpoint for doctor-wise earnings, refunds, and net payout visibility.
-- Frontend now includes dedicated payment tabs for both Admin and Doctor dashboards.
+### Concurrency Safety and Simultaneous Booking Protection
+- Appointment schema now enforces database-level uniqueness for `(doctor_id, date, time)`.
+- Booking logic includes retry-aware serial assignment to handle concurrent slot contention.
+- This combination prevents same-doctor same-time duplication even under parallel booking attempts.
 
-### 4. Detailed Appointment Visibility Across Roles
-- Appointment listing payloads now include treatment, payment status, amount, payment timestamp, and transaction metadata.
-- Frontend provides an appointment details panel for Admin, Doctor, and Patient roles.
-- This improves transparency for consultation and billing lifecycle events.
+### Export, Reporting, and Reminder Reliability
+- CSV export now includes all appointment rows (not only completed records), preventing header-only files.
+- Export rows include treatment details where available plus payment/follow-up metadata.
+- Daily reminder content now differentiates consultation vs follow-up visit type.
+- Monthly report date handling remains robust for string-based date storage.
 
+### Dashboard Analytics and UX Behavior
+- Plotly-based visual analytics are integrated for Admin, Doctor, and Patient dashboards.
+- Graphs include role-relevant appointment/payment status breakdowns and financial views.
+- Appointment details panel lifecycle is now reset on tab switches, role changes, and logout/login transitions, preventing stale dialog persistence.
 
-### 6. Frontend Real-Time Refresh Behavior
-- Post-action refresh is enforced for key operations (booking, payment, cancellation, completion, and admin management actions).
-- Dashboard tables and summaries update immediately via API re-fetch, without page reload.
+### Verification Strategy
+- Functional and regression tests were extended for payment-before-completion, refund generation, follow-up creation, CSV row completeness, and duplicate-slot prevention.
+- A dedicated stress script (`scripts/stress_test.py`) executes concurrent booking/payment/completion/refund workflows against a live server.
+- This approach validates both correctness and operational behavior during heavy usage scenarios.
