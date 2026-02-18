@@ -173,6 +173,22 @@ createApp({
         }
     },
 
+    watch: {
+        // Ensure detail/popup state never leaks across role switches or tab navigation.
+        adminTab() {
+            this.closeAppointmentDetails();
+        },
+        doctorTab() {
+            this.closeAppointmentDetails();
+        },
+        patientTab() {
+            this.closeAppointmentDetails();
+        },
+        currentUser() {
+            this.closeAppointmentDetails();
+        }
+    },
+
     async mounted() {
         // Restore session and load role-specific data if user is already logged in.
         await this.checkLogin();
@@ -182,6 +198,12 @@ createApp({
     },
 
     methods: {
+        // Reset transient dialogs/forms to avoid stale view state.
+        resetTransientState() {
+            this.closeAppointmentDetails();
+            this.selectedAppointment = null;
+            this.paymentAppointment = null;
+        },
         // Success-only toast helper; errors are never rendered to UI by design.
         showSuccess(message) {
             this.alertType = 'success';
@@ -228,6 +250,7 @@ createApp({
         },
         // Loads only the data required for the current role to keep frontend minimal.
         async loadInitialDataForRole() {
+            this.resetTransientState();
             if (this.hasRole('admin')) {
                 await this.loadStats();
                 await this.loadDepartments();
@@ -262,6 +285,7 @@ createApp({
                         password: this.authForm.password
                     });
                     this.currentUser = response.user;
+                    this.resetTransientState();
                     this.syncProfileForm(response.user);
                     await this.loadInitialDataForRole();
                 } else {
@@ -286,16 +310,140 @@ createApp({
             } catch (error) {
                 await this.logError(error, 'logout');
             }
+            this.resetTransientState();
             this.currentUser = null;
             this.alertMsg = '';
             this.isLogin = true;
             this.authForm = { username: '', password: '', name: '', email: '' };
         },
 
+        // Render admin charts using Plotly from current stats and payment summary.
+        renderAdminCharts() {
+            if (typeof Plotly === 'undefined') {
+                return;
+            }
+            Plotly.newPlot(
+                'adminStatsChart',
+                [
+                    {
+                        type: 'bar',
+                        x: ['Doctors', 'Patients', 'Appointments'],
+                        y: [
+                            this.stats.total_doctors || 0,
+                            this.stats.total_patients || 0,
+                            this.stats.total_appointments || 0
+                        ],
+                        marker: { color: ['#388e3c', '#1976d2', '#424242'] }
+                    }
+                ],
+                { margin: { t: 20, r: 10, l: 40, b: 40 }, height: 280 },
+                { displayModeBar: false, responsive: true }
+            );
+
+            Plotly.newPlot(
+                'adminPaymentsChart',
+                [
+                    {
+                        type: 'pie',
+                        labels: ['Collected', 'Refunded'],
+                        values: [
+                            this.adminPaymentSummary.total_collected || 0,
+                            this.adminPaymentSummary.total_refunded || 0
+                        ],
+                        marker: { colors: ['#388e3c', '#d32f2f'] }
+                    }
+                ],
+                { margin: { t: 20, r: 10, l: 10, b: 10 }, height: 280 },
+                { displayModeBar: false, responsive: true }
+            );
+        },
+
+        // Render doctor charts from appointment statuses and earnings summary.
+        renderDoctorCharts() {
+            if (typeof Plotly === 'undefined') {
+                return;
+            }
+            const booked = this.doctorAppointments.filter((a) => a.status === 'Booked').length;
+            const completed = this.doctorAppointments.filter((a) => a.status === 'Completed').length;
+            const cancelled = this.doctorAppointments.filter((a) => a.status === 'Cancelled').length;
+
+            Plotly.newPlot(
+                'doctorAppointmentsChart',
+                [
+                    {
+                        type: 'bar',
+                        x: ['Booked', 'Completed', 'Cancelled'],
+                        y: [booked, completed, cancelled],
+                        marker: { color: ['#1976d2', '#388e3c', '#d32f2f'] }
+                    }
+                ],
+                { margin: { t: 20, r: 10, l: 40, b: 40 }, height: 260 },
+                { displayModeBar: false, responsive: true }
+            );
+
+            Plotly.newPlot(
+                'doctorEarningsChart',
+                [
+                    {
+                        type: 'pie',
+                        labels: ['Earned', 'Refunded'],
+                        values: [
+                            this.doctorPaymentSummary.total_earned || 0,
+                            this.doctorPaymentSummary.total_refunded || 0
+                        ],
+                        marker: { colors: ['#388e3c', '#d32f2f'] }
+                    }
+                ],
+                { margin: { t: 20, r: 10, l: 10, b: 10 }, height: 260 },
+                { displayModeBar: false, responsive: true }
+            );
+        },
+
+        // Render patient charts from appointment and payment data.
+        renderPatientCharts() {
+            if (typeof Plotly === 'undefined') {
+                return;
+            }
+            const booked = this.patientAppointments.filter((a) => a.status === 'Booked').length;
+            const completed = this.patientAppointments.filter((a) => a.status === 'Completed').length;
+            const cancelled = this.patientAppointments.filter((a) => a.status === 'Cancelled').length;
+            const paid = this.payments.filter((p) => p.status === 'completed').length;
+            const refunded = this.payments.filter((p) => p.status === 'refunded').length;
+
+            Plotly.newPlot(
+                'patientAppointmentsChart',
+                [
+                    {
+                        type: 'bar',
+                        x: ['Booked', 'Completed', 'Cancelled'],
+                        y: [booked, completed, cancelled],
+                        marker: { color: ['#1976d2', '#388e3c', '#d32f2f'] }
+                    }
+                ],
+                { margin: { t: 20, r: 10, l: 40, b: 40 }, height: 260 },
+                { displayModeBar: false, responsive: true }
+            );
+
+            Plotly.newPlot(
+                'patientPaymentsChart',
+                [
+                    {
+                        type: 'pie',
+                        labels: ['Paid', 'Refunded'],
+                        values: [paid, refunded],
+                        marker: { colors: ['#388e3c', '#d32f2f'] }
+                    }
+                ],
+                { margin: { t: 20, r: 10, l: 10, b: 10 }, height: 260 },
+                { displayModeBar: false, responsive: true }
+            );
+        },
+
         // --- Admin methods ---
         async loadStats() {
             try {
                 this.stats = await apiCall('/admin/stats', 'GET');
+                this.$nextTick(() => this.renderAdminCharts());
             } catch (error) {
                 await this.logError(error, 'loadStats');
             }
@@ -417,6 +565,7 @@ createApp({
                 const response = await apiCall('/admin/payments', 'GET');
                 this.adminPayments = response.payments || [];
                 this.adminPaymentSummary = response.summary || {};
+                this.$nextTick(() => this.renderAdminCharts());
             } catch (error) {
                 await this.logError(error, 'loadAdminPayments');
             }
@@ -426,6 +575,7 @@ createApp({
         async loadDoctorAppointments() {
             try {
                 this.doctorAppointments = await apiCall('/doctor/appointments', 'GET');
+                this.$nextTick(() => this.renderDoctorCharts());
             } catch (error) {
                 await this.logError(error, 'loadDoctorAppointments');
             }
@@ -435,6 +585,7 @@ createApp({
                 const response = await apiCall('/doctor/payments', 'GET');
                 this.doctorPayments = response.payments || [];
                 this.doctorPaymentSummary = response.summary || {};
+                this.$nextTick(() => this.renderDoctorCharts());
             } catch (error) {
                 await this.logError(error, 'loadDoctorPayments');
             }
@@ -503,6 +654,7 @@ createApp({
         async loadPatientAppointments() {
             try {
                 this.patientAppointments = await apiCall('/my-appointments', 'GET');
+                this.$nextTick(() => this.renderPatientCharts());
             } catch (error) {
                 await this.logError(error, 'loadPatientAppointments');
             }
@@ -550,6 +702,7 @@ createApp({
         async loadPayments() {
             try {
                 this.payments = await apiCall('/patient/payments', 'GET');
+                this.$nextTick(() => this.renderPatientCharts());
             } catch (error) {
                 await this.logError(error, 'loadPayments');
             }
