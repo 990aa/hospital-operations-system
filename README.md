@@ -114,7 +114,7 @@ uv run pytest -v
 uv run pytest --cov=backend --cov=models
 ```
 
-All 50 tests should pass successfully.
+All 53 tests should pass successfully.
 
 ---
 
@@ -140,8 +140,7 @@ See `er_diagram.png` for visual representation.
 ## Configuration
 
 ### Database
-- Default: SQLite (`instance/hospital.db`)
-- To use PostgreSQL/MySQL, update `SQLALCHEMY_DATABASE_URI` in `app.py`
+- SQLite (`instance/hospital.db`)
 
 ### Redis
 - Default: `redis://localhost:6379/0`
@@ -169,72 +168,6 @@ The frontend follows a professional hospital aesthetic:
 - Bright blues/purples
 - Emojis or informal language
 - Cluttered layouts
-
----
-
-## API Endpoints
-
-### Authentication
-- `POST /api/login` - User login
-- `POST /api/logout` - User logout
-- `POST /api/register` - Patient registration
-- `GET /api/current-user` - Get current user info
-
-### Admin Routes
-- `GET /api/admin/stats` - System statistics
-- `GET /api/admin/doctors` - List doctors
-- `POST /api/admin/doctor` - Add doctor
-- `DELETE /api/admin/doctor/<id>` - Delete doctor
-- `GET /api/admin/patients` - List patients
-- `DELETE /api/admin/patient/<id>` - Delete patient
-
-### Doctor Routes
-- `GET /api/doctor/appointments` - List doctor's appointments
-- `POST /api/appointments/<id>/complete` - Complete appointment
-- `GET /api/doctor/monthly-report/<month>/<year>` - Download PDF report
-- `GET /api/doctor/patient-history-pdf/<patient_id>` - Patient history PDF
-
-### Patient Routes
-- `GET /api/doctors` - List available doctors
-- `GET /api/departments` - List departments
-- `POST /api/patient/appointment` - Book appointment
-- `GET /api/patient/appointments` - List patient's appointments
-- `DELETE /api/patient/appointment/<id>` - Cancel appointment
-- `POST /api/patient/payment/appointment/<id>` - Process payment
-- `GET /api/patient/payments` - List payment history
-
-For complete API documentation, see `report.md`.
-
----
-
-## Troubleshooting
-
-### "Module not found" error
-```bash
-# Reinstall dependencies
-uv sync --reinstall
-```
-
-### "Redis connection refused"
-```bash
-# Ensure Redis is running
-redis-cli ping
-# Should return "PONG"
-```
-
-### Blank page on frontend
-```bash
-# Check browser console for JavaScript errors
-# Clear browser cache and refresh
-# Ensure Flask server is running on port 5000
-```
-
-### Database errors
-```bash
-# Delete and recreate database
-rm instance/hospital.db
-uv run python app.py
-```
 
 ---
 
