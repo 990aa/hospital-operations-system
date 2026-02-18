@@ -12,6 +12,9 @@ Author: Abdul Ahad
 """
 
 from datetime import datetime, timedelta
+from sqlalchemy.exc import IntegrityError
+
+from models.database import db, Appointment, Patient, Doctor, User, ExportJob
 
 
 def login(client, username, password):
@@ -387,3 +390,95 @@ def test_doctor_monthly_report_handles_string_dates(test_client):
     today = datetime.now()
     response = test_client.get(f"/api/doctor/monthly-report/{today.month}/{today.year}")
     assert response.status_code == 200
+
+
+def test_complete_with_follow_up_schedules_next_visit(test_client):
+    """Doctor completion should optionally auto-book follow-up using same slot policy."""
+    login(test_client, "patient", "patientpassword")
+    doctor_id = test_client.get("/api/doctors").get_json()[0]["id"]
+    tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+    test_client.post("/api/appointments", json={"doctor_id": doctor_id, "date": tomorrow})
+
+    appointment_id = test_client.get("/api/my-appointments").get_json()[0]["id"]
+    test_client.post(
+        f"/api/patient/payment/appointment/{appointment_id}",
+        json={"amount": 500, "payment_method": "credit_card", "card_number": "1111222233334444"},
+    )
+
+    login(test_client, "doctor", "docpassword")
+    follow_up_date = (datetime.now() + timedelta(days=3)).strftime("%Y-%m-%d")
+    response = test_client.post(
+        f"/api/appointments/{appointment_id}/complete",
+        json={
+            "diagnosis": "Needs review",
+            "prescription": "Continue meds",
+            "notes": "Follow-up required",
+            "next_visit_date": follow_up_date,
+        },
+    )
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["follow_up"] is not None
+
+    login(test_client, "patient", "patientpassword")
+    apps = test_client.get("/api/my-appointments").get_json()
+    follow_ups = [a for a in apps if a.get("is_follow_up")]
+    assert follow_ups
+
+
+def test_export_contains_data_rows_not_only_headers(test_client):
+    """CSV export should include appointment rows even when only booked appointments exist."""
+    login(test_client, "patient", "patientpassword")
+    doctor_id = test_client.get("/api/doctors").get_json()[0]["id"]
+    tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+    test_client.post("/api/appointments", json={"doctor_id": doctor_id, "date": tomorrow})
+
+    trigger = test_client.post("/api/export/treatments")
+    assert trigger.status_code in [200, 201]
+    job_id = trigger.get_json()["job_id"]
+
+    with test_client.application.app_context():
+        job = ExportJob.query.get(job_id)
+        assert job is not None
+        assert job.file_path is not None
+        with open(job.file_path, "r", encoding="utf-8") as handle:
+            lines = [line.strip() for line in handle.readlines() if line.strip()]
+        assert len(lines) > 1
+
+
+def test_unique_constraint_blocks_duplicate_doctor_slot(test_client):
+    """DB-level unique constraint must block duplicate doctor/date/time rows."""
+    with test_client.application.app_context():
+        patient = Patient.query.filter_by(
+            user_id=User.query.filter_by(username="patient").first().id
+        ).first()
+        doctor = Doctor.query.filter_by(
+            user_id=User.query.filter_by(username="doctor").first().id
+        ).first()
+
+        a1 = Appointment(
+            patient_id=patient.id,
+            doctor_id=doctor.id,
+            date="2026-12-25",
+            time="10:00",
+            status="Booked",
+        )
+        db.session.add(a1)
+        db.session.commit()
+
+        a2 = Appointment(
+            patient_id=patient.id,
+            doctor_id=doctor.id,
+            date="2026-12-25",
+            time="10:00",
+            status="Booked",
+        )
+        db.session.add(a2)
+        raised = False
+        try:
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            raised = True
+
+        assert raised

@@ -335,6 +335,10 @@
                             </div>
                         </div>
                     </div>
+                    <div class="row">
+                        <div class="col-md-6"><div id="adminStatsChart" style="height:280px;"></div></div>
+                        <div class="col-md-6"><div id="adminPaymentsChart" style="height:280px;"></div></div>
+                    </div>
                 </div>
 
                 <!-- Doctors Management Tab -->
@@ -593,6 +597,7 @@
                                         <th>Patient</th>
                                         <th>Status</th>
                                         <th>Payment</th>
+                                        <th>Type</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
@@ -603,6 +608,7 @@
                                         <td>{{ apt.patient_name }}</td>
                                         <td><span :class="'badge badge-' + apt.status.toLowerCase()">{{ apt.status }}</span></td>
                                         <td>{{ apt.payment_status }}</td>
+                                        <td>{{ apt.is_follow_up ? 'Follow-up' : 'Consultation' }}</td>
                                         <td>
                                             <button @click="showAppointmentDetails(apt)" class="btn btn-sm btn-hospital-secondary me-1">Details</button>
                                             <button v-if="apt.status === 'Booked'" @click="showCompleteAppointment(apt)" class="btn btn-sm btn-hospital-primary">Complete</button>
@@ -630,10 +636,19 @@
                                     <label class="form-label">Notes</label>
                                     <textarea v-model="treatmentForm.notes" class="form-control" rows="2"></textarea>
                                 </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Next Visit Date (optional)</label>
+                                    <input type="date" v-model="treatmentForm.next_visit_date" class="form-control">
+                                </div>
                                 <button type="submit" class="btn btn-hospital-primary">Save & Complete</button>
                                 <button type="button" @click="selectedAppointment = null" class="btn btn-hospital-secondary ms-2">Cancel</button>
                             </form>
                         </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6"><div id="doctorAppointmentsChart" style="height:260px;"></div></div>
+                        <div class="col-md-6"><div id="doctorEarningsChart" style="height:260px;"></div></div>
                     </div>
                 </div>
 
@@ -791,6 +806,7 @@
                                         <th>Doctor</th>
                                         <th>Status</th>
                                         <th>Payment</th>
+                                        <th>Type</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
@@ -801,6 +817,7 @@
                                         <td>{{ apt.doctor_name }}</td>
                                         <td><span :class="'badge badge-' + apt.status.toLowerCase()">{{ apt.status }}</span></td>
                                         <td>{{ apt.payment_status }}</td>
+                                        <td>{{ apt.is_follow_up ? 'Follow-up' : 'Consultation' }}</td>
                                         <td>
                                             <button @click="showAppointmentDetails(apt)" class="btn btn-sm btn-hospital-secondary me-1">Details</button>
                                             <button v-if="apt.status === 'Booked'" @click="cancelAppointment(apt.id)" class="btn btn-sm btn-hospital-danger">Cancel</button>
@@ -837,6 +854,11 @@
                                 <button type="button" @click="paymentAppointment = null" class="btn btn-hospital-secondary ms-2">Cancel</button>
                             </form>
                         </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6"><div id="patientAppointmentsChart" style="height:260px;"></div></div>
+                        <div class="col-md-6"><div id="patientPaymentsChart" style="height:260px;"></div></div>
                     </div>
                 </div>
 
@@ -906,6 +928,7 @@
                     <p class="mb-1"><strong>Patient:</strong> {{ appointmentDetails.patient_name || 'N/A' }}</p>
                     <p class="mb-1"><strong>Doctor:</strong> {{ appointmentDetails.doctor_name || 'N/A' }}</p>
                     <p class="mb-1"><strong>Status:</strong> {{ appointmentDetails.status }}</p>
+                    <p class="mb-1"><strong>Visit Type:</strong> {{ appointmentDetails.is_follow_up ? 'Follow-up' : 'Consultation' }}</p>
                     <p class="mb-1"><strong>Payment Status:</strong> {{ appointmentDetails.payment_status }}</p>
                     <p class="mb-1"><strong>Diagnosis:</strong> {{ appointmentDetails.treatment ? appointmentDetails.treatment.diagnosis : 'N/A' }}</p>
                     <p class="mb-1"><strong>Prescription:</strong> {{ appointmentDetails.treatment ? appointmentDetails.treatment.prescription : 'N/A' }}</p>
@@ -921,6 +944,9 @@
     
     <!-- Vue.js 3 from CDN -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+
+    <!-- Plotly for dashboard analytics graphs -->
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
     
     <!-- Application Logic (loaded from separate file) -->
     <script src="/static/js/app.js"></script>

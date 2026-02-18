@@ -116,7 +116,7 @@ createApp({
             doctorPaymentSummary: {},
             selectedAppointment: null,
             appointmentDetails: null,
-            treatmentForm: { diagnosis: '', prescription: '', notes: '' },
+            treatmentForm: { diagnosis: '', prescription: '', notes: '', next_visit_date: '' },
             reportMonth: new Date().getMonth() + 1,
             reportYear: new Date().getFullYear(),
 
@@ -599,16 +599,20 @@ createApp({
         // Opens treatment form for selected booked appointment.
         showCompleteAppointment(appointment) {
             this.selectedAppointment = appointment;
-            this.treatmentForm = { diagnosis: '', prescription: '', notes: '' };
+            this.treatmentForm = { diagnosis: '', prescription: '', notes: '', next_visit_date: '' };
         },
         // Completes appointment and refreshes list.
         async completeAppointment() {
             try {
-                await apiCall(`/appointments/${this.selectedAppointment.id}/complete`, 'POST', this.treatmentForm);
+                const response = await apiCall(`/appointments/${this.selectedAppointment.id}/complete`, 'POST', this.treatmentForm);
                 this.selectedAppointment = null;
                 await this.loadDoctorAppointments();
                 await this.loadDoctorPayments();
-                this.showSuccess('Appointment completed.');
+                if (response && response.follow_up) {
+                    this.showSuccess(`Appointment completed. Follow-up booked: ${response.follow_up.date} ${response.follow_up.time}`);
+                } else {
+                    this.showSuccess('Appointment completed.');
+                }
             } catch (error) {
                 await this.logError(error, 'completeAppointment');
             }
