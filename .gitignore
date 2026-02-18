@@ -205,3 +205,10 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Ceery files
+celerybeat-schedule-shm
+celerybeat-schedule-wal
+
+# Custom
+*.txt

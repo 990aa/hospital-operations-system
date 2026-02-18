@@ -25,10 +25,12 @@ Admin is the pre-existing superuser of the application
 Can add, update, and delete doctor profiles (name, specialization, availability).
 Can view and manage all appointments.
 Can search for patients or doctors by name/specialization.
+
 Doctor
 Can log in to view assigned appointments.
 Can mark a patient’s visit as completed and enter diagnosis & treatment notes.
 Can view and update patient history (previous diagnoses & prescriptions).
+
 Patient
 Can register, log in, and update their profile.
 Can search for doctors by specialization and availability.

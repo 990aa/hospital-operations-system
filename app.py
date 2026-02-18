@@ -47,7 +47,7 @@ def create_app(test_config=None):
         app.config.update(test_config)
 
     # Database Configuration
-    # Using SQLite for simplicity - can be changed to PostgreSQL/MySQL in production
+    # Using SQLite
     app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///hospital.db"
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False  # Disable warning
 
@@ -169,7 +169,7 @@ def create_initial_data(app):
                 email="admin@hospital.com",
                 password=hash_password("admin"),
                 roles=["admin"],
-                name="Super Admin",
+                name="Admin",
                 active=True,
                 fs_uniquifier="admin_uniq",
             )

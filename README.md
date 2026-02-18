@@ -44,10 +44,9 @@ pip install -r requirements.txt
 
 ### Step 2: Start Redis Server
 
-**On Windows:**
-- Download and install Redis from: https://redis.io/download
-- Or use WSL: `sudo service redis-server start`
-- Or use Docker: `docker run -d -p 6379:6379 redis`
+```
+docker run --name hms-redis -p 6379:6379 -d redis
+```
 
 ### Step 3: Run the Application
 
@@ -262,3 +261,14 @@ The codebase is designed to be easily modifiable:
 2. Look for `:root` variables (e.g., `--hospital-green`)
 
 ---
+
+### Stop/Restart Servers
+
+- Stop Redis:
+```
+docker stop hms-redis
+```
+- Start again:
+```
+docker start hms-redis
+```
