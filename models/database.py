@@ -134,12 +134,15 @@ class Doctor(db.Model):
     availability = db.Column(
         db.String(500), default="Mon-Fri, 9AM-5PM"
     )  # Simple string for simplicity
-    availability_days = db.Column(
-        db.String(100), default="Mon,Tue,Wed,Thu,Fri"
-    )
+    # Comma-separated weekday abbreviations used by slot-generation logic.
+    # Example: "Mon,Tue,Wed,Thu,Fri"
+    availability_days = db.Column(db.String(100), default="Mon,Tue,Wed,Thu,Fri")
+    # Daily schedule bounds in HH:MM format.
     availability_start = db.Column(db.String(5), default="09:00")
     availability_end = db.Column(db.String(5), default="17:00")
+    # Duration (in minutes) for each consultation slot; default requested is 30.
     slot_minutes = db.Column(db.Integer, default=30)
+    # Optional doctor profile text shown on patient dashboard.
     bio = db.Column(db.Text, default="")
     email_notifications = db.Column(
         db.Boolean, default=True
@@ -168,7 +171,11 @@ class Doctor(db.Model):
         }
 
     def get_availability_days(self):
-        """Return normalized list of available weekday abbreviations."""
+        """Return normalized list of available weekday abbreviations.
+
+        Returns:
+            List[str]: e.g., ["Mon", "Tue", "Wed", "Thu", "Fri"]
+        """
         days = self.availability_days or "Mon,Tue,Wed,Thu,Fri"
         return [day.strip() for day in days.split(",") if day.strip()]
 

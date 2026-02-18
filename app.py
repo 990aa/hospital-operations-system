@@ -64,6 +64,9 @@ def create_app(test_config=None):
         app.config.update(test_config)
 
     # Logging configuration
+    # We keep logging at INFO so normal startup and request logs are visible,
+    # while explicit error logs (CLIENT_ERROR/API_EXCEPTION) are emitted
+    # by our handlers below for terminal-first debugging.
     app.logger.setLevel(logging.INFO)
 
     # Caching Configuration
@@ -144,13 +147,19 @@ def create_app(test_config=None):
 
     @app.route("/api/client-log", methods=["POST"])
     def client_log():
-        """Log frontend/runtime errors to backend terminal logs."""
+        """Log frontend/runtime errors to backend terminal logs.
+
+        This endpoint accepts structured JSON payloads from the frontend
+        (for example, failed fetch parsing, API failures, and runtime errors)
+        and writes the full payload to server logs so errors are not shown in UI.
+        """
         payload = request.get_json(silent=True) or {}
         app.logger.error("CLIENT_ERROR %s", payload)
         return jsonify({"logged": True})
 
     @app.errorhandler(404)
     def not_found_error(error):
+        """Return JSON for unknown API routes while keeping normal web 404 behavior."""
         if request.path.startswith("/api"):
             app.logger.error("API_404 path=%s", request.path)
             return jsonify({"message": "Route not found"}), 404
@@ -158,6 +167,12 @@ def create_app(test_config=None):
 
     @app.errorhandler(Exception)
     def unhandled_exception(error):
+        """Centralized exception handler.
+
+        - Preserves HTTPException status codes (401/403/404/etc.) for API routes.
+        - Converts unexpected API exceptions to a safe JSON 500 response.
+        - Keeps terminal logs detailed with traceback for debugging.
+        """
         if isinstance(error, HTTPException):
             if request.path.startswith("/api"):
                 app.logger.error(
@@ -202,6 +217,8 @@ def create_initial_data(app):
         db.create_all()
 
         # Lightweight schema migration for existing SQLite databases
+        # We use additive ALTER TABLE statements so existing developer data
+        # is preserved while introducing new doctor availability fields.
         inspector = inspect(db.engine)
         doctor_columns = {column["name"] for column in inspector.get_columns("doctor")}
         migration_statements = []
@@ -226,6 +243,7 @@ def create_initial_data(app):
                 "ALTER TABLE doctor ADD COLUMN bio TEXT DEFAULT ''"
             )
 
+        # Execute each migration statement in sequence.
         for statement in migration_statements:
             db.session.execute(db.text(statement))
 
@@ -269,7 +287,9 @@ def create_initial_data(app):
             db.session.commit()
             print("Initial departments created")
 
-        # Clean invalid/orphan patient rows so patients only exist after registration
+        # Clean invalid/orphan patient rows so patients only exist after registration.
+        # This removes ghost patient records caused by old inconsistent seed data
+        # (for example, rows with no linked user or empty user names).
         from models.database import Patient
 
         invalid_patients = (

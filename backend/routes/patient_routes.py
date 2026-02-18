@@ -36,6 +36,8 @@ from backend.tasks import export_patient_treatments
 patient_bp = Blueprint("patient", __name__)
 
 
+# Weekday mappings for deterministic day-name ↔ index conversion.
+# Python `date.weekday()` returns Monday=0..Sunday=6, so we mirror that here.
 WEEKDAY_TO_INDEX = {
     "Mon": 0,
     "Tue": 1,
@@ -49,6 +51,15 @@ INDEX_TO_WEEKDAY = {value: key for key, value in WEEKDAY_TO_INDEX.items()}
 
 
 def _parse_time_string(time_str, fallback):
+    """Parse an HH:MM time string with a safe fallback.
+
+    Args:
+        time_str: Candidate time string (possibly invalid or missing).
+        fallback: Guaranteed-valid fallback time string in HH:MM format.
+
+    Returns:
+        datetime object (date part ignored) representing parsed time.
+    """
     value = time_str or fallback
     try:
         return datetime.strptime(value, "%H:%M")
@@ -57,12 +68,20 @@ def _parse_time_string(time_str, fallback):
 
 
 def _doctor_days(doctor):
+    """Return normalized availability day set for a doctor."""
     days = doctor.get_availability_days() if hasattr(doctor, "get_availability_days") else []
     return {day for day in days if day in WEEKDAY_TO_INDEX}
 
 
 def _available_slots_for_day(doctor, target_date):
-    """Return available HH:MM slots for doctor on target_date."""
+    """Return available HH:MM slots for a doctor on a specific date.
+
+    Slot generation rules:
+    - If the weekday is outside doctor's allowed days -> no slots.
+    - Build slots from `availability_start` to `availability_end`.
+    - Use `slot_minutes` granularity (default 30).
+    - Remove already-booked slots from the generated list.
+    """
     available_days = _doctor_days(doctor)
     if not available_days:
         available_days = {"Mon", "Tue", "Wed", "Thu", "Fri"}
@@ -71,18 +90,21 @@ def _available_slots_for_day(doctor, target_date):
     if weekday not in available_days:
         return []
 
+    # Parse doctor time window. Fallbacks keep system robust even with legacy rows.
     start = _parse_time_string(getattr(doctor, "availability_start", None), "09:00")
     end = _parse_time_string(getattr(doctor, "availability_end", None), "17:00")
     slot_minutes = int(getattr(doctor, "slot_minutes", 30) or 30)
     if slot_minutes <= 0:
         slot_minutes = 30
 
+    # Generate serial slot times inside [start, end).
     slots = []
     current = start
     while current < end:
         slots.append(current.strftime("%H:%M"))
         current += timedelta(minutes=slot_minutes)
 
+    # Collect already-booked times for this doctor and date.
     booked_times = {
         appointment.time
         for appointment in Appointment.query.filter(
@@ -98,6 +120,7 @@ def _available_slots_for_day(doctor, target_date):
 
 
 def _doctor_availability_next_7_days(doctor):
+    """Build 7-day availability payload for doctor dashboard/booking UI."""
     results = []
     today = date.today()
     for offset in range(7):
@@ -198,7 +221,11 @@ def get_departments():
 
 @patient_bp.route("/doctors/<int:doctor_id>/availability", methods=["GET"])
 def doctor_availability(doctor_id):
-    """Get upcoming 7-day availability for a specific doctor."""
+    """Get upcoming 7-day availability for a specific doctor.
+
+    This lightweight endpoint is used for patient-facing doctor profile and
+    schedule visibility without requiring appointment creation.
+    """
     doctor = Doctor.query.get_or_404(doctor_id)
     return jsonify(
         {
@@ -243,7 +270,8 @@ def book_appointment():
     if not doctor:
         return jsonify({"message": "Doctor not found"}), 404
 
-    # Validate date is not in the past and within next 7 days
+    # Validate date is not in the past and within next 7 days.
+    # This enforces the product rule that booking window is one week ahead.
     try:
         appointment_date = datetime.strptime(date_str, "%Y-%m-%d").date()
         if appointment_date < datetime.now().date():
@@ -253,13 +281,15 @@ def book_appointment():
     except ValueError:
         return jsonify({"message": "Invalid date format. Use YYYY-MM-DD"}), 400
 
+    # Compute remaining slots and auto-assign the earliest one.
+    # Patients cannot pick arbitrary time values from UI.
     available_slots = _available_slots_for_day(doctor, appointment_date)
     if not available_slots:
         return jsonify({"message": "Doctor is not available on this date"}), 409
 
     assigned_time = available_slots[0]
 
-    # Check if patient already has appointment at assigned time
+    # Prevent patient conflict at same auto-assigned slot.
     patient_conflict = Appointment.query.filter(
         and_(
             Appointment.patient_id == patient.id,
@@ -272,7 +302,7 @@ def book_appointment():
     if patient_conflict:
         return jsonify({"message": "You already have an appointment at this time."}), 409
 
-    # Create new appointment
+    # Create new appointment using backend-assigned slot for deterministic ordering.
     new_app = Appointment(
         patient_id=patient.id,
         doctor_id=doctor_id,
@@ -283,7 +313,7 @@ def book_appointment():
     db.session.add(new_app)
     db.session.commit()
 
-    # Invalidate relevant caches
+    # Invalidate relevant caches so stats and appointment lists reflect changes immediately.
     current_app.cache.delete("admin_stats")
     current_app.cache.delete(f"patient_appointments_{patient.id}_None")
     current_app.cache.delete(f"patient_appointments_{patient.id}_Booked")

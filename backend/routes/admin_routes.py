@@ -22,6 +22,8 @@ from models.database import db, User, Doctor, Patient, Appointment, ExportJob, D
 admin_bp = Blueprint("admin", __name__)
 
 
+# Canonical weekday order used to normalize admin-submitted availability.
+# This guarantees consistent storage order regardless of checkbox click order.
 WEEKDAY_ORDER = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
 
@@ -98,14 +100,18 @@ def manage_doctors():
         data = request.json
         user_datastore = current_app.extensions["security"].datastore
 
+        # Availability fields are accepted from frontend as structured data
+        # so backend can generate serial slots deterministically.
         days = data.get("availability_days") or ["Mon", "Tue", "Wed", "Thu", "Fri"]
         if not isinstance(days, list):
             return jsonify({"message": "availability_days must be a list"}), 400
 
+        # Normalize weekday order and remove unknown values.
         normalized_days = [day for day in WEEKDAY_ORDER if day in set(days)]
         if not normalized_days:
             return jsonify({"message": "At least one availability day is required"}), 400
 
+        # Store times in HH:MM format and slot interval in minutes.
         availability_start = data.get("availability_start", "09:00")
         availability_end = data.get("availability_end", "17:00")
         slot_minutes = data.get("slot_minutes", 30)
@@ -130,7 +136,9 @@ def manage_doctors():
         user_datastore.add_role_to_user(new_user, "doctor")
         db.session.commit()  # Commit to get user ID
 
-        # Create Doctor Profile
+        # Create Doctor Profile.
+        # `availability` remains as a human-readable summary for backwards compatibility,
+        # while structured fields drive slot calculations in patient booking APIs.
         new_doctor = Doctor(
             user_id=new_user.id,
             department_id=data["department_id"],
@@ -176,7 +184,17 @@ def manage_doctors():
 
 @admin_bp.route("/departments", methods=["GET", "POST"])
 def manage_departments():
-    """List departments or create a new department (admin only for POST)."""
+    """List departments or create a new department.
+
+    GET:
+        Returns all departments, optionally filtered by `search` substring.
+        Filtering is case-insensitive via SQL ILIKE.
+
+    POST:
+        Admin-only route used by the department picker flow. Accepts
+        a new department name and optional description and returns the
+        created (or existing) department object for immediate UI selection.
+    """
     if request.method == "POST":
         if not current_user.is_authenticated or not current_user.has_role("admin"):
             return jsonify({"message": "Unauthorized"}), 403
@@ -188,9 +206,9 @@ def manage_departments():
         if not name:
             return jsonify({"message": "Department name is required"}), 400
 
-        existing = Department.query.filter(
-            Department.name.ilike(name)
-        ).first()
+        # Case-insensitive duplicate protection prevents near-identical entries
+        # like "Cardiology" and "cardiology".
+        existing = Department.query.filter(Department.name.ilike(name)).first()
         if existing:
             return jsonify({"message": "Department already exists", "department": existing.to_dict()}), 200
 

@@ -1,3 +1,5 @@
+// Send frontend/runtime diagnostic logs to backend terminal.
+// This keeps user-facing UI clean while preserving full debug context server-side.
 async function sendClientLog(payload) {
     try {
         await fetch('/api/client-log', {
@@ -10,6 +12,11 @@ async function sendClientLog(payload) {
     }
 }
 
+// Minimal API wrapper used by all frontend actions.
+// Key behaviors:
+// 1) Always call /api-prefixed routes.
+// 2) Parse response text safely and detect non-JSON server responses.
+// 3) Forward all failures to terminal logs through /api/client-log.
 async function apiCall(url, method = 'GET', body = null) {
     const options = {
         method,
@@ -20,13 +27,16 @@ async function apiCall(url, method = 'GET', body = null) {
         options.body = JSON.stringify(body);
     }
 
+    // Perform request once options are prepared.
     const response = await fetch('/api' + url, options);
     const raw = await response.text();
     let data = null;
 
     try {
+        // Parse explicit JSON payload from server.
         data = raw ? JSON.parse(raw) : null;
     } catch (error) {
+        // If backend returns HTML (e.g. route mismatch), log full raw response.
         await sendClientLog({
             type: 'JSON_PARSE_ERROR',
             url,
@@ -38,6 +48,7 @@ async function apiCall(url, method = 'GET', body = null) {
         throw new Error('Request failed');
     }
 
+    // Non-2xx responses are logged in full and converted to thrown Error.
     if (!response.ok) {
         await sendClientLog({
             type: 'API_ERROR',
@@ -58,6 +69,7 @@ const { createApp } = Vue;
 createApp({
     data() {
         return {
+            // Authentication and shared UI state.
             currentUser: null,
             isLogin: true,
             selectedRole: 'patient',
@@ -70,6 +82,7 @@ createApp({
             alertMsg: '',
             alertType: 'success',
 
+            // Admin dashboard state.
             adminTab: 'stats',
             stats: {},
             doctors: [],
@@ -94,6 +107,7 @@ createApp({
             },
             patientSearch: '',
 
+            // Doctor dashboard state.
             doctorTab: 'appointments',
             doctorAppointments: [],
             selectedAppointment: null,
@@ -101,6 +115,7 @@ createApp({
             reportMonth: new Date().getMonth() + 1,
             reportYear: new Date().getFullYear(),
 
+            // Patient dashboard state.
             patientTab: 'book',
             patientAppointments: [],
             availableDoctors: [],
@@ -111,6 +126,7 @@ createApp({
             },
             payments: [],
 
+            // Shared profile editor state used by all roles.
             profileForm: {
                 name: '',
                 email: '',
@@ -123,6 +139,7 @@ createApp({
     },
 
     computed: {
+        // Case-insensitive client-side department filtering for typeahead behavior.
         filteredDepartments() {
             const q = (this.departmentSearch || '').trim().toLowerCase();
             if (!q) {
@@ -132,9 +149,11 @@ createApp({
                 (department.name || '').toLowerCase().includes(q)
             );
         },
+        // Resolve currently selected doctor from dropdown value.
         selectedDoctor() {
             return this.availableDoctors.find((doctor) => String(doctor.id) === String(this.bookingForm.doctor_id)) || null;
         },
+        // Date options constrained to next-7-day availability with free slots.
         selectableDates() {
             if (!this.selectedDoctor || !this.selectedDoctor.upcoming_availability) {
                 return [];
@@ -144,6 +163,7 @@ createApp({
     },
 
     async mounted() {
+        // Restore session and load role-specific data if user is already logged in.
         await this.checkLogin();
         if (this.currentUser) {
             await this.loadInitialDataForRole();
@@ -151,6 +171,7 @@ createApp({
     },
 
     methods: {
+        // Success-only toast helper; errors are never rendered to UI by design.
         showSuccess(message) {
             this.alertType = 'success';
             this.alertMsg = message;
@@ -158,6 +179,8 @@ createApp({
                 this.alertMsg = '';
             }, 3000);
         },
+        // Centralized frontend error logger.
+        // Emits to browser console + backend terminal endpoint.
         async logError(error, context) {
             const payload = {
                 type: 'FRONTEND_RUNTIME_ERROR',
@@ -168,9 +191,11 @@ createApp({
             console.error(context, error);
             await sendClientLog(payload);
         },
+        // Role helper used for conditional rendering by dashboard sections.
         hasRole(role) {
             return this.currentUser && this.currentUser.roles && this.currentUser.roles.includes(role);
         },
+        // Human-friendly role label shown in navbar.
         getUserRole() {
             if (!this.currentUser || !this.currentUser.roles || !this.currentUser.roles.length) {
                 return '';
@@ -178,6 +203,7 @@ createApp({
             const role = this.currentUser.roles[0];
             return role.charAt(0).toUpperCase() + role.slice(1);
         },
+        // Checks active session without interrupting unauthenticated startup flow.
         async checkLogin() {
             try {
                 const data = await apiCall('/current-user', 'GET');
@@ -189,6 +215,7 @@ createApp({
                 // not logged in
             }
         },
+        // Loads only the data required for the current role to keep frontend minimal.
         async loadInitialDataForRole() {
             if (this.hasRole('admin')) {
                 await this.loadStats();
@@ -206,11 +233,13 @@ createApp({
             }
             await this.loadProfile();
         },
+        // Copies user profile fields from API response into local form model.
         syncProfileForm(user) {
             this.profileForm.name = user.name || '';
             this.profileForm.email = user.email || '';
             this.profileForm.phone = user.phone || '';
         },
+        // Login/register handler. Registration keeps password visible per requirement.
         async handleAuth() {
             try {
                 if (this.isLogin) {
@@ -236,6 +265,7 @@ createApp({
                 await this.logError(error, 'handleAuth');
             }
         },
+        // Logout always clears local auth state, even if API logout fails.
         async logout() {
             try {
                 await apiCall('/logout', 'POST');
@@ -248,6 +278,7 @@ createApp({
             this.authForm = { username: '', password: '', name: '', email: '' };
         },
 
+        // --- Admin methods ---
         async loadStats() {
             try {
                 this.stats = await apiCall('/admin/stats', 'GET');
@@ -255,6 +286,7 @@ createApp({
                 await this.logError(error, 'loadStats');
             }
         },
+        // Server-side filtered departments (case-insensitive search).
         async loadDepartments() {
             try {
                 const query = this.departmentSearch ? `?search=${encodeURIComponent(this.departmentSearch)}` : '';
@@ -263,6 +295,7 @@ createApp({
                 await this.logError(error, 'loadDepartments');
             }
         },
+        // Creates department directly from doctor form flow.
         async createDepartment() {
             const name = (this.newDepartmentName || '').trim();
             if (!name) {
@@ -283,6 +316,7 @@ createApp({
                 await this.logError(error, 'createDepartment');
             }
         },
+        // Toggles weekday checkbox in add-doctor availability form.
         toggleDoctorDay(day) {
             const days = new Set(this.newDoctor.availability_days);
             if (days.has(day)) {
@@ -299,6 +333,7 @@ createApp({
                 await this.logError(error, 'loadDoctors');
             }
         },
+        // Creates doctor with structured availability fields.
         async addDoctor() {
             try {
                 await apiCall('/admin/doctors', 'POST', this.newDoctor);
@@ -353,6 +388,7 @@ createApp({
                 await this.logError(error, 'deletePatient');
             }
         },
+        // Loads admin appointment visibility table.
         async loadAdminAppointments() {
             try {
                 this.adminAppointments = await apiCall('/my-appointments', 'GET');
@@ -361,6 +397,7 @@ createApp({
             }
         },
 
+        // --- Doctor methods ---
         async loadDoctorAppointments() {
             try {
                 this.doctorAppointments = await apiCall('/doctor/appointments', 'GET');
@@ -368,10 +405,12 @@ createApp({
                 await this.logError(error, 'loadDoctorAppointments');
             }
         },
+        // Opens treatment form for selected booked appointment.
         showCompleteAppointment(appointment) {
             this.selectedAppointment = appointment;
             this.treatmentForm = { diagnosis: '', prescription: '', notes: '' };
         },
+        // Completes appointment and refreshes list.
         async completeAppointment() {
             try {
                 await apiCall(`/appointments/${this.selectedAppointment.id}/complete`, 'POST', this.treatmentForm);
@@ -382,10 +421,12 @@ createApp({
                 await this.logError(error, 'completeAppointment');
             }
         },
+        // Opens backend PDF report endpoint in new tab.
         downloadMonthlyReport() {
             window.open(`/api/doctor/monthly-report/${this.reportMonth}/${this.reportYear}`, '_blank');
         },
 
+        // --- Patient methods ---
         async loadDoctorsForBooking() {
             try {
                 this.availableDoctors = await apiCall('/doctors', 'GET');
@@ -393,11 +434,13 @@ createApp({
                 await this.logError(error, 'loadDoctorsForBooking');
             }
         },
+        // Auto-select first available date whenever doctor selection changes.
         onDoctorChange() {
             this.selectedDoctorProfile = this.selectedDoctor;
             const firstDate = this.selectableDates.length ? this.selectableDates[0].date : '';
             this.bookingForm.date = firstDate;
         },
+        // Books appointment by date only; backend assigns earliest available time slot.
         async bookAppointment() {
             if (!this.bookingForm.doctor_id || !this.bookingForm.date) {
                 return;
@@ -414,6 +457,7 @@ createApp({
                 await this.logError(error, 'bookAppointment');
             }
         },
+        // Loads unified appointment feed for patient.
         async loadPatientAppointments() {
             try {
                 this.patientAppointments = await apiCall('/my-appointments', 'GET');
@@ -421,6 +465,7 @@ createApp({
                 await this.logError(error, 'loadPatientAppointments');
             }
         },
+        // Cancels appointment through shared cancellation endpoint.
         async cancelAppointment(appointmentId) {
             if (!confirm('Cancel this appointment?')) {
                 return;
@@ -432,6 +477,7 @@ createApp({
                 await this.logError(error, 'cancelAppointment');
             }
         },
+        // Payment history loader (dummy payment portal backend).
         async loadPayments() {
             try {
                 this.payments = await apiCall('/patient/payments', 'GET');
@@ -440,6 +486,7 @@ createApp({
             }
         },
 
+        // Profile methods shared by admin/doctor/patient tabs.
         async loadProfile() {
             try {
                 const profile = await apiCall('/profile', 'GET');
@@ -450,6 +497,7 @@ createApp({
                 await this.logError(error, 'loadProfile');
             }
         },
+        // Persists profile edits and reloads current user identity data.
         async saveProfile() {
             try {
                 await apiCall('/profile', 'POST', this.profileForm);

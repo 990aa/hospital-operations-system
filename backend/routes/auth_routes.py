@@ -46,6 +46,8 @@ def login():
         elif user.has_role("doctor"):
             role = "doctor"
 
+        # Intentionally omit a verbose success message to match frontend UX requirement:
+        # no "logged in successfully" message should be displayed for any role.
         return jsonify({"role": role, "user": user.to_dict()})
 
     return jsonify({"message": "Invalid credentials"}), 401
