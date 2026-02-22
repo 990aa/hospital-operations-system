@@ -92,6 +92,7 @@ createApp({
             doctorSearch: '',
             doctorDepartmentFilter: '',
             doctorDepartmentQuery: '',
+            showDeptDropdown: false,
             patients: [],
             editingDoctorId: null,
             editingPatientId: null,
@@ -106,6 +107,13 @@ createApp({
             },
             adminPayments: [],
             adminPaymentSummary: {},
+            adminPaymentFilters: {
+                date: '',
+                patient: '',
+                doctor: '',
+                status: '',
+                method: ''
+            },
             showAddDoctor: false,
             newDoctor: {
                 name: '',
@@ -134,6 +142,10 @@ createApp({
                 availability_end: '17:00',
                 slot_minutes: 30
             },
+            doctorAptFilters: { date: '', patient: '', status: '' },
+            doctorPayFilters: { date: '', patient: '', status: '' },
+            filteredDoctorAppointments: [],
+            filteredDoctorPayments: [],
             selectedAppointment: null,
             appointmentDetails: null,
             treatmentForm: { diagnosis: '', prescription: '', notes: '', next_visit_date: '' },
@@ -144,7 +156,14 @@ createApp({
             // Patient dashboard state.
             patientTab: 'book',
             patientAppointments: [],
+            filteredPatientAppointments: [],
+            patientAptFilters: { date: '', doctor: '', status: '' },
+            patientPayFilters: { date: '', doctor: '', status: '' },
+            filteredPayments: [],
             availableDoctors: [],
+            bookingDeptFilter: '',
+            bookingDoctorSearch: '',
+            filteredBookingDoctors: [],
             selectedDoctorProfile: null,
             bookingForm: {
                 doctor_id: '',
@@ -180,6 +199,12 @@ createApp({
             return this.departments.filter((department) =>
                 (department.name || '').toLowerCase().includes(q)
             );
+        },
+        // Filter departments by the typed query string in the doctor form dept field.
+        filteredDepartmentsByQuery() {
+            const q = (this.doctorDepartmentQuery || '').trim().toLowerCase();
+            if (!q) return this.departments;
+            return this.departments.filter((d) => (d.name || '').toLowerCase().includes(q));
         },
         selectedDepartmentByQuery() {
             const needle = (this.doctorDepartmentQuery || '').trim().toLowerCase();
@@ -558,6 +583,28 @@ createApp({
             const exact = this.selectedDepartmentByQuery;
             this.newDoctor.department_id = exact ? exact.id : '';
         },
+        // Called when a department is selected from the dropdown.
+        selectDeptFromDropdown(dept) {
+            this.doctorDepartmentQuery = dept.name;
+            this.newDoctor.department_id = dept.id;
+            this.showDeptDropdown = false;
+        },
+        // Hides dept dropdown with a slight delay so click can register.
+        hideDeptDropdown() {
+            setTimeout(() => { this.showDeptDropdown = false; }, 150);
+        },
+        // Deletes a department by id and reloads the list.
+        async deleteDepartment(deptId) {
+            if (!confirm('Delete this department? Doctors assigned to this department will need to be reassigned.')) return;
+            try {
+                await apiCall(`/departments/${deptId}`, 'DELETE');
+                await this.loadDepartments();
+                await this.loadDoctors();
+                this.showSuccess('Department deleted.');
+            } catch (error) {
+                await this.logError(error, 'deleteDepartment');
+            }
+        },
         openCreateDoctor() {
             this.editingDoctorId = null;
             this.showAddDoctor = true;
@@ -698,7 +745,8 @@ createApp({
         },
         async loadAdminPayments() {
             try {
-                const response = await apiCall('/admin/payments', 'GET');
+                const query = this.buildQueryString(this.adminPaymentFilters);
+                const response = await apiCall('/admin/payments' + query, 'GET');
                 this.adminPayments = response.payments || [];
                 this.adminPaymentSummary = response.summary || {};
                 this.$nextTick(() => this.renderAdminCharts());
@@ -706,15 +754,42 @@ createApp({
                 await this.logError(error, 'loadAdminPayments');
             }
         },
+        clearPaymentFilters() {
+            this.adminPaymentFilters = { date: '', patient: '', doctor: '', status: '', method: '' };
+            this.loadAdminPayments();
+        },
 
         // --- Doctor methods ---
         async loadDoctorAppointments() {
             try {
                 this.doctorAppointments = await apiCall('/doctor/appointments', 'GET');
+                this.filteredDoctorAppointments = this.doctorAppointments.slice();
                 this.$nextTick(() => this.renderDoctorCharts());
             } catch (error) {
                 await this.logError(error, 'loadDoctorAppointments');
             }
+        },
+        applyDoctorAptFilters() {
+            let list = this.doctorAppointments;
+            if (this.doctorAptFilters.date) list = list.filter(a => a.date === this.doctorAptFilters.date);
+            if (this.doctorAptFilters.patient) list = list.filter(a => (a.patient_name || '').toLowerCase().includes(this.doctorAptFilters.patient.toLowerCase()));
+            if (this.doctorAptFilters.status) list = list.filter(a => a.status === this.doctorAptFilters.status);
+            this.filteredDoctorAppointments = list;
+        },
+        clearDoctorAptFilters() {
+            this.doctorAptFilters = { date: '', patient: '', status: '' };
+            this.filteredDoctorAppointments = this.doctorAppointments.slice();
+        },
+        applyDoctorPayFilters() {
+            let list = this.doctorPayments;
+            if (this.doctorPayFilters.date) list = list.filter(p => p.payment_date && p.payment_date.startsWith(this.doctorPayFilters.date));
+            if (this.doctorPayFilters.patient) list = list.filter(p => (p.patient_name || '').toLowerCase().includes(this.doctorPayFilters.patient.toLowerCase()));
+            if (this.doctorPayFilters.status) list = list.filter(p => p.status === this.doctorPayFilters.status);
+            this.filteredDoctorPayments = list;
+        },
+        clearDoctorPayFilters() {
+            this.doctorPayFilters = { date: '', patient: '', status: '' };
+            this.filteredDoctorPayments = this.doctorPayments.slice();
         },
         async loadDoctorProfile() {
             try {
@@ -752,6 +827,7 @@ createApp({
             try {
                 const response = await apiCall('/doctor/payments', 'GET');
                 this.doctorPayments = response.payments || [];
+                this.filteredDoctorPayments = this.doctorPayments.slice();
                 this.doctorPaymentSummary = response.summary || {};
                 this.$nextTick(() => this.renderDoctorCharts());
             } catch (error) {
@@ -816,9 +892,17 @@ createApp({
         async loadDoctorsForBooking() {
             try {
                 this.availableDoctors = await apiCall('/doctors', 'GET');
+                this.filteredBookingDoctors = this.availableDoctors.slice();
             } catch (error) {
                 await this.logError(error, 'loadDoctorsForBooking');
             }
+        },
+        // Filters doctors list based on dept and name search for patient booking.
+        filterBookingDoctors() {
+            let list = this.availableDoctors;
+            if (this.bookingDeptFilter) list = list.filter(d => String(d.department_id) === String(this.bookingDeptFilter));
+            if (this.bookingDoctorSearch) list = list.filter(d => (d.name || '').toLowerCase().includes(this.bookingDoctorSearch.toLowerCase()));
+            this.filteredBookingDoctors = list;
         },
         // Auto-select first available date whenever doctor selection changes.
         onDoctorChange() {
@@ -848,10 +932,33 @@ createApp({
         async loadPatientAppointments() {
             try {
                 this.patientAppointments = await apiCall('/my-appointments', 'GET');
+                this.filteredPatientAppointments = this.patientAppointments.slice();
                 this.$nextTick(() => this.renderPatientCharts());
             } catch (error) {
                 await this.logError(error, 'loadPatientAppointments');
             }
+        },
+        applyPatientAptFilters() {
+            let list = this.patientAppointments;
+            if (this.patientAptFilters.date) list = list.filter(a => a.date === this.patientAptFilters.date);
+            if (this.patientAptFilters.doctor) list = list.filter(a => (a.doctor_name || '').toLowerCase().includes(this.patientAptFilters.doctor.toLowerCase()));
+            if (this.patientAptFilters.status) list = list.filter(a => a.status === this.patientAptFilters.status);
+            this.filteredPatientAppointments = list;
+        },
+        clearPatientAptFilters() {
+            this.patientAptFilters = { date: '', doctor: '', status: '' };
+            this.filteredPatientAppointments = this.patientAppointments.slice();
+        },
+        applyPatientPayFilters() {
+            let list = this.payments;
+            if (this.patientPayFilters.date) list = list.filter(p => p.payment_date && p.payment_date.startsWith(this.patientPayFilters.date));
+            if (this.patientPayFilters.doctor) list = list.filter(p => (p.doctor_name || '').toLowerCase().includes(this.patientPayFilters.doctor.toLowerCase()));
+            if (this.patientPayFilters.status) list = list.filter(p => p.status === this.patientPayFilters.status);
+            this.filteredPayments = list;
+        },
+        clearPatientPayFilters() {
+            this.patientPayFilters = { date: '', doctor: '', status: '' };
+            this.filteredPayments = this.payments.slice();
         },
         // Cancels appointment through shared cancellation endpoint.
         async cancelAppointment(appointmentId) {
@@ -896,6 +1003,7 @@ createApp({
         async loadPayments() {
             try {
                 this.payments = await apiCall('/patient/payments', 'GET');
+                this.filteredPayments = this.payments.slice();
                 this.$nextTick(() => this.renderPatientCharts());
             } catch (error) {
                 await this.logError(error, 'loadPayments');

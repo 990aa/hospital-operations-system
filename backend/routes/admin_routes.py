@@ -331,6 +331,30 @@ def manage_departments():
     return jsonify([department.to_dict() for department in departments])
 
 
+@admin_bp.route("/departments/<int:id>", methods=["DELETE"])
+@roles_required("admin")
+def delete_department(id):
+    """Delete a department by ID.
+
+    Prevents deletion if doctors are still assigned to this department.
+    Admin must reassign or delete those doctors first.
+
+    Returns:
+        Success message, 400 if doctors still assigned, or 404 if not found.
+    """
+    dept = Department.query.get_or_404(id)
+    # Check if any doctors are assigned
+    assigned_count = Doctor.query.filter_by(department_id=id).count()
+    if assigned_count > 0:
+        return jsonify({
+            "message": f"Cannot delete department: {assigned_count} doctor(s) still assigned. Reassign or delete those doctors first."
+        }), 400
+    db.session.delete(dept)
+    db.session.commit()
+    current_app.cache.delete("all_departments")
+    return jsonify({"message": "Department deleted"})
+
+
 @admin_bp.route("/admin/doctors/<int:id>", methods=["DELETE"])
 @roles_required("admin")
 def delete_doctor(id):
@@ -698,19 +722,54 @@ def get_export_job(id):
 @admin_bp.route("/admin/payments", methods=["GET"])
 @roles_required("admin")
 def admin_payments():
-    """Return payment and refund details for admin auditing."""
-    status_filter = request.args.get("status")
-    doctor_id = request.args.get("doctor_id", type=int)
-    patient_id = request.args.get("patient_id", type=int)
+    """Return payment and refund details for admin auditing.
 
-    query = Payment.query.join(Appointment, Payment.appointment_id == Appointment.id)
+    Filters (any combination):
+    - date: payment date (YYYY-MM-DD)
+    - status: pending/completed/failed/refunded
+    - patient: partial name/email/username
+    - doctor: partial name/email/username
+    - method: credit_card/debit_card/insurance
+    """
+    status_filter = (request.args.get("status") or "").strip()
+    doctor_filter = (request.args.get("doctor") or "").strip()
+    patient_filter = (request.args.get("patient") or "").strip()
+    date_filter = (request.args.get("date") or "").strip()
+    method_filter = (request.args.get("method") or "").strip()
+
+    patient_user = aliased(User, name="pat_user")
+    doctor_user = aliased(User, name="doc_user")
+
+    query = (
+        Payment.query
+        .join(Appointment, Payment.appointment_id == Appointment.id)
+        .join(Patient, Payment.patient_id == Patient.id)
+        .join(patient_user, Patient.user_id == patient_user.id)
+        .join(Doctor, Appointment.doctor_id == Doctor.id)
+        .join(doctor_user, Doctor.user_id == doctor_user.id)
+    )
 
     if status_filter:
         query = query.filter(Payment.status == status_filter)
-    if doctor_id:
-        query = query.filter(Appointment.doctor_id == doctor_id)
-    if patient_id:
-        query = query.filter(Payment.patient_id == patient_id)
+    if method_filter:
+        query = query.filter(Payment.payment_method == method_filter)
+    if patient_filter:
+        query = query.filter(
+            or_(
+                patient_user.name.ilike(f"%{patient_filter}%"),
+                patient_user.username.ilike(f"%{patient_filter}%"),
+                patient_user.email.ilike(f"%{patient_filter}%"),
+            )
+        )
+    if doctor_filter:
+        query = query.filter(
+            or_(
+                doctor_user.name.ilike(f"%{doctor_filter}%"),
+                doctor_user.username.ilike(f"%{doctor_filter}%"),
+            )
+        )
+    if date_filter:
+        query = query.filter(Payment.payment_date >= date_filter, Payment.payment_date < date_filter + "T23:59:59")
 
     payments = query.order_by(Payment.payment_date.desc(), Payment.id.desc()).all()
 

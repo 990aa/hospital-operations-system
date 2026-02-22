@@ -2,12 +2,12 @@
 Celery Tasks for Background Jobs.
 
 This module contains all the background tasks for the Hospital Management System:
-- Daily appointment reminders for patients
-- Monthly activity reports for doctors
+- Daily appointment reminders for patients (email or SMS)
+- Monthly activity reports for doctors (email)
 - Async CSV export for patient treatment history
-- Notification helpers (email, Google Chat webhook)
 
 All tasks are designed to be idempotent and handle errors gracefully.
+Google Chat webhook integration has been intentionally excluded.
 
 Author: Abdul Ahad
 """
@@ -15,12 +15,9 @@ Author: Abdul Ahad
 import os
 import csv
 import smtplib
-import json
 from datetime import datetime, timedelta
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from urllib.request import Request, urlopen
-from urllib.error import URLError
 
 from celery import shared_task
 from celery.exceptions import MaxRetriesExceededError
@@ -68,7 +65,6 @@ def send_daily_reminders(self):
         "total": len(appointments),
         "emails_sent": 0,
         "sms_sent": 0,
-        "chat_sent": 0,
         "failed": 0,
     }
 
@@ -101,19 +97,13 @@ Hospital Management Team
 """
 
         try:
-            # Send based on preference
+            # Send based on preference (email or sms only; chat not supported)
             if pref == "email" and patient.user.email:
                 send_email(patient.user.email, subject, message)
                 results["emails_sent"] += 1
             elif pref == "sms" and patient.user.phone:
                 send_sms(patient.user.phone, message)
                 results["sms_sent"] += 1
-            elif pref == "chat":
-                # Google Chat webhook (configure in environment)
-                webhook_url = os.environ.get("GOOGLE_CHAT_WEBHOOK")
-                if webhook_url:
-                    send_google_chat_message(webhook_url, subject, message)
-                    results["chat_sent"] += 1
             else:
                 # Fallback to email if available
                 if patient.user.email:
@@ -544,48 +534,3 @@ def send_sms(phone_number, message):
     else:
         # For development: just log the SMS
         print(f"[SMS] To: {phone_number}\nMessage: {message}\n---")
-
-
-def send_google_chat_message(webhook_url, title, message):
-    """
-    Send a message to Google Chat using a webhook.
-
-    Args:
-        webhook_url: Google Chat webhook URL
-        title: Message title
-        message: Message content
-
-    Raises:
-        Exception: If message sending fails
-    """
-    # Format message for Google Chat cards format
-    payload = {
-        "text": f"*{title}*\n\n{message}",
-        "cards": [
-            {
-                "header": {"title": title, "subtitle": "Hospital Management System"},
-                "sections": [
-                    {
-                        "widgets": [
-                            {"textParagraph": {"text": message.replace("\n", "<br>")}}
-                        ]
-                    }
-                ],
-            }
-        ],
-    }
-
-    # Send HTTP POST request
-    data = json.dumps(payload).encode("utf-8")
-    headers = {"Content-Type": "application/json"}
-
-    request = Request(webhook_url, data=data, headers=headers, method="POST")
-
-    try:
-        with urlopen(request, timeout=30) as response:
-            if response.status != 200:
-                raise Exception(
-                    f"Google Chat webhook returned status {response.status}"
-                )
-    except URLError as e:
-        raise Exception(f"Failed to send Google Chat message: {str(e)}")

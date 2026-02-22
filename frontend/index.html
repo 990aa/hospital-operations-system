@@ -264,9 +264,7 @@
                                 <input type="password" v-model="authForm.password" class="form-control" required>
                             </div>
                             <button type="submit" class="btn btn-hospital-primary w-100 mb-3">Login</button>
-                            <p class="text-center mb-0">
-                                Patient? <a href="#" @click.prevent="isLogin = false">Register here</a>
-                            </p>
+                            
                         </form>
 
                         <!-- Register Form (Patients Only) -->
@@ -319,9 +317,6 @@
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" :class="{active: adminTab === 'payments'}" href="#" @click.prevent="adminTab = 'payments'; loadAdminPayments()">Payments</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" :class="{active: adminTab === 'profile'}" href="#" @click.prevent="adminTab = 'profile'; loadProfile()">Profile</a>
                     </li>
                 </ul>
 
@@ -387,7 +382,7 @@
                     <div class="card mb-3">
                         <div class="card-header">Department Management</div>
                         <div class="card-body">
-                            <div class="row g-2">
+                            <div class="row g-2 mb-3">
                                 <div class="col-md-8">
                                     <input v-model="newDepartmentName" class="form-control" placeholder="Create new department">
                                 </div>
@@ -395,6 +390,16 @@
                                     <button type="button" @click="createDepartment" class="btn btn-hospital-secondary w-100">Save Department</button>
                                 </div>
                             </div>
+                            <table class="table table-sm mb-0">
+                                <thead><tr><th>ID</th><th>Name</th><th>Action</th></tr></thead>
+                                <tbody>
+                                    <tr v-for="dept in departments" :key="dept.id">
+                                        <td>{{ dept.id }}</td>
+                                        <td>{{ dept.name }}</td>
+                                        <td><button @click="deleteDepartment(dept.id)" class="btn btn-sm btn-hospital-danger">Delete</button></td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
 
@@ -419,18 +424,24 @@
                                     <div class="col-md-6 mb-2">
                                         <input v-model="newDoctor.phone" placeholder="Phone" class="form-control">
                                     </div>
-                                    <div class="col-md-6 mb-2">
+                                    <div class="col-md-6 mb-2" style="position:relative;">
                                         <label class="form-label">Department</label>
                                         <input
                                             v-model="doctorDepartmentQuery"
                                             @input="onDoctorDepartmentInput"
+                                            @focus="showDeptDropdown = true"
+                                            @blur="hideDeptDropdown"
                                             class="form-control"
-                                            list="doctorDepartmentOptions"
-                                            placeholder="Select or search department"
-                                            required>
-                                        <datalist id="doctorDepartmentOptions">
-                                            <option v-for="dept in departments" :key="dept.id" :value="dept.name"></option>
-                                        </datalist>
+                                            placeholder="Type to search or select department"
+                                            autocomplete="off">
+                                        <div v-if="showDeptDropdown && filteredDepartmentsByQuery.length" class="list-group" style="position:absolute;z-index:9999;width:100%;max-height:200px;overflow-y:auto;">
+                                            <button type="button" v-for="dept in filteredDepartmentsByQuery" :key="dept.id"
+                                                class="list-group-item list-group-item-action py-1 px-2"
+                                                @mousedown.prevent="selectDeptFromDropdown(dept)">
+                                                {{ dept.name }}
+                                            </button>
+                                        </div>
+                                        <small v-if="doctorDepartmentQuery && !newDoctor.department_id" class="text-danger">Select a department from the list</small>
                                     </div>
                                     <div class="col-md-12 mb-2">
                                         <label class="form-label">Availability Days</label>
@@ -568,7 +579,6 @@
                                         <option value="">All Payment</option>
                                         <option value="paid">Paid</option>
                                         <option value="unpaid">Unpaid</option>
-                                        <option value="completed">Completed</option>
                                         <option value="refunded">Refunded</option>
                                     </select>
                                 </div>
@@ -617,10 +627,56 @@
                 </div>
 
                 <div v-if="adminTab === 'payments'">
-                    <div class="row mb-3">
-                        <div class="col-md-4"><div class="stat-card"><h3>${{ adminPaymentSummary.total_collected || 0 }}</h3><p>Total Collected</p></div></div>
-                        <div class="col-md-4"><div class="stat-card"><h3>${{ adminPaymentSummary.total_refunded || 0 }}</h3><p>Total Refunded</p></div></div>
-                        <div class="col-md-4"><div class="stat-card"><h3>${{ adminPaymentSummary.net || 0 }}</h3><p>Net</p></div></div>
+                    <!-- Summary table like statistics page -->
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <table class="table table-bordered mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Total Collected</th>
+                                        <th>Total Refunded</th>
+                                        <th>Net</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>${{ adminPaymentSummary.total_collected || 0 }}</td>
+                                        <td>${{ adminPaymentSummary.total_refunded || 0 }}</td>
+                                        <td>${{ adminPaymentSummary.net || 0 }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <!-- Filters for payments -->
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <div class="row g-2">
+                                <div class="col-md-2"><input type="date" v-model="adminPaymentFilters.date" @change="loadAdminPayments" class="form-control" placeholder="Date"></div>
+                                <div class="col-md-2"><input v-model="adminPaymentFilters.patient" @input="loadAdminPayments" class="form-control" placeholder="Patient"></div>
+                                <div class="col-md-2"><input v-model="adminPaymentFilters.doctor" @input="loadAdminPayments" class="form-control" placeholder="Doctor"></div>
+                                <div class="col-md-2">
+                                    <select v-model="adminPaymentFilters.status" @change="loadAdminPayments" class="form-select">
+                                        <option value="">All Status</option>
+                                        <option value="pending">Pending</option>
+                                        <option value="completed">Paid</option>
+                                        <option value="refunded">Refunded</option>
+                                        <option value="failed">Failed</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-2">
+                                    <select v-model="adminPaymentFilters.method" @change="loadAdminPayments" class="form-select">
+                                        <option value="">All Methods</option>
+                                        <option value="credit_card">Credit Card</option>
+                                        <option value="debit_card">Debit Card</option>
+                                        <option value="insurance">Insurance</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-2">
+                                    <button @click="clearPaymentFilters" class="btn btn-hospital-secondary w-100">Clear</button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     <div class="card">
                         <div class="card-body">
@@ -631,6 +687,7 @@
                                         <th>Patient</th>
                                         <th>Doctor</th>
                                         <th>Amount</th>
+                                        <th>Method</th>
                                         <th>Status</th>
                                         <th>Transaction</th>
                                     </tr>
@@ -641,6 +698,7 @@
                                         <td>{{ payment.patient_name }}</td>
                                         <td>{{ payment.doctor_name }}</td>
                                         <td>${{ payment.amount }}</td>
+                                        <td>{{ payment.payment_method }}</td>
                                         <td>{{ payment.status }}</td>
                                         <td>{{ payment.transaction_id }}</td>
                                     </tr>
@@ -650,19 +708,7 @@
                     </div>
                 </div>
 
-                <div v-if="adminTab === 'profile'" class="card">
-                    <div class="card-header">Edit Profile</div>
-                    <div class="card-body">
-                        <form @submit.prevent="saveProfile">
-                            <div class="row">
-                                <div class="col-md-4 mb-2"><input v-model="profileForm.name" class="form-control" placeholder="Name"></div>
-                                <div class="col-md-4 mb-2"><input v-model="profileForm.email" class="form-control" placeholder="Email"></div>
-                                <div class="col-md-4 mb-2"><input v-model="profileForm.phone" class="form-control" placeholder="Phone"></div>
-                            </div>
-                            <button type="submit" class="btn btn-hospital-primary">Save Profile</button>
-                        </form>
-                    </div>
-                </div>
+                <!-- END admin payments tab -->
             </div>
 
             <!-- DOCTOR DASHBOARD -->
@@ -690,6 +736,23 @@
 
                 <!-- Appointments Tab -->
                 <div v-if="doctorTab === 'appointments'">
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <div class="row g-2">
+                                <div class="col-md-3"><input type="date" v-model="doctorAptFilters.date" @change="applyDoctorAptFilters" class="form-control"></div>
+                                <div class="col-md-3"><input v-model="doctorAptFilters.patient" @input="applyDoctorAptFilters" class="form-control" placeholder="Patient name"></div>
+                                <div class="col-md-3">
+                                    <select v-model="doctorAptFilters.status" @change="applyDoctorAptFilters" class="form-select">
+                                        <option value="">All Status</option>
+                                        <option value="Booked">Booked</option>
+                                        <option value="Completed">Completed</option>
+                                        <option value="Cancelled">Cancelled</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3"><button @click="clearDoctorAptFilters" class="btn btn-hospital-secondary w-100">Clear</button></div>
+                            </div>
+                        </div>
+                    </div>
                     <div class="card">
                         <div class="card-body">
                             <table class="table">
@@ -705,7 +768,7 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <tr v-for="apt in doctorAppointments" :key="apt.id">
+                                    <tr v-for="apt in filteredDoctorAppointments" :key="apt.id">
                                         <td>{{ apt.date }}</td>
                                         <td>{{ apt.time }}</td>
                                         <td>{{ apt.patient_name }}</td>
@@ -778,10 +841,38 @@
                 </div>
 
                 <div v-if="doctorTab === 'payments'">
-                    <div class="row mb-3">
-                        <div class="col-md-4"><div class="stat-card"><h3>${{ doctorPaymentSummary.total_earned || 0 }}</h3><p>Total Earned</p></div></div>
-                        <div class="col-md-4"><div class="stat-card"><h3>${{ doctorPaymentSummary.total_refunded || 0 }}</h3><p>Total Refunded</p></div></div>
-                        <div class="col-md-4"><div class="stat-card"><h3>${{ doctorPaymentSummary.net_earned || 0 }}</h3><p>Net Earned</p></div></div>
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <table class="table table-bordered mb-0">
+                                <thead>
+                                    <tr><th>Total Earned</th><th>Total Refunded</th><th>Net Earned</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>${{ doctorPaymentSummary.total_earned || 0 }}</td>
+                                        <td>${{ doctorPaymentSummary.total_refunded || 0 }}</td>
+                                        <td>${{ doctorPaymentSummary.net_earned || 0 }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <div class="row g-2">
+                                <div class="col-md-3"><input type="date" v-model="doctorPayFilters.date" @change="applyDoctorPayFilters" class="form-control"></div>
+                                <div class="col-md-3"><input v-model="doctorPayFilters.patient" @input="applyDoctorPayFilters" class="form-control" placeholder="Patient name"></div>
+                                <div class="col-md-3">
+                                    <select v-model="doctorPayFilters.status" @change="applyDoctorPayFilters" class="form-select">
+                                        <option value="">All Status</option>
+                                        <option value="completed">Paid</option>
+                                        <option value="refunded">Refunded</option>
+                                        <option value="pending">Pending</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3"><button @click="clearDoctorPayFilters" class="btn btn-hospital-secondary w-100">Clear</button></div>
+                            </div>
+                        </div>
                     </div>
                     <div class="card">
                         <div class="card-body">
@@ -796,7 +887,7 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <tr v-for="payment in doctorPayments" :key="payment.id">
+                                    <tr v-for="payment in filteredDoctorPayments" :key="payment.id">
                                         <td>{{ payment.payment_date ? payment.payment_date.split('T')[0] : 'N/A' }}</td>
                                         <td>{{ payment.patient_name }}</td>
                                         <td>${{ payment.amount }}</td>
@@ -909,21 +1000,47 @@
                         <div class="card-header">Book New Appointment</div>
                         <div class="card-body">
                             <form @submit.prevent="bookAppointment">
+                                <div class="row g-2 mb-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Filter Doctors by Department</label>
+                                        <select v-model="bookingDeptFilter" @change="filterBookingDoctors" class="form-select">
+                                            <option value="">All Departments</option>
+                                            <option v-for="dept in departments" :key="dept.id" :value="dept.id">{{ dept.name }}</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Search Doctor by Name</label>
+                                        <input v-model="bookingDoctorSearch" @input="filterBookingDoctors" class="form-control" placeholder="Doctor name">
+                                    </div>
+                                </div>
                                 <div class="mb-3">
                                     <label class="form-label">Select Doctor</label>
                                     <select v-model="bookingForm.doctor_id" @change="onDoctorChange" class="form-select" required>
                                         <option value="">Choose a doctor</option>
-                                        <option v-for="doc in availableDoctors" :key="doc.id" :value="doc.id">
+                                        <option v-for="doc in filteredBookingDoctors" :key="doc.id" :value="doc.id">
                                             {{ doc.name }} - {{ doc.department }}
                                         </option>
                                     </select>
                                 </div>
                                 <div v-if="selectedDoctor" class="mb-3">
-                                    <p class="mb-1"><strong>Doctor Profile:</strong> {{ selectedDoctor.bio || 'No profile added.' }}</p>
-                                    <p class="mb-1"><strong>Availability:</strong> {{ selectedDoctor.availability_days.join(', ') }} {{ selectedDoctor.availability_start }}-{{ selectedDoctor.availability_end }}</p>
-                                    <div class="border rounded p-2">
-                                        <div v-for="day in selectedDoctor.upcoming_availability" :key="day.date" class="small">
-                                            {{ day.date }} ({{ day.day }}): {{ day.remaining_slots }} slot(s) available
+                                    <div class="card border">
+                                        <div class="card-header">Doctor Details</div>
+                                        <div class="card-body p-2">
+                                            <table class="table table-sm table-bordered mb-2">
+                                                <tbody>
+                                                    <tr><th>Doctor ID</th><td>{{ selectedDoctor.id }}</td><th>Name</th><td>{{ selectedDoctor.name }}</td></tr>
+                                                    <tr><th>Department</th><td>{{ selectedDoctor.department }}</td><th>Specialization</th><td>{{ selectedDoctor.department }}</td></tr>
+                                                    <tr><th>Email</th><td>{{ selectedDoctor.email || 'N/A' }}</td><th>Phone</th><td>{{ selectedDoctor.phone || 'N/A' }}</td></tr>
+                                                    <tr><th>Availability Days</th><td>{{ selectedDoctor.availability_days.join(', ') }}</td><th>Hours</th><td>{{ selectedDoctor.availability_start }}-{{ selectedDoctor.availability_end }}</td></tr>
+                                                    <tr><th>Slot Duration</th><td>{{ selectedDoctor.slot_minutes }} mins</td><th>Bio</th><td>{{ selectedDoctor.bio || 'N/A' }}</td></tr>
+                                                </tbody>
+                                            </table>
+                                            <p class="mb-1 fw-semibold">Upcoming Availability (7 days):</p>
+                                            <div class="border rounded p-2">
+                                                <div v-for="day in selectedDoctor.upcoming_availability" :key="day.date" class="small">
+                                                    {{ day.date }} ({{ day.day }}): {{ day.remaining_slots }} slot(s) available
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -946,6 +1063,23 @@
 
                 <!-- My Appointments Tab -->
                 <div v-if="patientTab === 'appointments'">
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <div class="row g-2">
+                                <div class="col-md-3"><input type="date" v-model="patientAptFilters.date" @change="applyPatientAptFilters" class="form-control"></div>
+                                <div class="col-md-3"><input v-model="patientAptFilters.doctor" @input="applyPatientAptFilters" class="form-control" placeholder="Doctor name"></div>
+                                <div class="col-md-3">
+                                    <select v-model="patientAptFilters.status" @change="applyPatientAptFilters" class="form-select">
+                                        <option value="">All Status</option>
+                                        <option value="Booked">Booked</option>
+                                        <option value="Completed">Completed</option>
+                                        <option value="Cancelled">Cancelled</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3"><button @click="clearPatientAptFilters" class="btn btn-hospital-secondary w-100">Clear</button></div>
+                            </div>
+                        </div>
+                    </div>
                     <div class="card">
                         <div class="card-body">
                             <table class="table">
@@ -961,7 +1095,7 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <tr v-for="apt in patientAppointments" :key="apt.id">
+                                    <tr v-for="apt in filteredPatientAppointments" :key="apt.id">
                                         <td>{{ apt.date }}</td>
                                         <td>{{ apt.time }}</td>
                                         <td>{{ apt.doctor_name }}</td>
@@ -1014,6 +1148,23 @@
 
                 <!-- Payments Tab -->
                 <div v-if="patientTab === 'payments'">
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <div class="row g-2">
+                                <div class="col-md-3"><input type="date" v-model="patientPayFilters.date" @change="applyPatientPayFilters" class="form-control"></div>
+                                <div class="col-md-3"><input v-model="patientPayFilters.doctor" @input="applyPatientPayFilters" class="form-control" placeholder="Doctor name"></div>
+                                <div class="col-md-3">
+                                    <select v-model="patientPayFilters.status" @change="applyPatientPayFilters" class="form-select">
+                                        <option value="">All Status</option>
+                                        <option value="completed">Paid</option>
+                                        <option value="refunded">Refunded</option>
+                                        <option value="pending">Pending</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3"><button @click="clearPatientPayFilters" class="btn btn-hospital-secondary w-100">Clear</button></div>
+                            </div>
+                        </div>
+                    </div>
                     <div class="card">
                         <div class="card-body">
                             <table class="table">
@@ -1028,7 +1179,7 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <tr v-for="payment in payments" :key="payment.id">
+                                    <tr v-for="payment in filteredPayments" :key="payment.id">
                                         <td>{{ payment.payment_date ? payment.payment_date.split('T')[0] : 'N/A' }}</td>
                                         <td>{{ payment.doctor_name }}</td>
                                         <td>${{ payment.amount }}</td>

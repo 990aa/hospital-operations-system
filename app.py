@@ -54,8 +54,8 @@ def create_app(test_config=None):
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False  # Disable warning
 
     # Security Configuration
-    app.config["SECRET_KEY"] = "thisisasecretkey"  # Change in production
-    app.config["SECURITY_PASSWORD_SALT"] = "somesalt"  # Change in production
+    app.config["SECRET_KEY"] = "thisisasecretkey" 
+    app.config["SECURITY_PASSWORD_SALT"] = "somesalt"
     app.config["SECURITY_REGISTERABLE"] = False  # Only admin can register doctors
     app.config["SECURITY_SEND_REGISTER_EMAIL"] = False  # Disable email for now
     app.config["SECURITY_USERNAME_ENABLE"] = True  # Enable username login

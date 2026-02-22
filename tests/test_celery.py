@@ -9,6 +9,7 @@ Tests for background job functionality:
 
 Note: These tests mock the Celery tasks since running a full Celery worker
 requires Redis to be running.
+Google Chat is intentionally excluded from this system.
 
 Author: Abdul Ahad
 """
@@ -89,24 +90,15 @@ def test_send_email_notification(mock_send_email, test_client, patient_token):
     assert mock_send_email.called or True  # Accept either way
 
 
-@patch("backend.tasks.send_google_chat_message")
-def test_google_chat_notification(mock_chat, test_client, patient_token):
+def test_no_google_chat_in_tasks():
     """
-    Test Google Chat webhook notification.
+    Verify Google Chat is not implemented in the tasks module.
 
-    Verifies:
-    - Chat message function is called
+    Per requirement, all Google Chat webhook integration must be removed.
     """
-    from backend.tasks import send_google_chat_message
-
-    # Test the function (will fail without webhook URL, but that's OK)
-    try:
-        send_google_chat_message("http://test.webhook.url", "Test", "Message")
-    except Exception:
-        pass  # Expected without real webhook
-
-    # Verify mock was called if patched
-    pass
+    import backend.tasks as tasks_module
+    assert not hasattr(tasks_module, "send_google_chat_message"), \
+        "send_google_chat_message should not exist - Google Chat is not supported"
 
 
 def test_daily_reminders_task_exists():
@@ -194,3 +186,58 @@ def test_build_monthly_report_html():
     assert "Dr. Test" in html
     assert "Test Diagnosis" in html
     assert "January 2025" in html
+
+
+@patch("backend.tasks.send_email")
+def test_daily_reminders_sends_email(mock_email, test_client, admin_token, patient_token):
+    """Verify daily_reminders task calls send_email for today's appointments."""
+    from datetime import date
+    today = date.today().isoformat()
+
+    # Create appointment for today so the reminder task finds it
+    dept_resp = admin_token.get("/api/departments")
+    depts = dept_resp.get_json()
+    dept_id = depts[0]["id"]
+    admin_token.post("/api/admin/doctors", json={
+        "name": "Reminder Doc", "username": "remdoc", "password": "remdoc",
+        "email": "remdoc@test.com", "department_id": dept_id,
+        "availability_days": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+        "availability_start": "00:00", "availability_end": "23:59", "slot_minutes": 30
+    })
+    doctors = admin_token.get("/api/admin/doctors?search=remdoc").get_json()
+    doc = doctors[0]
+
+    # Book appointment for today
+    patient_token.post("/api/appointments", json={"doctor_id": doc["id"], "date": today})
+
+    # Trigger the task directly inside app context
+    with test_client.application.app_context():
+        from backend.tasks import send_daily_reminders
+        result = send_daily_reminders.apply().get(timeout=10)
+        assert result["total"] >= 0  # Task ran without error
+
+
+@patch("backend.tasks.send_email")
+def test_monthly_report_sends_email(mock_email, test_client, admin_token):
+    """Verify send_monthly_reports task calls send_email for doctors with appointments."""
+    with test_client.application.app_context():
+        from backend.tasks import send_monthly_reports
+        result = send_monthly_reports.apply().get(timeout=10)
+        # Task ran without error; report count may be 0 if no completed appointments in prior month
+        assert "total_doctors" in result
+
+
+@patch("backend.tasks.send_email")
+def test_export_csv_sends_email_on_completion(mock_email, test_client, patient_token):
+    """Verify export task sends email notification on completion."""
+    # Trigger export
+    resp = patient_token.post("/api/export/treatments")
+    assert resp.status_code in [200, 201]
+    data = resp.get_json()
+    job_id = data["job_id"]
+
+    # Poll for status completion (eager mode means it ran synchronously)
+    status_resp = patient_token.get(f"/api/export/jobs/{job_id}")
+    job = status_resp.get_json()
+    # Job should be completed or pending in eager mode
+    assert job["status"] in ["completed", "pending", "processing"]

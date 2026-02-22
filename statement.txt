@@ -101,7 +101,7 @@ Patients can book as well as cancel appointments with doctors.
 
 
 Backend Jobs
-a. Scheduled Job - Daily reminders - The application should send daily reminders to users on g-chat using Google Chat Webhooks or SMS or mail
+a. Scheduled Job - Daily reminders - The application should send daily reminders to users on SMS or mail
 Check if a patient has a visit scheduled to the hospital on a particular day
 If yes, then send the alert asking them to visit the hospital at the scheduled time
 The reminder can be sent in the morning every day. (choose the time)
@@ -116,17 +116,17 @@ Have a dashboard from where the patient can trigger the export
 This should trigger a batch job, and send an alert once done.
 
 Performance and Caching
-Add caching where required to increase the performance
-Add cache expiry
+x Add caching where required to increase the performance
+x Add cache expiry
 API Performance
 
 Other core functionalities
 Prevent multiple appointments at the same date and time for the same doctor.
-Update appointment status dynamically (Booked → Completed → Cancelled).
-Admin and Patient should be able to search for a specialization or by a doctor’s name.
-Admin should be able to search patients by name, ID, or contact information.
+x Update appointment status dynamically (Booked → Completed → Cancelled).
+x Admin and Patient should be able to search for a specialization or by a doctor’s name.
+x Admin should be able to search patients by name, ID, or contact information.
 Store all completed appointment records for each patient.
-Include diagnosis, prescriptions, and doctor notes for each visit.
+x Include diagnosis, prescriptions, and doctor notes for each visit.
 Allow patients to view their own treatment history.
 Allow doctors to view the full history of their patients for informed consultation.
 
