@@ -216,16 +216,18 @@ def test_daily_reminders_sends_email(mock_email, test_client):
         db.session.commit()
 
         from backend.tasks import send_daily_reminders
-        result = send_daily_reminders.apply().get(timeout=10)
+        # Call .run() directly so it executes within the current app context
+        result = send_daily_reminders.run()
         assert result["total"] >= 1  # Task found today's appointment
 
 
 @patch("backend.tasks.send_email")
 def test_monthly_report_sends_email(mock_email, test_client, admin_token):
-    """Verify send_monthly_reports task calls send_email for doctors with appointments."""
+    """Verify send_monthly_reports task runs and returns expected structure."""
     with test_client.application.app_context():
         from backend.tasks import send_monthly_reports
-        result = send_monthly_reports.apply().get(timeout=10)
+        # Call .run() directly inside the test app context so DB tables are accessible
+        result = send_monthly_reports.run()
         # Task ran without error; report count may be 0 if no completed appointments in prior month
         assert "total_doctors" in result
 
