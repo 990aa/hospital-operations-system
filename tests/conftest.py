@@ -4,7 +4,8 @@ Pytest Configuration and Fixtures.
 This module provides shared fixtures for all tests including:
 - Test client with in-memory database
 - Authentication fixtures for admin, doctor, and patient
-- Sample data creation helpers
+- Sample data creation helpers with multiple departments, doctors, and patients
+- Concurrent appointment booking scenarios
 
 Author: Abdul Ahad
 """
@@ -12,6 +13,8 @@ Author: Abdul Ahad
 import pytest
 import os
 import sys
+import threading
+import time
 
 # Add project root to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -29,7 +32,9 @@ def test_client():
     This fixture creates a Flask app configured for testing with:
     - SQLite in-memory database
     - CSRF disabled for API testing
-    - Test-specific security settings
+    - Multiple departments and doctors (same username=password for easy login)
+    - Multiple patients
+    - Celery in eager/synchronous mode for background job testing
 
     Yields:
         Flask test client
@@ -60,7 +65,7 @@ def test_client():
         user_datastore.find_or_create_role(name="patient", description="Patient")
         db.session.commit()
 
-        # Create test admin
+        # Create test admin (username = password for easy login)
         if not user_datastore.find_user(username="admin"):
             user_datastore.create_user(
                 username="admin",
@@ -73,65 +78,80 @@ def test_client():
             )
             db.session.commit()
 
-        # Create test departments
-        dept1 = Department.query.filter_by(name="General Medicine").first()
-        if not dept1:
-            dept1 = Department(
-                name="General Medicine", description="General health care"
-            )
-            db.session.add(dept1)
-
-        dept2 = Department.query.filter_by(name="Cardiology").first()
-        if not dept2:
-            dept2 = Department(
-                name="Cardiology", description="Heart related treatments"
-            )
-            db.session.add(dept2)
-
+        # Create multiple test departments
+        dept_names = [
+            ("General Medicine", "General health care"),
+            ("Cardiology", "Heart related treatments"),
+            ("Neurology", "Brain and nervous system"),
+            ("Orthopedics", "Bone and joint care"),
+        ]
+        depts = []
+        for dname, ddesc in dept_names:
+            dept = Department.query.filter_by(name=dname).first()
+            if not dept:
+                dept = Department(name=dname, description=ddesc)
+                db.session.add(dept)
+                db.session.flush()
+            depts.append(dept)
         db.session.commit()
 
-        # Create test doctor
-        if not user_datastore.find_user(username="doctor"):
-            doctor_user = user_datastore.create_user(
-                username="doctor",
-                email="doctor@test.com",
-                phone="2345678901",
-                password=hash_password("docpassword"),
-                roles=["doctor"],
-                name="Dr. Test Doctor",
-                active=True,
-            )
-            db.session.commit()
+        # Create multiple test doctors - username = password for easy login
+        doctor_data = [
+            ("doctor", "doctor@test.com", "2345678901", "Dr. Test Doctor", 0),
+            ("doctor2", "doctor2@test.com", "2345678902", "Dr. Cardio Doctor", 1),
+            ("doctor3", "doctor3@test.com", "2345678903", "Dr. Neuro Doctor", 2),
+            ("doctor4", "doctor4@test.com", "2345678904", "Dr. Ortho Doctor", 3),
+        ]
+        for uname, email, phone, fullname, dept_idx in doctor_data:
+            if not user_datastore.find_user(username=uname):
+                doc_user = user_datastore.create_user(
+                    username=uname,
+                    email=email,
+                    phone=phone,
+                    password=hash_password(uname),  # username = password
+                    roles=["doctor"],
+                    name=fullname,
+                    active=True,
+                )
+                db.session.commit()
+                doc = Doctor(
+                    user_id=doc_user.id,
+                    department_id=depts[dept_idx].id,
+                    availability="Mon-Fri 9AM-5PM",
+                    availability_days="Mon,Tue,Wed,Thu,Fri",
+                    availability_start="09:00",
+                    availability_end="17:00",
+                    slot_minutes=30,
+                    email_notifications=True,
+                )
+                db.session.add(doc)
+                db.session.commit()
 
-            doctor = Doctor(
-                user_id=doctor_user.id,
-                department_id=dept1.id,
-                availability="Mon-Fri 9AM-5PM",
-                email_notifications=True,
-            )
-            db.session.add(doctor)
-            db.session.commit()
-
-        # Create test patient
-        if not user_datastore.find_user(username="patient"):
-            patient_user = user_datastore.create_user(
-                username="patient",
-                email="patient@test.com",
-                phone="3456789012",
-                password=hash_password("patientpassword"),
-                roles=["patient"],
-                name="Test Patient",
-                active=True,
-            )
-            db.session.commit()
-
-            patient = Patient(
-                user_id=patient_user.id,
-                medical_history="Previous surgery in 2020",
-                notification_pref="email",
-            )
-            db.session.add(patient)
-            db.session.commit()
+        # Create multiple test patients - username = password for easy login
+        patient_data = [
+            ("patient", "patient@test.com", "3456789012", "Test Patient"),
+            ("patient2", "patient2@test.com", "3456789013", "Test Patient Two"),
+            ("patient3", "patient3@test.com", "3456789014", "Test Patient Three"),
+        ]
+        for uname, email, phone, fullname in patient_data:
+            if not user_datastore.find_user(username=uname):
+                p_user = user_datastore.create_user(
+                    username=uname,
+                    email=email,
+                    phone=phone,
+                    password=hash_password(uname),  # username = password
+                    roles=["patient"],
+                    name=fullname,
+                    active=True,
+                )
+                db.session.commit()
+                p = Patient(
+                    user_id=p_user.id,
+                    medical_history="Test medical history",
+                    notification_pref="email",
+                )
+                db.session.add(p)
+                db.session.commit()
 
     testing_client = app.test_client()
 
@@ -156,13 +176,14 @@ def admin_token(test_client):
 @pytest.fixture
 def doctor_token(test_client):
     """
-    Get authenticated doctor session.
+    Get authenticated doctor session (doctor1 - General Medicine).
+    Password same as username for easy login.
 
     Returns:
         Test client with doctor session
     """
     test_client.post(
-        "/api/login", json={"username": "doctor", "password": "docpassword"}
+        "/api/login", json={"username": "doctor", "password": "doctor"}
     )
     return test_client
 
@@ -170,13 +191,14 @@ def doctor_token(test_client):
 @pytest.fixture
 def patient_token(test_client):
     """
-    Get authenticated patient session.
+    Get authenticated patient session (patient1).
+    Password same as username for easy login.
 
     Returns:
         Test client with patient session
     """
     test_client.post(
-        "/api/login", json={"username": "patient", "password": "patientpassword"}
+        "/api/login", json={"username": "patient", "password": "patient"}
     )
     return test_client
 
