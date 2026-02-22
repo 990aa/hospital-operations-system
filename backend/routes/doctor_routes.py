@@ -25,6 +25,8 @@ from backend.routes.patient_routes import _create_serial_appointment
 # Create Blueprint for doctor routes
 doctor_bp = Blueprint("doctor", __name__)
 
+WEEKDAY_ORDER = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
 
 def _normalize_date_str(value):
     """Return YYYY-MM-DD string for either date-like object or existing string."""
@@ -44,6 +46,97 @@ def _has_active_completed_payment(appointment_id):
         appointment_id=appointment_id, status="refunded"
     ).count()
     return completed_count > refunded_count
+
+
+def _normalize_availability_payload(data, doctor):
+    """Validate/normalize doctor availability payload from doctor settings."""
+    days = data.get("availability_days", doctor.get_availability_days())
+    if not isinstance(days, list):
+        return None, "availability_days must be a list"
+
+    normalized_days = [day for day in WEEKDAY_ORDER if day in set(days)]
+    if not normalized_days:
+        return None, "At least one availability day is required"
+
+    availability_start = (data.get("availability_start") or doctor.availability_start or "09:00").strip()
+    availability_end = (data.get("availability_end") or doctor.availability_end or "17:00").strip()
+    try:
+        start_hour, start_minute = [int(part) for part in availability_start.split(":", 1)]
+        end_hour, end_minute = [int(part) for part in availability_end.split(":", 1)]
+    except Exception:
+        return None, "availability_start and availability_end must be in HH:MM format"
+
+    start_minutes = (start_hour * 60) + start_minute
+    end_minutes = (end_hour * 60) + end_minute
+    if end_minutes <= start_minutes:
+        return None, "availability_end must be later than availability_start"
+
+    slot_minutes = int(data.get("slot_minutes", doctor.slot_minutes or 30) or 30)
+    if slot_minutes < 10 or slot_minutes > 60:
+        return None, "slot_minutes must be between 10 and 60"
+
+    return {
+        "availability_days": normalized_days,
+        "availability_start": availability_start,
+        "availability_end": availability_end,
+        "slot_minutes": slot_minutes,
+    }, None
+
+
+@doctor_bp.route("/doctor/profile", methods=["GET"])
+@roles_required("doctor")
+def doctor_profile():
+    """Return read-only doctor profile details for tabular frontend rendering."""
+    doctor = Doctor.query.filter_by(user_id=current_user.id).first()
+    if not doctor:
+        return jsonify({"message": "Doctor profile not found"}), 404
+
+    return jsonify(
+        {
+            "doctor_id": doctor.id,
+            "user_id": doctor.user_id,
+            "username": doctor.user.username,
+            "name": doctor.user.name,
+            "email": doctor.user.email,
+            "phone": doctor.user.phone,
+            "department_id": doctor.department_id,
+            "department": doctor.department.name,
+            "availability": doctor.availability,
+            "availability_days": doctor.get_availability_days(),
+            "availability_start": doctor.availability_start,
+            "availability_end": doctor.availability_end,
+            "slot_minutes": doctor.slot_minutes,
+            "bio": doctor.bio or "",
+            "email_notifications": bool(doctor.email_notifications),
+        }
+    )
+
+
+@doctor_bp.route("/doctor/availability", methods=["PUT"])
+@roles_required("doctor")
+def update_doctor_availability():
+    """Allow doctors to update their upcoming schedule configuration."""
+    doctor = Doctor.query.filter_by(user_id=current_user.id).first()
+    if not doctor:
+        return jsonify({"message": "Doctor profile not found"}), 404
+
+    data = request.json or {}
+    payload, error = _normalize_availability_payload(data, doctor)
+    if error:
+        return jsonify({"message": error}), 400
+
+    doctor.availability_days = ",".join(payload["availability_days"])
+    doctor.availability_start = payload["availability_start"]
+    doctor.availability_end = payload["availability_end"]
+    doctor.slot_minutes = payload["slot_minutes"]
+    doctor.availability = (
+        f"{doctor.availability_days} "
+        f"{doctor.availability_start}-{doctor.availability_end}"
+    )
+    db.session.commit()
+
+    current_app.cache.delete("all_doctors")
+    return jsonify({"message": "Availability updated", "doctor": doctor.to_dict()})
 
 
 # Appointment Routes
@@ -240,6 +333,37 @@ def complete_appointment(id):
             "follow_up": follow_up_result,
         }
     )
+
+
+@doctor_bp.route("/doctor/appointments/<int:id>/treatment", methods=["PUT"])
+@roles_required("doctor")
+def update_treatment(id):
+    """Update treatment details for a completed appointment."""
+    appointment = Appointment.query.get_or_404(id)
+    doctor = Doctor.query.filter_by(user_id=current_user.id).first()
+    if not doctor:
+        return jsonify({"message": "Doctor profile not found"}), 404
+    if appointment.doctor_id != doctor.id:
+        return jsonify({"message": "Unauthorized - not your appointment"}), 403
+    if appointment.status != "Completed":
+        return jsonify({"message": "Treatment can be updated only for completed appointments"}), 400
+
+    treatment = Treatment.query.filter_by(appointment_id=appointment.id).first()
+    if not treatment:
+        return jsonify({"message": "Treatment record not found"}), 404
+
+    data = request.json or {}
+    if "diagnosis" in data:
+        treatment.diagnosis = data["diagnosis"]
+    if "prescription" in data:
+        treatment.prescription = data["prescription"]
+    if "notes" in data:
+        treatment.notes = data.get("notes", "")
+
+    db.session.commit()
+
+    current_app.cache.delete(f"patient_history_{appointment.patient_id}")
+    return jsonify({"message": "Treatment updated successfully", "treatment": treatment.to_dict()})
 
 
 # Patient History Routes

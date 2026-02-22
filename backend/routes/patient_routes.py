@@ -789,6 +789,10 @@ def update_profile():
     # POST - Update profile
     data = request.json
 
+    # Product rule: doctors cannot edit profile fields; only admin can edit doctor data.
+    if user.has_role("doctor"):
+        return jsonify({"message": "Doctor profile is read-only"}), 403
+
     if "name" in data:
         user.name = data["name"]
 

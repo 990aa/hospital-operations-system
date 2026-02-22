@@ -89,8 +89,21 @@ createApp({
             departments: [],
             departmentSearch: '',
             newDepartmentName: '',
+            doctorSearch: '',
+            doctorDepartmentFilter: '',
+            doctorDepartmentQuery: '',
             patients: [],
+            editingDoctorId: null,
+            editingPatientId: null,
             adminAppointments: [],
+            adminAppointmentFilters: {
+                date: '',
+                patient: '',
+                doctor: '',
+                status: '',
+                payment: '',
+                type: ''
+            },
             adminPayments: [],
             adminPaymentSummary: {},
             showAddDoctor: false,
@@ -114,9 +127,17 @@ createApp({
             doctorAppointments: [],
             doctorPayments: [],
             doctorPaymentSummary: {},
+            doctorProfile: null,
+            availabilityForm: {
+                availability_days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+                availability_start: '09:00',
+                availability_end: '17:00',
+                slot_minutes: 30
+            },
             selectedAppointment: null,
             appointmentDetails: null,
             treatmentForm: { diagnosis: '', prescription: '', notes: '', next_visit_date: '' },
+            treatmentEditForm: { diagnosis: '', prescription: '', notes: '' },
             reportMonth: new Date().getMonth() + 1,
             reportYear: new Date().getFullYear(),
 
@@ -159,6 +180,13 @@ createApp({
             return this.departments.filter((department) =>
                 (department.name || '').toLowerCase().includes(q)
             );
+        },
+        selectedDepartmentByQuery() {
+            const needle = (this.doctorDepartmentQuery || '').trim().toLowerCase();
+            if (!needle) {
+                return null;
+            }
+            return this.departments.find((department) => (department.name || '').toLowerCase() === needle) || null;
         },
         // Resolve currently selected doctor from dropdown value.
         selectedDoctor() {
@@ -212,6 +240,8 @@ createApp({
             this.closeAppointmentDetails();
             this.selectedAppointment = null;
             this.paymentAppointment = null;
+            this.editingDoctorId = null;
+            this.editingPatientId = null;
         },
         // Success-only toast helper; errors are never rendered to UI by design.
         showSuccess(message) {
@@ -271,6 +301,7 @@ createApp({
             if (this.hasRole('doctor')) {
                 await this.loadDoctorAppointments();
                 await this.loadDoctorPayments();
+                await this.loadDoctorProfile();
             }
             if (this.hasRole('patient')) {
                 await this.loadDoctorsForBooking();
@@ -278,6 +309,16 @@ createApp({
                 await this.loadPayments();
             }
             await this.loadProfile();
+        },
+        buildQueryString(filters) {
+            const params = new URLSearchParams();
+            Object.entries(filters || {}).forEach(([key, value]) => {
+                if (value !== null && value !== undefined && String(value).trim() !== '') {
+                    params.append(key, String(value).trim());
+                }
+            });
+            const qs = params.toString();
+            return qs ? `?${qs}` : '';
         },
         // Copies user profile fields from API response into local form model.
         syncProfileForm(user) {
@@ -509,35 +550,81 @@ createApp({
             }
             this.newDoctor.availability_days = Array.from(days);
         },
+        syncDoctorDepartmentQueryFromId() {
+            const selected = this.departments.find((department) => String(department.id) === String(this.newDoctor.department_id));
+            this.doctorDepartmentQuery = selected ? selected.name : '';
+        },
+        onDoctorDepartmentInput() {
+            const exact = this.selectedDepartmentByQuery;
+            this.newDoctor.department_id = exact ? exact.id : '';
+        },
+        openCreateDoctor() {
+            this.editingDoctorId = null;
+            this.showAddDoctor = true;
+            this.newDoctor = {
+                name: '',
+                username: '',
+                password: '',
+                email: '',
+                phone: '',
+                department_id: '',
+                availability_days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+                availability_start: '09:00',
+                availability_end: '17:00',
+                slot_minutes: 30,
+                bio: ''
+            };
+            this.doctorDepartmentQuery = '';
+        },
+        openEditDoctor(doctor) {
+            this.editingDoctorId = doctor.id;
+            this.showAddDoctor = true;
+            this.newDoctor = {
+                name: doctor.name || '',
+                username: doctor.username || '',
+                password: '',
+                email: doctor.email || '',
+                phone: doctor.phone || '',
+                department_id: doctor.department_id || '',
+                availability_days: doctor.availability_days || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+                availability_start: doctor.availability_start || '09:00',
+                availability_end: doctor.availability_end || '17:00',
+                slot_minutes: doctor.slot_minutes || 30,
+                bio: doctor.bio || ''
+            };
+            this.syncDoctorDepartmentQueryFromId();
+        },
         async loadDoctors() {
             try {
-                this.doctors = await apiCall('/admin/doctors', 'GET');
+                const query = this.buildQueryString({
+                    search: this.doctorSearch,
+                    department_id: this.doctorDepartmentFilter
+                });
+                this.doctors = await apiCall('/admin/doctors' + query, 'GET');
             } catch (error) {
                 await this.logError(error, 'loadDoctors');
             }
         },
-        // Creates doctor with structured availability fields.
-        async addDoctor() {
+        // Creates or updates doctor with structured availability fields.
+        async saveDoctor() {
             try {
-                await apiCall('/admin/doctors', 'POST', this.newDoctor);
-                this.newDoctor = {
-                    name: '',
-                    username: '',
-                    password: '',
-                    email: '',
-                    phone: '',
-                    department_id: '',
-                    availability_days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
-                    availability_start: '09:00',
-                    availability_end: '17:00',
-                    slot_minutes: 30,
-                    bio: ''
-                };
+                this.onDoctorDepartmentInput();
+                if (!this.newDoctor.department_id) {
+                    return;
+                }
+                if (this.editingDoctorId) {
+                    await apiCall(`/admin/doctors/${this.editingDoctorId}`, 'PUT', this.newDoctor);
+                    this.showSuccess('Doctor updated.');
+                } else {
+                    await apiCall('/admin/doctors', 'POST', this.newDoctor);
+                    this.showSuccess('Doctor added.');
+                }
                 this.showAddDoctor = false;
+                this.editingDoctorId = null;
                 await this.loadDoctors();
-                this.showSuccess('Doctor added.');
+                await this.loadStats();
             } catch (error) {
-                await this.logError(error, 'addDoctor');
+                await this.logError(error, 'saveDoctor');
             }
         },
         async deleteDoctor(doctorId) {
@@ -561,6 +648,33 @@ createApp({
                 await this.logError(error, 'loadPatients');
             }
         },
+        openEditPatient(patient) {
+            this.editingPatientId = patient.id;
+            this.profileForm.name = patient.name || '';
+            this.profileForm.email = patient.email || '';
+            this.profileForm.phone = patient.phone || '';
+            this.profileForm.history = patient.medical_history || '';
+            this.profileForm.notification_pref = patient.notification_pref || 'email';
+        },
+        async updatePatient() {
+            if (!this.editingPatientId) {
+                return;
+            }
+            try {
+                await apiCall(`/admin/patients/${this.editingPatientId}`, 'PUT', {
+                    name: this.profileForm.name,
+                    email: this.profileForm.email,
+                    phone: this.profileForm.phone,
+                    medical_history: this.profileForm.history,
+                    notification_pref: this.profileForm.notification_pref
+                });
+                this.editingPatientId = null;
+                await this.loadPatients();
+                this.showSuccess('Patient updated.');
+            } catch (error) {
+                await this.logError(error, 'updatePatient');
+            }
+        },
         async deletePatient(patientId) {
             if (!confirm('Delete this patient?')) {
                 return;
@@ -576,7 +690,8 @@ createApp({
         // Loads admin appointment visibility table.
         async loadAdminAppointments() {
             try {
-                this.adminAppointments = await apiCall('/my-appointments', 'GET');
+                const query = this.buildQueryString(this.adminAppointmentFilters);
+                this.adminAppointments = await apiCall('/admin/appointments' + query, 'GET');
             } catch (error) {
                 await this.logError(error, 'loadAdminAppointments');
             }
@@ -599,6 +714,38 @@ createApp({
                 this.$nextTick(() => this.renderDoctorCharts());
             } catch (error) {
                 await this.logError(error, 'loadDoctorAppointments');
+            }
+        },
+        async loadDoctorProfile() {
+            try {
+                this.doctorProfile = await apiCall('/doctor/profile', 'GET');
+                this.availabilityForm = {
+                    availability_days: this.doctorProfile.availability_days || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+                    availability_start: this.doctorProfile.availability_start || '09:00',
+                    availability_end: this.doctorProfile.availability_end || '17:00',
+                    slot_minutes: this.doctorProfile.slot_minutes || 30
+                };
+            } catch (error) {
+                await this.logError(error, 'loadDoctorProfile');
+            }
+        },
+        toggleAvailabilityDay(day) {
+            const days = new Set(this.availabilityForm.availability_days || []);
+            if (days.has(day)) {
+                days.delete(day);
+            } else {
+                days.add(day);
+            }
+            this.availabilityForm.availability_days = Array.from(days);
+        },
+        async saveDoctorAvailability() {
+            try {
+                await apiCall('/doctor/availability', 'PUT', this.availabilityForm);
+                await this.loadDoctorProfile();
+                await this.loadDoctorsForBooking();
+                this.showSuccess('Availability updated.');
+            } catch (error) {
+                await this.logError(error, 'saveDoctorAvailability');
             }
         },
         async loadDoctorPayments() {
@@ -636,6 +783,28 @@ createApp({
                 }
             } catch (error) {
                 await this.logError(error, 'completeAppointment');
+            }
+        },
+        startEditTreatment(appointment) {
+            this.selectedAppointment = appointment;
+            this.treatmentEditForm = {
+                diagnosis: appointment.treatment ? appointment.treatment.diagnosis : '',
+                prescription: appointment.treatment ? appointment.treatment.prescription : '',
+                notes: appointment.treatment ? appointment.treatment.notes : ''
+            };
+        },
+        async updateTreatment() {
+            if (!this.selectedAppointment) {
+                return;
+            }
+            try {
+                await apiCall(`/doctor/appointments/${this.selectedAppointment.id}/treatment`, 'PUT', this.treatmentEditForm);
+                this.selectedAppointment = null;
+                this.closeAppointmentDetails();
+                await this.loadDoctorAppointments();
+                this.showSuccess('Treatment updated.');
+            } catch (error) {
+                await this.logError(error, 'updateTreatment');
             }
         },
         // Opens backend PDF report endpoint in new tab.
@@ -736,7 +905,7 @@ createApp({
         // Profile methods shared by admin/doctor/patient tabs.
         async loadProfile() {
             try {
-                const profile = await apiCall('/profile', 'GET');
+                const profile = this.hasRole('doctor') ? await apiCall('/doctor/profile', 'GET') : await apiCall('/profile', 'GET');
                 this.syncProfileForm(profile);
                 this.profileForm.history = profile.medical_history || '';
                 this.profileForm.notification_pref = profile.notification_pref || 'email';
@@ -746,6 +915,9 @@ createApp({
         },
         // Persists profile edits and reloads current user identity data.
         async saveProfile() {
+            if (this.hasRole('doctor')) {
+                return;
+            }
             try {
                 await apiCall('/profile', 'POST', this.profileForm);
                 const user = await apiCall('/current-user', 'GET');

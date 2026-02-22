@@ -490,3 +490,77 @@ def test_unique_constraint_blocks_duplicate_doctor_slot(test_client):
             raised = True
 
         assert raised
+
+
+def test_admin_slot_minutes_accepts_any_value_between_10_and_60(admin_token):
+    """Doctor creation should allow slot minutes in [10, 60]."""
+    dept_id = admin_token.get("/api/departments").get_json()[0]["id"]
+
+    ok_response = admin_token.post(
+        "/api/admin/doctors",
+        json={
+            "name": "Flexible Slot Doctor",
+            "username": "flexslotdoc",
+            "password": "flexslotdoc",
+            "department_id": dept_id,
+            "slot_minutes": 17,
+        },
+    )
+    assert ok_response.status_code == 201
+
+    bad_response = admin_token.post(
+        "/api/admin/doctors",
+        json={
+            "name": "Invalid Slot Doctor",
+            "username": "invalidslotdoc",
+            "password": "invalidslotdoc",
+            "department_id": dept_id,
+            "slot_minutes": 9,
+        },
+    )
+    assert bad_response.status_code == 400
+
+
+def test_doctor_can_update_availability_schedule(test_client):
+    """Doctor should be able to update next-7-day schedule settings."""
+    login(test_client, "doctor", "docpassword")
+    response = test_client.put(
+        "/api/doctor/availability",
+        json={
+            "availability_days": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+            "availability_start": "08:00",
+            "availability_end": "12:00",
+            "slot_minutes": 20,
+        },
+    )
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["doctor"]["slot_minutes"] == 20
+
+
+def test_doctor_can_update_completed_treatment(test_client):
+    """Doctor should be able to revise diagnosis/prescription for completed visits."""
+    login(test_client, "patient", "patientpassword")
+    doctor_id = test_client.get("/api/doctors").get_json()[0]["id"]
+    tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+    test_client.post("/api/appointments", json={"doctor_id": doctor_id, "date": tomorrow})
+
+    appointment_id = test_client.get("/api/my-appointments").get_json()[0]["id"]
+    test_client.post(
+        f"/api/patient/payment/appointment/{appointment_id}",
+        json={"amount": 500, "payment_method": "credit_card", "card_number": "1234123412341234"},
+    )
+
+    login(test_client, "doctor", "docpassword")
+    complete = test_client.post(
+        f"/api/appointments/{appointment_id}/complete",
+        json={"diagnosis": "Initial", "prescription": "Initial Rx", "notes": "Initial note"},
+    )
+    assert complete.status_code == 200
+
+    update = test_client.put(
+        f"/api/doctor/appointments/{appointment_id}/treatment",
+        json={"diagnosis": "Updated", "prescription": "Updated Rx", "notes": "Updated note"},
+    )
+    assert update.status_code == 200
+    assert update.get_json()["treatment"]["diagnosis"] == "Updated"

@@ -1,0 +1,11 @@
+{
+  "name": "hospital-management-system",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "diagram:render": "mmdc -i er_diagram.mmd -o er_diagram.png -w 2400 -H 1800 -b white -s 2"
+  },
+  "devDependencies": {
+    "@mermaid-js/mermaid-cli": "^11.4.2"
+  }
+}

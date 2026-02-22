@@ -24,8 +24,6 @@ import requests
 BASE_URL = os.environ.get("HMS_BASE_URL", "http://127.0.0.1:5000")
 API = f"{BASE_URL}/api"
 TIMEOUT = 20
-DOCTOR_PASSWORD = "stressdocpass"
-PATIENT_PASSWORD = "stresspatientpass"
 
 
 @dataclass
@@ -70,7 +68,7 @@ def create_stress_doctor(admin: ApiClient, department_id: int) -> dict[str, Any]
     payload = {
         "name": f"Dr. {username}",
         "username": username,
-        "password": DOCTOR_PASSWORD,
+        "password": username,
         "email": f"{username}@test.local",
         "phone": "5551002000",
         "department_id": department_id,
@@ -87,7 +85,7 @@ def create_stress_doctor(admin: ApiClient, department_id: int) -> dict[str, Any]
     search = admin.request("GET", f"/admin/doctors?search={username}")
     search.raise_for_status()
     doctor = search.json()[0]
-    return {"id": doctor["id"], "username": username}
+    return {"id": doctor["id"], "username": username, "password": username, "department_id": department_id}
 
 
 def create_stress_patient() -> dict[str, str]:
@@ -95,7 +93,7 @@ def create_stress_patient() -> dict[str, str]:
     username = f"stress_patient_{_suffix()}"
     payload = {
         "username": username,
-        "password": PATIENT_PASSWORD,
+        "password": username,
         "name": f"Patient {username}",
         "email": f"{username}@test.local",
         "phone": "5553004000",
@@ -103,7 +101,7 @@ def create_stress_patient() -> dict[str, str]:
     response = requests.post(f"{API}/register", json=payload, timeout=TIMEOUT)
     if response.status_code not in (200, 201):
         response.raise_for_status()
-    return {"username": username, "password": PATIENT_PASSWORD}
+    return {"username": username, "password": username}
 
 
 def patient_book_flow(patient_creds: dict[str, str], doctor_id: int, target_date: str) -> dict[str, Any]:
@@ -149,24 +147,27 @@ def run() -> None:
     dept_response = admin.request("GET", "/departments")
     dept_response.raise_for_status()
     departments = dept_response.json()
-    department_id = departments[0]["id"]
+    department_ids = [department["id"] for department in departments]
+    if not department_ids:
+        raise SystemExit("FAIL: no departments available for stress setup")
 
     # Create multiple doctors and patients.
     doctors: list[dict[str, Any]] = []
-    for _ in range(4):
+    for index in range(8):
+        department_id = department_ids[index % len(department_ids)]
         doctors.append(create_stress_doctor(admin, department_id))
         stats.doctors_created += 1
 
     patients: list[dict[str, str]] = []
-    for _ in range(18):
+    for _ in range(24):
         patients.append(create_stress_patient())
         stats.patients_created += 1
 
-    # Pick one doctor as the high-contention target.
+    # First pass: high-contention target doctor.
     hot_doctor = doctors[0]
     booking_date = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
 
-    # Execute concurrent booking/payment attempts.
+    # Execute concurrent booking/payment attempts for high-contention doctor.
     results: list[dict[str, Any]] = []
     with ThreadPoolExecutor(max_workers=12) as executor:
         futures = [
@@ -176,6 +177,21 @@ def run() -> None:
         for future in as_completed(futures):
             results.append(future.result())
 
+    # Second pass: distribute remaining patients across multiple doctors on same day
+    # to validate simultaneous booking behavior across departments/doctors.
+    distributed_results: list[dict[str, Any]] = []
+    with ThreadPoolExecutor(max_workers=16) as executor:
+        distributed_futures = []
+        for index, patient_creds in enumerate(patients):
+            doctor = doctors[index % len(doctors)]
+            distributed_futures.append(
+                executor.submit(patient_book_flow, patient_creds, doctor["id"], booking_date)
+            )
+        for future in as_completed(distributed_futures):
+            distributed_results.append(future.result())
+
+    results.extend(distributed_results)
+
     successful = [item for item in results if item.get("booked")]
     conflicts = [item for item in results if not item.get("booked")]
     stats.booking_success = len(successful)
@@ -184,7 +200,7 @@ def run() -> None:
 
     # Doctor completes a subset and schedules follow-ups.
     doctor_client = ApiClient()
-    doctor_client.login(hot_doctor["username"], DOCTOR_PASSWORD)
+    doctor_client.login(hot_doctor["username"], hot_doctor["password"])
     doctor_appointments = doctor_client.request("GET", "/doctor/appointments")
     doctor_appointments.raise_for_status()
     booked_items = [item for item in doctor_appointments.json() if item["status"] == "Booked"]
@@ -214,7 +230,7 @@ def run() -> None:
         if cancelled_count >= 4:
             break
         patient_client = ApiClient()
-        patient_client.login(item["patient_username"], PATIENT_PASSWORD)
+        patient_client.login(item["patient_username"], item["patient_username"])
         my_apps = patient_client.request("GET", "/my-appointments")
         if my_apps.status_code != 200:
             continue

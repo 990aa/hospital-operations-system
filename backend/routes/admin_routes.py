@@ -16,7 +16,18 @@ from flask import Blueprint, request, jsonify, current_app
 from flask_security import roles_required, current_user
 from flask_security.utils import hash_password
 from sqlalchemy import or_
-from models.database import db, User, Doctor, Patient, Appointment, ExportJob, Department, Payment
+from sqlalchemy.orm import aliased
+from models.database import (
+    db,
+    User,
+    Doctor,
+    Patient,
+    Appointment,
+    ExportJob,
+    Department,
+    Payment,
+    Treatment,
+)
 
 # Create Blueprint for admin routes
 admin_bp = Blueprint("admin", __name__)
@@ -25,6 +36,46 @@ admin_bp = Blueprint("admin", __name__)
 # Canonical weekday order used to normalize admin-submitted availability.
 # This guarantees consistent storage order regardless of checkbox click order.
 WEEKDAY_ORDER = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+
+def _normalize_availability_payload(data):
+    """Validate and normalize doctor availability payload.
+
+    Returns:
+        tuple(dict|None, str|None): normalized payload and error message.
+    """
+    days = data.get("availability_days") or ["Mon", "Tue", "Wed", "Thu", "Fri"]
+    if not isinstance(days, list):
+        return None, "availability_days must be a list"
+
+    normalized_days = [day for day in WEEKDAY_ORDER if day in set(days)]
+    if not normalized_days:
+        return None, "At least one availability day is required"
+
+    availability_start = (data.get("availability_start") or "09:00").strip()
+    availability_end = (data.get("availability_end") or "17:00").strip()
+
+    try:
+        start_hour, start_minute = [int(part) for part in availability_start.split(":", 1)]
+        end_hour, end_minute = [int(part) for part in availability_end.split(":", 1)]
+    except Exception:
+        return None, "availability_start and availability_end must be in HH:MM format"
+
+    start_minutes = (start_hour * 60) + start_minute
+    end_minutes = (end_hour * 60) + end_minute
+    if end_minutes <= start_minutes:
+        return None, "availability_end must be later than availability_start"
+
+    slot_minutes = int(data.get("slot_minutes", 30) or 30)
+    if slot_minutes < 10 or slot_minutes > 60:
+        return None, "slot_minutes must be between 10 and 60"
+
+    return {
+        "availability_days": normalized_days,
+        "availability_start": availability_start,
+        "availability_end": availability_end,
+        "slot_minutes": slot_minutes,
+    }, None
 
 
 # Statistics Routes
@@ -100,21 +151,9 @@ def manage_doctors():
         data = request.json
         user_datastore = current_app.extensions["security"].datastore
 
-        # Availability fields are accepted from frontend as structured data
-        # so backend can generate serial slots deterministically.
-        days = data.get("availability_days") or ["Mon", "Tue", "Wed", "Thu", "Fri"]
-        if not isinstance(days, list):
-            return jsonify({"message": "availability_days must be a list"}), 400
-
-        # Normalize weekday order and remove unknown values.
-        normalized_days = [day for day in WEEKDAY_ORDER if day in set(days)]
-        if not normalized_days:
-            return jsonify({"message": "At least one availability day is required"}), 400
-
-        # Store times in HH:MM format and slot interval in minutes.
-        availability_start = data.get("availability_start", "09:00")
-        availability_end = data.get("availability_end", "17:00")
-        slot_minutes = data.get("slot_minutes", 30)
+        availability_payload, availability_error = _normalize_availability_payload(data)
+        if availability_error:
+            return jsonify({"message": availability_error}), 400
 
         # Check for duplicate username
         if User.query.filter_by(username=data["username"]).first():
@@ -142,11 +181,14 @@ def manage_doctors():
         new_doctor = Doctor(
             user_id=new_user.id,
             department_id=data["department_id"],
-            availability=f"{','.join(normalized_days)} {availability_start}-{availability_end}",
-            availability_days=",".join(normalized_days),
-            availability_start=availability_start,
-            availability_end=availability_end,
-            slot_minutes=slot_minutes,
+            availability=(
+                f"{','.join(availability_payload['availability_days'])} "
+                f"{availability_payload['availability_start']}-{availability_payload['availability_end']}"
+            ),
+            availability_days=",".join(availability_payload["availability_days"]),
+            availability_start=availability_payload["availability_start"],
+            availability_end=availability_payload["availability_end"],
+            slot_minutes=availability_payload["slot_minutes"],
             bio=data.get("bio", ""),
             email_notifications=data.get("email_notifications", True),
         )
@@ -161,6 +203,7 @@ def manage_doctors():
 
     # GET - with optional search
     search = request.args.get("search", "").strip()
+    department_id = request.args.get("department_id", type=int)
 
     # Build query with search
     query = Doctor.query.join(User).join(Doctor.department)
@@ -178,8 +221,69 @@ def manage_doctors():
             )
         )
 
+    if department_id:
+        query = query.filter(Doctor.department_id == department_id)
+
     doctors = query.all()
     return jsonify([d.to_dict() for d in doctors])
+
+
+@admin_bp.route("/admin/doctors/<int:id>", methods=["PUT"])
+@roles_required("admin")
+def update_doctor(id):
+    """Update doctor and linked user profile information."""
+    doctor = Doctor.query.get_or_404(id)
+    user = User.query.get_or_404(doctor.user_id)
+    data = request.json or {}
+
+    if "username" in data and data["username"] != user.username:
+        if User.query.filter(User.username == data["username"], User.id != user.id).first():
+            return jsonify({"message": "Username already exists"}), 400
+        user.username = data["username"]
+
+    if "email" in data:
+        email = data.get("email") or None
+        if email and User.query.filter(User.email == email, User.id != user.id).first():
+            return jsonify({"message": "Email already exists"}), 400
+        user.email = email
+
+    if "name" in data:
+        user.name = data.get("name") or user.name
+    if "phone" in data:
+        user.phone = data.get("phone")
+    if data.get("password"):
+        user.password = hash_password(data["password"])
+
+    if "department_id" in data:
+        doctor.department_id = int(data["department_id"])
+    if "bio" in data:
+        doctor.bio = data.get("bio") or ""
+    if "email_notifications" in data:
+        doctor.email_notifications = bool(data.get("email_notifications"))
+
+    availability_payload, availability_error = _normalize_availability_payload(
+        {
+            "availability_days": data.get("availability_days", doctor.get_availability_days()),
+            "availability_start": data.get("availability_start", doctor.availability_start),
+            "availability_end": data.get("availability_end", doctor.availability_end),
+            "slot_minutes": data.get("slot_minutes", doctor.slot_minutes),
+        }
+    )
+    if availability_error:
+        return jsonify({"message": availability_error}), 400
+
+    doctor.availability_days = ",".join(availability_payload["availability_days"])
+    doctor.availability_start = availability_payload["availability_start"]
+    doctor.availability_end = availability_payload["availability_end"]
+    doctor.slot_minutes = availability_payload["slot_minutes"]
+    doctor.availability = (
+        f"{doctor.availability_days} "
+        f"{doctor.availability_start}-{doctor.availability_end}"
+    )
+
+    db.session.commit()
+    current_app.cache.delete("all_doctors")
+    return jsonify({"message": "Doctor updated successfully", "doctor": doctor.to_dict()})
 
 
 @admin_bp.route("/departments", methods=["GET", "POST"])
@@ -243,6 +347,20 @@ def delete_doctor(id):
     """
     doctor = Doctor.query.get_or_404(id)
     user = User.query.get(doctor.user_id)
+
+    # Delete all doctor-linked appointment children first to satisfy FK constraints.
+    appointments = Appointment.query.filter_by(doctor_id=doctor.id).all()
+    appointment_ids = [appointment.id for appointment in appointments]
+    if appointment_ids:
+        Payment.query.filter(Payment.appointment_id.in_(appointment_ids)).delete(
+            synchronize_session=False
+        )
+        Treatment.query.filter(Treatment.appointment_id.in_(appointment_ids)).delete(
+            synchronize_session=False
+        )
+        Appointment.query.filter(Appointment.id.in_(appointment_ids)).delete(
+            synchronize_session=False
+        )
 
     # Delete doctor profile first
     db.session.delete(doctor)
@@ -347,6 +465,23 @@ def delete_patient(id):
     patient = Patient.query.get_or_404(id)
     user = User.query.get(patient.user_id)
 
+    # Delete patient-linked appointment children before parent profile.
+    appointments = Appointment.query.filter_by(patient_id=patient.id).all()
+    appointment_ids = [appointment.id for appointment in appointments]
+    if appointment_ids:
+        Payment.query.filter(Payment.appointment_id.in_(appointment_ids)).delete(
+            synchronize_session=False
+        )
+        Treatment.query.filter(Treatment.appointment_id.in_(appointment_ids)).delete(
+            synchronize_session=False
+        )
+        Appointment.query.filter(Appointment.id.in_(appointment_ids)).delete(
+            synchronize_session=False
+        )
+
+    ExportJob.query.filter_by(patient_id=patient.id).delete(synchronize_session=False)
+    Payment.query.filter_by(patient_id=patient.id).delete(synchronize_session=False)
+
     # Delete patient profile first
     db.session.delete(patient)
     # Then delete user account
@@ -357,6 +492,149 @@ def delete_patient(id):
     current_app.cache.delete("admin_stats")
 
     return jsonify({"message": "Patient deleted"})
+
+
+@admin_bp.route("/admin/patients/<int:id>", methods=["PUT"])
+@roles_required("admin")
+def update_patient(id):
+    """Update patient profile and linked user details."""
+    patient = Patient.query.get_or_404(id)
+    user = User.query.get_or_404(patient.user_id)
+    data = request.json or {}
+
+    if "name" in data:
+        user.name = data.get("name") or user.name
+    if "email" in data:
+        email = data.get("email") or None
+        if email and User.query.filter(User.email == email, User.id != user.id).first():
+            return jsonify({"message": "Email already in use"}), 400
+        user.email = email
+    if "phone" in data:
+        user.phone = data.get("phone")
+    if data.get("password"):
+        user.password = hash_password(data["password"])
+
+    if "medical_history" in data:
+        patient.medical_history = data.get("medical_history") or ""
+    if "notification_pref" in data:
+        patient.notification_pref = data.get("notification_pref") or "email"
+
+    db.session.commit()
+    return jsonify({"message": "Patient updated successfully", "patient": patient.to_dict()})
+
+
+@admin_bp.route("/admin/appointments", methods=["GET"])
+@roles_required("admin")
+def admin_appointments():
+    """Return admin appointment list with multi-filter support.
+
+    Filters (any combination):
+    - date (YYYY-MM-DD exact)
+    - patient (id or partial name/email/username)
+    - doctor (id or partial name/email/username)
+    - status (Booked/Completed/Cancelled)
+    - payment (paid/unpaid/completed/refunded)
+    - type (consultation/follow-up)
+    """
+    patient_user = aliased(User)
+    doctor_user = aliased(User)
+
+    query = (
+        Appointment.query.join(Patient, Appointment.patient_id == Patient.id)
+        .join(patient_user, Patient.user_id == patient_user.id)
+        .join(Doctor, Appointment.doctor_id == Doctor.id)
+        .join(doctor_user, Doctor.user_id == doctor_user.id)
+    )
+
+    date_filter = (request.args.get("date") or "").strip()
+    patient_filter = (request.args.get("patient") or "").strip()
+    doctor_filter = (request.args.get("doctor") or "").strip()
+    status_filter = (request.args.get("status") or "").strip()
+    payment_filter = (request.args.get("payment") or "").strip().lower()
+    type_filter = (request.args.get("type") or "").strip().lower()
+
+    if date_filter:
+        query = query.filter(Appointment.date == date_filter)
+
+    if patient_filter:
+        if patient_filter.isdigit():
+            query = query.filter(
+                or_(
+                    Patient.id == int(patient_filter),
+                    patient_user.name.ilike(f"%{patient_filter}%"),
+                    patient_user.username.ilike(f"%{patient_filter}%"),
+                    patient_user.email.ilike(f"%{patient_filter}%"),
+                    patient_user.phone.ilike(f"%{patient_filter}%"),
+                )
+            )
+        else:
+            query = query.filter(
+                or_(
+                    patient_user.name.ilike(f"%{patient_filter}%"),
+                    patient_user.username.ilike(f"%{patient_filter}%"),
+                    patient_user.email.ilike(f"%{patient_filter}%"),
+                    patient_user.phone.ilike(f"%{patient_filter}%"),
+                )
+            )
+
+    if doctor_filter:
+        if doctor_filter.isdigit():
+            query = query.filter(
+                or_(
+                    Doctor.id == int(doctor_filter),
+                    doctor_user.name.ilike(f"%{doctor_filter}%"),
+                    doctor_user.username.ilike(f"%{doctor_filter}%"),
+                    doctor_user.email.ilike(f"%{doctor_filter}%"),
+                )
+            )
+        else:
+            query = query.filter(
+                or_(
+                    doctor_user.name.ilike(f"%{doctor_filter}%"),
+                    doctor_user.username.ilike(f"%{doctor_filter}%"),
+                    doctor_user.email.ilike(f"%{doctor_filter}%"),
+                )
+            )
+
+    if status_filter:
+        query = query.filter(Appointment.status == status_filter)
+
+    if type_filter in {"follow-up", "follow_up", "followup"}:
+        query = query.filter(Appointment.is_follow_up.is_(True))
+    elif type_filter in {"consultation", "normal"}:
+        query = query.filter(Appointment.is_follow_up.is_(False))
+
+    appointments = query.order_by(Appointment.date.desc(), Appointment.time.desc()).all()
+
+    results = []
+    for appointment in appointments:
+        row = appointment.to_dict()
+        if appointment.treatment:
+            row["treatment"] = appointment.treatment.to_dict()
+
+        latest_payment = (
+            Payment.query.filter_by(appointment_id=appointment.id)
+            .order_by(Payment.payment_date.desc(), Payment.id.desc())
+            .first()
+        )
+        row["paid"] = bool(
+            Payment.query.filter_by(appointment_id=appointment.id, status="completed").count()
+            > Payment.query.filter_by(appointment_id=appointment.id, status="refunded").count()
+        )
+        row["payment_status"] = latest_payment.status if latest_payment else "unpaid"
+
+        if payment_filter:
+            if payment_filter == "paid" and not row["paid"]:
+                continue
+            if payment_filter == "unpaid" and row["paid"]:
+                continue
+            if payment_filter in {"completed", "refunded", "failed", "pending"}:
+                if row["payment_status"] != payment_filter:
+                    continue
+
+        results.append(row)
+
+    return jsonify(results)
 
 
 # Export Job Monitoring Routes

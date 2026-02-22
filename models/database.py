@@ -156,6 +156,7 @@ class Doctor(db.Model):
         return {
             "id": self.id,
             "user_id": self.user_id,
+            "department_id": self.department_id,
             "username": self.user.username,
             "name": self.user.name,
             "email": self.user.email,

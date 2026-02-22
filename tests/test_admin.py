@@ -244,6 +244,72 @@ def test_search_doctors_by_name(admin_token):
     assert any(d["name"] == "Alice Smith" for d in data)
 
 
+def test_search_doctors_by_department_filter(admin_token):
+    """Test admin doctor list supports explicit department_id filter."""
+    depts = admin_token.get("/api/departments").get_json()
+    assert len(depts) >= 2
+    dept_a = depts[0]["id"]
+    dept_b = depts[1]["id"]
+
+    admin_token.post(
+        "/api/admin/doctors",
+        json={
+            "name": "Dept A Doctor",
+            "username": "deptadoctor",
+            "password": "deptadoctor",
+            "department_id": dept_a,
+        },
+    )
+    admin_token.post(
+        "/api/admin/doctors",
+        json={
+            "name": "Dept B Doctor",
+            "username": "deptbdoctor",
+            "password": "deptbdoctor",
+            "department_id": dept_b,
+        },
+    )
+
+    response = admin_token.get(f"/api/admin/doctors?department_id={dept_b}")
+    assert response.status_code == 200
+    rows = response.get_json()
+    assert rows
+    assert all(row["department_id"] == dept_b for row in rows)
+
+
+def test_admin_update_doctor(admin_token):
+    """Test admin can edit doctor details via update endpoint."""
+    dept_id = admin_token.get("/api/departments").get_json()[0]["id"]
+    create = admin_token.post(
+        "/api/admin/doctors",
+        json={
+            "name": "Editable Doctor",
+            "username": "editabledoc",
+            "password": "editabledoc",
+            "department_id": dept_id,
+            "slot_minutes": 30,
+        },
+    )
+    assert create.status_code == 201
+
+    doctor = admin_token.get("/api/admin/doctors?search=editabledoc").get_json()[0]
+    update = admin_token.put(
+        f"/api/admin/doctors/{doctor['id']}",
+        json={
+            "name": "Edited Doctor",
+            "slot_minutes": 15,
+            "availability_days": ["Mon", "Tue"],
+            "availability_start": "08:30",
+            "availability_end": "12:30",
+        },
+    )
+    assert update.status_code == 200
+
+    refreshed = admin_token.get("/api/admin/doctors?search=edited").get_json()[0]
+    assert refreshed["name"] == "Edited Doctor"
+    assert refreshed["slot_minutes"] == 15
+
+
 def test_get_patients_paginated(admin_token):
     """
     Test getting patients with pagination.
@@ -345,6 +411,44 @@ def test_delete_patient(admin_token):
     # Delete
     response = admin_token.delete(f"/api/admin/patients/{patient_id}")
     assert response.status_code == 200
+
+
+def test_admin_update_patient(admin_token):
+    """Test admin can update patient profile fields."""
+    admin_token.post(
+        "/api/register",
+        json={
+            "username": "patientedit",
+            "password": "patientedit",
+            "name": "Patient Edit",
+            "email": "patientedit@test.com",
+        },
+    )
+
+    patient = admin_token.get("/api/admin/patients?search=patientedit").get_json()["patients"][0]
+    update = admin_token.put(
+        f"/api/admin/patients/{patient['id']}",
+        json={
+            "name": "Patient Updated",
+            "phone": "7771112222",
+            "medical_history": "Updated by admin",
+            "notification_pref": "sms",
+        },
+    )
+    assert update.status_code == 200
+
+    refreshed = admin_token.get("/api/admin/patients?search=updated").get_json()["patients"]
+    assert any(row["name"] == "Patient Updated" for row in refreshed)
+
+
+def test_admin_appointments_multi_filter(admin_token):
+    """Test admin appointment filtering supports combined filters."""
+    response = admin_token.get(
+        "/api/admin/appointments?status=Booked&type=consultation&payment=unpaid"
+    )
+    assert response.status_code == 200
+    data = response.get_json()
+    assert isinstance(data, list)
 
 
 def test_admin_export_jobs_access(admin_token):
