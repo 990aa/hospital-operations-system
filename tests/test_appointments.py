@@ -13,7 +13,7 @@ Tests for:
 Author: Abdul Ahad
 """
 
-import threading
+import threading  # kept for documentation; actual concurrent test uses sequential simulation
 from datetime import datetime, timedelta
 from sqlalchemy.exc import IntegrityError
 
