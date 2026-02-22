@@ -189,32 +189,35 @@ def test_build_monthly_report_html():
 
 
 @patch("backend.tasks.send_email")
-def test_daily_reminders_sends_email(mock_email, test_client, admin_token, patient_token):
+def test_daily_reminders_sends_email(mock_email, test_client):
     """Verify daily_reminders task calls send_email for today's appointments."""
     from datetime import date
     today = date.today().isoformat()
 
-    # Create appointment for today so the reminder task finds it
-    dept_resp = admin_token.get("/api/departments")
-    depts = dept_resp.get_json()
-    dept_id = depts[0]["id"]
-    admin_token.post("/api/admin/doctors", json={
-        "name": "Reminder Doc", "username": "remdoc", "password": "remdoc",
-        "email": "remdoc@test.com", "department_id": dept_id,
-        "availability_days": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-        "availability_start": "00:00", "availability_end": "23:59", "slot_minutes": 30
-    })
-    doctors = admin_token.get("/api/admin/doctors?search=remdoc").get_json()
-    doc = doctors[0]
-
-    # Book appointment for today
-    patient_token.post("/api/appointments", json={"doctor_id": doc["id"], "date": today})
-
-    # Trigger the task directly inside app context
+    # Create appointment for today directly in DB (bypass API to avoid session conflicts)
     with test_client.application.app_context():
+        from models.database import db, Patient, Doctor, User, Appointment
+
+        patient = Patient.query.filter_by(
+            user_id=User.query.filter_by(username="patient").first().id
+        ).first()
+        doctor = Doctor.query.filter_by(
+            user_id=User.query.filter_by(username="doctor").first().id
+        ).first()
+
+        apt = Appointment(
+            patient_id=patient.id,
+            doctor_id=doctor.id,
+            date=today,
+            time="09:00",
+            status="Booked",
+        )
+        db.session.add(apt)
+        db.session.commit()
+
         from backend.tasks import send_daily_reminders
         result = send_daily_reminders.apply().get(timeout=10)
-        assert result["total"] >= 0  # Task ran without error
+        assert result["total"] >= 1  # Task found today's appointment
 
 
 @patch("backend.tasks.send_email")
