@@ -1,28 +1,9 @@
 # Hospital Management System
 
-## Project Report
-
 **Student Name:** Abdul Ahad  
 **Student ID:** 24f200293  
 **Course:** Modern Application Development 2 Project  
 **Date:** February 2026  
-
----
-
-## Table of Contents
-
-1. [Abstract](#1-abstract)
-2. [Problem Statement](#2-problem-statement)
-3. [Technology Stack](#3-technology-stack)
-4. [Database Design](#4-database-design)
-5. [Implementation](#5-implementation)
-6. [Background Jobs and Asynchronous Processing](#6-background-jobs-and-asynchronous-processing)
-7. [Security and Validation](#7-security-and-validation)
-8. [Caching and Performance Optimisation](#8-caching-and-performance-optimisation)
-9. [User Interface Design](#9-user-interface-design)
-10. [Development Methodology](#10-development-methodology)
-11. [Conclusion](#11-conclusion)
-12. [References](#12-references)
 
 ---
 
@@ -189,13 +170,13 @@ The `login_required` and `roles_required` decorators ensure unauthenticated or u
 
 ### 7.2 Authorisation Boundaries
 
-Role-based access control ensures that patients access only their own data; doctors can only view and complete their own appointments and edit only their own treatment records; and administrators have elevated access to all entities but are still constrained to the defined operations.
+Role-based access control ensures that patients access only their own data; doctors can only view and complete their own appointments and edit only their own treatment records; and administrators have access to all entities but are still constrained to the defined operations.
 
 ---
 
 ## 8. Caching and Performance Optimisation
 
-The application uses Redis-backed caching via Flask-Caching to reduce database query overhead for frequently accessed, infrequently changed data.
+The application uses Redis-backed caching via Flask-Caching to reduce database query overhead for frequently accessed data.
 
 - **Admin Statistics** — 5-minute TTL. Aggregate counts change infrequently.
 - **Doctor Appointments** — 30-second TTL. Changes frequently through bookings and cancellations.
@@ -214,13 +195,9 @@ The Admin Dashboard provides tabs for statistics, doctor management (including s
 
 ## 10. Development Methodology
 
-### 10.1 Overview
+### 10.1 Design Reference Process
 
-The project was developed in a single-developer environment. The methodology followed a feature-by-feature approach: each major capability (authentication, doctor management, appointment booking, payments, exports, notifications) was designed, implemented, and tested independently before moving to the next.
-
-### 10.2 Design Reference Process
-
-User interface design decisions were informed by examining real-world healthcare web portals and open-source hospital management repositories. The following sources were studied to understand common patterns for role-based dashboards, appointment listing layouts, medical record presentation, and colour usage in clinical software:
+User interface design decisions were informed by examining healthcare web portals and open-source hospital management repositories. The following sources were studied to understand common patterns for role-based dashboards, appointment listing layouts, medical record presentation, and colour usage in clinical software:
 
 - **NHS Digital Design System** (https://service-manual.nhs.uk/design-system) — studied for accessible colour choices, spacing, and information hierarchy in patient-facing interfaces.
 - **AdminLTE Bootstrap Dashboard template** (https://github.com/ColorlibHQ/AdminLTE) — studied for tab-based admin panel layout conventions.
@@ -228,7 +205,7 @@ User interface design decisions were informed by examining real-world healthcare
 
 All UI code was written from scratch using Bootstrap 5 and Vue.js 3. No template code was copied.
 
-### 10.3 Technical Reference Sources
+### 10.2 Technical Reference Sources
 
 The following official documentation and GitHub repositories were consulted as primary references for implementation details:
 
@@ -240,21 +217,26 @@ The following official documentation and GitHub repositories were consulted as p
 - SQLAlchemy ORM patterns and query API: https://github.com/sqlalchemy/sqlalchemy
 - ReportLab PDF generation: https://www.reportlab.com/docs/reportlab-userguide.pdf
 
-### 10.4 Declaration of No AI / LLM Usage
+### 10.3 Declaration of No AI / LLM Usage
 
 This project — including all source code, HTML templates, CSS, JavaScript, SQL queries, test cases, and documentation — was written entirely by me without the assistance of any AI language model tools.
 
-All implementation decisions, architecture choices, algorithmic logic, and written text in this report represent my own work. External references used are cited in Section 12.
+All implementation decisions, architecture choices, algorithmic logic, and written text in this report represent my own work. External references used are cited in Section 13.
 
 ---
 
-## 11. Conclusion
+## 11. Demo
+
+
+---
+
+## 12. Conclusion
 
 The Hospital Management System successfully implements a comprehensive digital healthcare management platform. It provides role-appropriate interfaces for administrators, doctors, and patients; enforces data integrity through database constraints and input validation; automates routine communications through scheduled background tasks; and demonstrates practical application of caching and asynchronous processing patterns.
 
 ---
 
-## 12. References
+## 13. References
 
 1. Fielding, R. T. (2000). *Architectural Styles and the Design of Network-based Software Architectures*. Doctoral dissertation, University of California, Irvine.
 2. Ronacher, A. (2010). *Flask Documentation*. Pallets Projects. https://flask.palletsprojects.com
