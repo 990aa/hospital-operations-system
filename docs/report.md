@@ -176,11 +176,11 @@ On the first calendar day of each month, Celery Beat dispatches a task that iter
 
 ### 8.4 CSV Treatment Export
 
-When a patient initiates an export from their dashboard, an `ExportJob` record is created with status "pending" and a Celery task is dispatched immediately. The task queries all completed appointments with treatment records, writes a CSV file to the `exports/` directory, updates the job to "completed" with the file path, and sends an email notification to the patient. The patient can check status and download the file when ready. Only one active export per patient is permitted at a time.
+When a patient initiates an export from their dashboard, an `ExportJob` record is created with status "pending" and a Celery task is dispatched immediately. The task queries all completed appointments with treatment records, writes a CSV file to the `exports/` directory, updates the job to "completed" with the file path, and sends an email notification to the patient.
 
 ### 8.5 Redis Caching
 
-Beyond the Celery broker role, Redis provides the Flask-Caching backend. Frequently read data — doctor lists, department lists, appointment summaries, patient histories — are cached with per-endpoint TTLs ranging from 30 seconds to 5 minutes. Cache invalidation is explicit: every write operation that could affect a cached value calls `cache.delete()` on all relevant keys to maintain consistency.
+Redis provides the Flask-Caching backend. Frequently read data — doctor lists, department lists, appointment summaries, patient histories — are cached with per-endpoint TTLs ranging from 30 seconds to 5 minutes. Cache invalidation is explicit: every write operation that could affect a cached value calls `cache.delete()` on all relevant keys to maintain consistency.
 
 ---
 
@@ -188,7 +188,7 @@ Beyond the Celery broker role, Redis provides the Flask-Caching backend. Frequen
 
 ### 9.1 Authentication
 
-All API routes beyond login and the public doctor search require a valid session cookie. The `login_required` and `roles_required` decorators ensure unauthenticated or unauthorised requests receive HTTP 401 or 403 responses respectively, never reaching business logic.
+The `login_required` and `roles_required` decorators ensure unauthenticated or unauthorised requests receive HTTP 401 or 403 responses respectively, never reaching business logic.
 
 ### 9.2 Authorisation Boundaries
 
@@ -211,17 +211,7 @@ Cache invalidation is triggered immediately by write operations affecting cached
 
 ## 11. User Interface Design
 
-### 11.1 Design Principles
-
-The interface uses a professional medical aesthetic. The colour palette employs medical green for primary actions, blue for informational elements, and red for alerts and destructive actions. Responsive layout is provided by Bootstrap 5.
-
-### 11.2 Single-Page Application
-
-The Vue.js frontend is served as a single HTML document. Application state is managed in a single Vue component using the Options API. Role-specific regions are conditionally rendered based on the authenticated user's role. Tab navigation switches the active view without page reloads, providing a fluid experience.
-
-### 11.3 Role-Specific Dashboards
-
-The **Admin Dashboard** provides tabs for statistics, doctor management (including setting consultation fees), patient management, appointments, and payments. The **Doctor Dashboard** provides tabs for appointments (colour-coded by urgency, with upcoming future appointments highlighted in light green for quick identification), a patients list with history viewer, reports, payments, availability configuration, and a read-only profile. The **Patient Dashboard** provides tabs for booking (doctor profile cards with department filter and name search), appointments (with treatment detail, upcoming appointments highlighted in light green), payments, and profile management (notification preferences as Email/SMS checkboxes; medical history displayed as read-only).
+The Admin Dashboard provides tabs for statistics, doctor management (including setting consultation fees), patient management, appointments, and payments. The Doctor Dashboard provides tabs for appointments (colour-coded by urgency, with upcoming future appointments highlighted in light green for quick identification), a patients list with history viewer, reports, payments, availability configuration, and a read-only profile. The Patient Dashboard provides tabs for booking (doctor profile cards with department filter and name search), appointments (with treatment detail, upcoming appointments highlighted in light green), payments, and profile management (notification preferences as Email/SMS checkboxes).
 
 ---
 
@@ -257,7 +247,7 @@ The **Admin Dashboard** provides tabs for statistics, doctor management (includi
 
 ### 13.1 Overview
 
-The project was developed in a single-developer environment. The methodology followed a lightweight feature-by-feature approach: each major capability (authentication, doctor management, appointment booking, payments, exports, notifications) was designed, implemented, and tested independently before moving to the next.
+The project was developed in a single-developer environment. The methodology followed a feature-by-feature approach: each major capability (authentication, doctor management, appointment booking, payments, exports, notifications) was designed, implemented, and tested independently before moving to the next.
 
 ### 13.2 Design Reference Process
 
