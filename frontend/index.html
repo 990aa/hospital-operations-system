@@ -264,7 +264,10 @@
                                 <input type="password" v-model="authForm.password" class="form-control" required>
                             </div>
                             <button type="submit" class="btn btn-hospital-primary w-100 mb-3">Login</button>
-                            
+                            <!-- Patient self-registration link shown on login page -->
+                            <p class="text-center mb-0 small">
+                                New patient? <a href="#" @click.prevent="isLogin = false; selectedRole = 'patient'">Register here</a>
+                            </p>
                         </form>
 
                         <!-- Register Form (Patients Only) -->
@@ -721,6 +724,9 @@
                         <a class="nav-link" :class="{active: doctorTab === 'appointments'}" href="#" @click.prevent="doctorTab = 'appointments'; loadDoctorAppointments()">My Appointments</a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" :class="{active: doctorTab === 'patients'}" href="#" @click.prevent="doctorTab = 'patients'; loadDoctorPatients()">My Patients</a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" :class="{active: doctorTab === 'reports'}" href="#" @click.prevent="doctorTab = 'reports'">Reports</a>
                     </li>
                     <li class="nav-item">
@@ -755,6 +761,11 @@
                     </div>
                     <div class="card">
                         <div class="card-body">
+                            <!-- Legend for upcoming appointment colour highlight -->
+                            <div class="mb-2 small">
+                                <span style="display:inline-block;width:14px;height:14px;background:#e8f5e9;border:1px solid #a5d6a7;vertical-align:middle;"></span>
+                                Upcoming (Booked, future date)
+                            </div>
                             <table class="table">
                                 <thead>
                                     <tr>
@@ -768,7 +779,9 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <tr v-for="apt in filteredDoctorAppointments" :key="apt.id">
+                                    <!-- Upcoming (Booked + future) rows are highlighted in light green -->
+                                    <tr v-for="apt in filteredDoctorAppointments" :key="apt.id"
+                                        :style="isUpcomingAppointment(apt) ? 'background-color:#e8f5e9;' : ''">
                                         <td>{{ apt.date }}</td>
                                         <td>{{ apt.time }}</td>
                                         <td>{{ apt.patient_name }}</td>
@@ -777,7 +790,10 @@
                                         <td>{{ apt.is_follow_up ? 'Follow-up' : 'Consultation' }}</td>
                                         <td>
                                             <button @click="showAppointmentDetails(apt)" class="btn btn-sm btn-hospital-secondary me-1">Details</button>
-                                            <button v-if="apt.status === 'Booked'" @click="showCompleteAppointment(apt)" class="btn btn-sm btn-hospital-primary">Complete</button>
+                                            <!-- Complete button only for Booked appointments -->
+                                            <button v-if="apt.status === 'Booked'" @click="showCompleteAppointment(apt)" class="btn btn-sm btn-hospital-primary me-1">Complete</button>
+                                            <!-- Cancel button allows doctor to cancel a Booked appointment -->
+                                            <button v-if="apt.status === 'Booked'" @click="cancelAppointment(apt.id)" class="btn btn-sm btn-hospital-danger">Cancel</button>
                                         </td>
                                     </tr>
                                 </tbody>

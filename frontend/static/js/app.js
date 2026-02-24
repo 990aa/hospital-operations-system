@@ -1,5 +1,11 @@
-// Send frontend/runtime diagnostic logs to backend terminal.
-// This keeps user-facing UI clean while preserving full debug context server-side.
+// --- TEST_ONLY_BLOCK START ---
+// sendClientLog: Diagnostic helper that forwards browser-side errors to the
+// Flask /api/client-log endpoint so they appear in the terminal log.
+// Useful during development and automated testing; safe to delete before
+// final submission (remove this function AND every call to sendClientLog /
+// logError in the methods section below as well as in apiCall).
+// The app will still function - errors will be silently swallowed by the
+// catch blocks instead of being forwarded to the terminal.
 async function sendClientLog(payload) {
     try {
         await fetch('/api/client-log', {
@@ -11,6 +17,7 @@ async function sendClientLog(payload) {
         // intentionally ignored
     }
 }
+// --- TEST_ONLY_BLOCK END ---
 
 // Minimal API wrapper used by all frontend actions.
 // Key behaviors:

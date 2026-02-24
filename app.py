@@ -129,6 +129,9 @@ def create_app(test_config=None):
         """
         return render_template("index.html")
 
+    # --- TEST_ONLY_BLOCK START ---
+    # Health check endpoint used by automated tests and CI pipelines.
+    # Safe to delete before final submission without breaking app functionality.
     @app.route("/health")
     def health_check():
         """
@@ -144,7 +147,13 @@ def create_app(test_config=None):
             "timestamp": datetime.now().isoformat(),
             "cache": "connected" if app.cache else "not configured",
         }
+    # --- TEST_ONLY_BLOCK END ---
 
+    # --- TEST_ONLY_BLOCK START ---
+    # Client-side error logger endpoint used during development and test runs.
+    # Forwards browser-side errors to the terminal for debugging.
+    # Safe to delete before final submission; the app will still function
+    # (the frontend silently ignores /api/client-log failures).
     @app.route("/api/client-log", methods=["POST"])
     def client_log():
         """Log frontend/runtime errors to backend terminal logs.
@@ -156,6 +165,7 @@ def create_app(test_config=None):
         payload = request.get_json(silent=True) or {}
         app.logger.error("CLIENT_ERROR %s", payload)
         return jsonify({"logged": True})
+    # --- TEST_ONLY_BLOCK END ---
 
     @app.errorhandler(404)
     def not_found_error(error):

@@ -75,7 +75,7 @@ The app must have a suitable model to store and differentiate all types of users
 Admin functionalities:
 x Admin dashboard must display total number of doctors, patients, and appointments.
 x Admin should pre-exist in the app i.e. it must be created programmatically after the creation of the database. [No admin registration allowed]
-Admin can add/update doctor profiles.
+x Admin can add/update doctor profiles.
 x Admin can view all upcoming and past appointments.
 Admin can search for patients or doctors and view their details.
 Admin can add, edit doctor details such as name, specialization etc., and also patient info if needed.

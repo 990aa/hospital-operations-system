@@ -673,6 +673,85 @@ def download_patient_history_pdf(patient_id):
     )
 
 
+@doctor_bp.route("/doctor/patients", methods=["GET"])
+@roles_required("doctor")
+def list_doctor_patients():
+    """
+    List all unique patients ever assigned to the current doctor.
+
+    Scans all appointments belonging to this doctor and returns a deduplicated
+    list of patients along with appointment statistics. This powers the
+    "My Patients" tab on the doctor dashboard so doctors can see who they
+    have treated or are treating.
+
+    Returns:
+        JSON array of patient summaries sorted by most-recent visit descending.
+        Each item includes:
+            - patient_id, user_id, name, email, phone
+            - medical_history
+            - total_appointments, completed_appointments
+            - booked_appointments, cancelled_appointments
+            - last_visit (YYYY-MM-DD or null)
+    """
+    # Resolve doctor profile for current user
+    doctor = Doctor.query.filter_by(user_id=current_user.id).first()
+    if not doctor:
+        return jsonify({"message": "Doctor profile not found"}), 404
+
+    # Fetch all appointments for this doctor in one query to avoid N+1 DB hits
+    appointments = Appointment.query.filter_by(doctor_id=doctor.id).all()
+
+    # Accumulate per-patient stats using a dict keyed by patient_id
+    seen = {}
+    for apt in appointments:
+        pid = apt.patient_id
+        if pid not in seen:
+            seen[pid] = {
+                "patient": apt.patient,
+                "total": 0,
+                "completed": 0,
+                "booked": 0,
+                "cancelled": 0,
+                "last_visit": None,
+            }
+        seen[pid]["total"] += 1
+
+        if apt.status == "Completed":
+            seen[pid]["completed"] += 1
+            # Track the most-recent completed visit date
+            if seen[pid]["last_visit"] is None or apt.date > seen[pid]["last_visit"]:
+                seen[pid]["last_visit"] = apt.date
+        elif apt.status == "Booked":
+            seen[pid]["booked"] += 1
+        elif apt.status == "Cancelled":
+            seen[pid]["cancelled"] += 1
+
+    result = []
+    for pid, info in seen.items():
+        patient = info["patient"]
+        result.append(
+            {
+                "patient_id": patient.id,
+                "user_id": patient.user_id,
+                "name": patient.user.name,
+                "email": patient.user.email,
+                "phone": patient.user.phone,
+                "medical_history": patient.medical_history or "",
+                "notification_pref": patient.notification_pref or "email",
+                "total_appointments": info["total"],
+                "completed_appointments": info["completed"],
+                "booked_appointments": info["booked"],
+                "cancelled_appointments": info["cancelled"],
+                "last_visit": info["last_visit"],
+            }
+        )
+
+    # Sort so most-recently-visited patients appear first
+    result.sort(key=lambda x: (x["last_visit"] or ""), reverse=True)
+
+    return jsonify(result)
+
+
 @doctor_bp.route("/doctor/payments", methods=["GET"])
 @roles_required("doctor")
 def doctor_payment_details():
