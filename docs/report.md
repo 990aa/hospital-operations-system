@@ -1,15 +1,16 @@
 # Hospital Management System
 
 **Student Name:** Abdul Ahad  
-**Student ID:** 24f200293  
+**Student ID:** 24f2002963  
+**Email:** 24f2002963@ds.study.iitm.ac.in
+
 **Course:** Modern Application Development 2 Project  
-**Date:** February 2026  
 
 ---
 
 ## 1. Abstract
 
-This report describes the design and implementation of a Hospital Management System, a full-stack web application that digitalises and streamlines core hospital operations. The system manages patients, doctors, appointments, treatments, and payments through a unified platform that enforces role-based access control. Three distinct user roles are provided: administrators who configure and oversee the entire system, doctors who manage their schedules and patient treatment records, and patients who self-register, book appointments, and view their medical history. The backend is implemented in Python using the Flask with an SQLite relational database, Redis for caching, and Celery for asynchronous background job execution. The frontend is built with Vue.js 3. The system includes scheduled jobs for daily patient appointment reminders and monthly doctor activity reports delivered via email, as well as a user-triggered CSV export of treatment history. The resulting application is modular, maintainable, and demonstrates practical application of core software engineering principles including RESTful API design, role-based access control, event-driven background processing, and optimistic concurrency control.
+This report describes the design and implementation of a Hospital Management System, a full-stack web application that digitalises and streamlines core hospital operations. The system manages patients, doctors, appointments, treatments, and payments through a unified platform that enforces role-based access control. Three distinct user roles are provided: admins who configure and oversee the entire system, doctors who manage their schedules and patient treatment records, and patients who self-register, book appointments, and view their medical history. The backend is implemented in Python using the Flask with an SQLite relational database, Redis for caching, and Celery for asynchronous background job execution. The frontend is built with Vue.js 3. The system includes scheduled jobs for daily patient appointment reminders and monthly doctor activity reports delivered via email, as well as a user-triggered CSV export of treatment history. The resulting application is modular, maintainable, and demonstrates practical application of core software engineering principles including RESTful API design, role-based access control, event-driven background processing, and optimistic concurrency control.
 
 ---
 
@@ -25,7 +26,7 @@ Hospitals require coordinated management of multiple entities — staff, patient
 
 **Payment Tracking:** The financial exchange for consultations requires a clear record linking patients, doctors, appointments, and amounts, with support for refunds when appointments are cancelled.
 
-**Access Control:** Different stakeholders have different informational needs and permissions. Patients must not see other patients' records. Doctors must not modify system-wide configurations. Administrators must be able to oversee all entities.
+**Access Control:** Different stakeholders have different informational needs and permissions. Patients must not see other patients' records. Doctors must not modify system-wide configurations. Admins must be able to oversee all entities.
 
 ---
 
@@ -49,6 +50,8 @@ Hospitals require coordinated management of multiple entities — staff, patient
 
 ## 4. Database Design
 
+![ER Diagram](er_diagram.png)
+
 ### 4.1 Entity Overview
 
 The database comprises eight core entities:
@@ -69,7 +72,7 @@ The database comprises eight core entities:
 
 **Structured Availability Storage:** Doctor availability is stored as three structured columns — `availability_days` (comma-separated weekday abbreviations), `availability_start` and `availability_end` (HH:MM strings), and `slot_minutes` (integer duration). This enables the backend to programmatically generate all valid time slots and compare them against existing bookings without complex date arithmetic.
 
-**Fixed Consultation Fee per Doctor:** The `Doctor` model includes an `appointment_cost` column set by the administrator. This value is the single source of truth for each appointment's payment amount; the patient cannot override it during the payment step, ensuring billing consistency.
+**Fixed Consultation Fee per Doctor:** The `Doctor` model includes an `appointment_cost` column set by the admin. This value is the single source of truth for each appointment's payment amount; the patient cannot override it during the payment step, ensuring billing consistency.
 
 **Appointment Uniqueness Constraint:** A database-level unique index on `(doctor_id, date, time)` prevents race conditions when multiple patients attempt to book the same slot simultaneously, providing a final guarantee beyond the application-level retry logic.
 
@@ -99,7 +102,7 @@ Key relationships include:
 
 ### 5.1 Authentication and Authorisation
 
-Flask-Security manages user sessions using cookie-based tokens. Passwords are hashed using HMAC-SHA512 with a configurable salt (`SECURITY_PASSWORD_SALT`). The `roles_required` decorator gates each route to the appropriate user type. The patient self-registration endpoint creates only `patient`-role users; doctor creation is exclusively an administrator operation, preventing patients from escalating their privileges.
+Flask-Security manages user sessions using cookie-based tokens. Passwords are hashed using a configurable salt (`SECURITY_PASSWORD_SALT`). The `roles_required` decorator gates each route to the appropriate user type. The patient self-registration endpoint creates only `patient`-role users; doctor creation is exclusively an admin operation.
 
 On the frontend, the Vue.js application calls `GET /api/current-user` on page load to restore an existing session and routes the user directly to their role-specific dashboard without requiring re-authentication.
 
@@ -112,17 +115,14 @@ The booking system uses a serial slot-assignment algorithm to ensure fairness an
 3. Already-booked slots for that doctor and date are excluded from the candidate list.
 4. The first remaining slot is assigned to the new appointment.
 5. A retry loop of three attempts handles the race condition where a concurrent booking takes the assigned slot between generation and the database commit.
-6. The database unique constraint on `(doctor_id, date, time)` serves as the final guarantee, raising an `IntegrityError` on conflict.
-
-This approach is fair (first-come-first-served, earliest slot first) and safe under concurrent load.
 
 ### 5.3 Treatment and Patient History
 
-When a doctor marks an appointment as completed, they record a diagnosis, prescription, and optional notes. This creates a `Treatment` record. Simultaneously, a short summary is appended to the patient's cumulative `medical_history` text field for a quick plain-text log. Doctors can subsequently edit any treatment record they originally created, either through the appointment details modal or through the "My Patients" tab.
+When a doctor marks an appointment as completed, they record a diagnosis, prescription, and optional notes. This creates a `Treatment` record. Simultaneously, a short summary is appended to the patient's cumulative `medical_history` text field for a quick plain-text log. Doctors can subsequently edit any treatment record they originally created.
 
 ### 5.4 Payment Portal
 
-The payment portal simulates an actual payment gateway to demonstrate the integration architecture without connecting to a live payment provider. The consultation fee for each appointment is fixed by the administator at the doctor level. When a patient initiates payment, the amount is read directly from the doctor's `appointment_cost` and displayed. When a patient cancels a paid appointment, the system automatically creates a corresponding refund `Payment` record with a negative amount and `status="refunded"`.
+The payment portal simulates an actual payment gateway to demonstrate the integration architecture without connecting to a live payment provider. The consultation fee for each appointment is fixed by the administator at the doctor level. When a patient initiates payment, the amount is read from the doctor's `appointment_cost` and displayed. When a patient cancels a paid appointment, the system automatically creates a corresponding refund `Payment` record with a negative amount.
 
 ### 5.5 Doctor Availability Management
 
@@ -130,7 +130,7 @@ Doctors configure their availability through the Availability tab: they select w
 
 ### 5.6 Admin Capabilities
 
-The administrator has system oversight including creating, editing, and deleting doctors and patients; managing departments; viewing all appointments with multi-dimensional filters; auditing all payment transactions; and accessing aggregate statistics. When creating or editing a doctor, the administrator sets the fixed cost patients will be charged for appointments with that doctor. A dedicated Doctor's Patients panel allows the admin to inspect all patients linked to any specific doctor and edit them directly.
+The admin has system oversight including creating, editing, and deleting doctors and patients; managing departments; viewing all appointments with multi-dimensional filters; auditing all payment transactions; and accessing aggregate statistics. When creating or editing a doctor, the admin sets the fixed cost patients will be charged for appointments with that doctor. A dedicated Doctor's Patients panel allows the admin to inspect all patients linked to any specific doctor and edit them directly.
 
 ### 5.7 Patient Capabilities
 
@@ -158,8 +158,7 @@ When a patient initiates an export from their dashboard, an `ExportJob` record i
 
 ### 6.5 Redis Caching
 
-Redis provides the Flask-Caching backend. Frequently read data — doctor lists, department lists, appointment summaries, patient histories — are cached with per-endpoint TTLs ranging from 30 seconds to 5 minutes. Cache invalidation is explicit: every write operation that could affect a cached value calls `cache.delete()` on all relevant keys to maintain consistency.
-
+Redis provides the Flask-Caching backend. Frequently read data — doctor lists, department lists, appointment summaries, patient histories — are cached with per-endpoint TTLs ranging from 30 seconds to 5 minutes.
 ---
 
 ## 7. Security and Validation
@@ -170,7 +169,7 @@ The `login_required` and `roles_required` decorators ensure unauthenticated or u
 
 ### 7.2 Authorisation Boundaries
 
-Role-based access control ensures that patients access only their own data; doctors can only view and complete their own appointments and edit only their own treatment records; and administrators have access to all entities but are still constrained to the defined operations.
+Role-based access control ensures that patients access only their own data; doctors can only view and complete their own appointments and edit only their own treatment records; and admins have access to all entities but are still constrained to the defined operations.
 
 ---
 
@@ -232,7 +231,7 @@ All implementation decisions, architecture choices, algorithmic logic, and writt
 
 ## 12. Conclusion
 
-The Hospital Management System successfully implements a comprehensive digital healthcare management platform. It provides role-appropriate interfaces for administrators, doctors, and patients; enforces data integrity through database constraints and input validation; automates routine communications through scheduled background tasks; and demonstrates practical application of caching and asynchronous processing patterns.
+The Hospital Management System successfully implements a comprehensive digital healthcare management platform. It provides role-appropriate interfaces for admins, doctors, and patients; enforces data integrity through database constraints and input validation; automates routine communications through scheduled background tasks; and demonstrates practical application of caching and asynchronous processing patterns.
 
 ---
 
