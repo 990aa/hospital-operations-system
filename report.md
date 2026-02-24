@@ -339,8 +339,6 @@ Success messages display as dismissible banners that disappear after three secon
 
 The Hospital Management System successfully implements a comprehensive digital healthcare management platform. It provides role-appropriate interfaces for administrators, doctors, and patients; enforces data integrity through database constraints and input validation; automates routine communications through scheduled background tasks; and demonstrates practical application of caching and asynchronous processing patterns.
 
-Potential future enhancements include integration with a real payment gateway for actual transaction processing, a mobile native application with push notification support, more sophisticated scheduling algorithms accommodating recurring appointments and resource constraints, and machine learning models for predictive analytics on appointment and treatment data.
-
 ---
 
 ## 14. References

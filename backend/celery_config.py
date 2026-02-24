@@ -12,9 +12,11 @@ Tasks include:
 Author: Abdul Ahad
 """
 
+import os
+import sys
+
 from celery import Celery
 from celery.schedules import crontab
-import os
 
 
 def make_celery(app=None):
@@ -43,6 +45,15 @@ def make_celery(app=None):
         include=["backend.tasks"],  # Import tasks from this module
     )
 
+    # On Windows the default 'prefork' pool uses shared memory primitives
+    # (billiard) that fail with PermissionError / OSError.  The 'solo' pool
+    # executes tasks inline in the main worker process and has no such issues.
+    # On POSIX systems we keep 'prefork' for true concurrency.
+    _is_windows = sys.platform == "win32"
+    _worker_pool = "solo" if _is_windows else "prefork"
+    # solo pool is single-threaded, so concurrency must be 1
+    _worker_concurrency = 1 if _is_windows else (os.cpu_count() or 1)
+
     # Celery configuration
     celery.conf.update(
         # Task serialization
@@ -56,6 +67,9 @@ def make_celery(app=None):
         task_time_limit=3600,  # 1 hour time limit for tasks
         # Result backend settings
         result_expires=86400,  # Results expire after 24 hours
+        # Worker pool – 'solo' on Windows avoids prefork PermissionError/OSError
+        worker_pool=_worker_pool,
+        worker_concurrency=_worker_concurrency,
         # Worker settings
         worker_prefetch_multiplier=1,  # Prefetch one task at a time
     )

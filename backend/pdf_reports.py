@@ -114,7 +114,6 @@ def generate_monthly_report_pdf(doctor_name, month, year, appointments_data, sta
 
     # Table headers
     headers = ["Date", "Patient", "Status", "Diagnosis"]
-    col_widths = [90, 150, 80, 175]
     x_positions = [50, 140, 290, 370]
 
     # Draw header row

@@ -10,7 +10,7 @@ Tests for Redis caching functionality:
 Author: Abdul Ahad
 """
 
-from flask import current_app
+from backend.extensions import cache
 
 
 def test_cache_set_and_get(test_client, admin_token):
@@ -24,14 +24,14 @@ def test_cache_set_and_get(test_client, admin_token):
     """
     with test_client.application.app_context():
         # Set a value
-        current_app.cache.set("test_key", "test_value", timeout=60)
+        cache.set("test_key", "test_value", timeout=60)
 
         # Get the value
-        value = current_app.cache.get("test_key")
+        value = cache.get("test_key")
         assert value == "test_value"
 
         # Non-existent key returns None
-        missing = current_app.cache.get("non_existent_key")
+        missing = cache.get("non_existent_key")
         assert missing is None
 
 
@@ -43,11 +43,11 @@ def test_cache_delete(test_client, admin_token):
     - Deleted keys return None
     """
     with test_client.application.app_context():
-        current_app.cache.set("delete_key", "value", timeout=60)
-        assert current_app.cache.get("delete_key") == "value"
+        cache.set("delete_key", "value", timeout=60)
+        assert cache.get("delete_key") == "value"
 
-        current_app.cache.delete("delete_key")
-        assert current_app.cache.get("delete_key") is None
+        cache.delete("delete_key")
+        assert cache.get("delete_key") is None
 
 
 def test_cache_expiry(test_client, admin_token):
@@ -59,8 +59,8 @@ def test_cache_expiry(test_client, admin_token):
     """
     with test_client.application.app_context():
         # Set with 1 second timeout
-        current_app.cache.set("expiry_key", "value", timeout=1)
-        assert current_app.cache.get("expiry_key") == "value"
+        cache.set("expiry_key", "value", timeout=1)
+        assert cache.get("expiry_key") == "value"
 
         # Wait for expiry (skip in test for speed)
         # In real tests, you'd mock time or use a shorter timeout

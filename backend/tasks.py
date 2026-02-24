@@ -537,7 +537,12 @@ def send_sms(phone_number, message):
 
     if sms_provider == "twilio":
         # Implement Twilio integration
-        from twilio.rest import Client
+        try:
+            from twilio.rest import Client  # type: ignore[import-untyped]  # optional dep
+        except ImportError:
+            print("[SMS] twilio not installed – falling back to log")
+            print(f"[SMS] To: {phone_number}\nMessage: {message}\n---")
+            return
 
         account_sid = os.environ.get("TWILIO_ACCOUNT_SID")
         auth_token = os.environ.get("TWILIO_AUTH_TOKEN")

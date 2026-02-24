@@ -17,6 +17,7 @@ from flask_security import roles_required, current_user
 from flask_security.utils import hash_password
 from sqlalchemy import or_
 from sqlalchemy.orm import aliased
+from backend.extensions import cache
 from models.database import (
     db,
     User,
@@ -97,7 +98,7 @@ def admin_stats():
     """
     # Try to get from cache first (5 minute expiry)
     cache_key = "admin_stats"
-    cached = current_app.cache.get(cache_key)
+    cached = cache.get(cache_key)
     if cached:
         return jsonify(cached)
 
@@ -116,7 +117,7 @@ def admin_stats():
     }
 
     # Cache the results for 5 minutes (300 seconds)
-    current_app.cache.set(cache_key, stats, timeout=300)
+    cache.set(cache_key, stats, timeout=300)
 
     return jsonify(stats)
 
@@ -199,8 +200,8 @@ def manage_doctors():
         db.session.commit()
 
         # Invalidate cache after adding doctor
-        current_app.cache.delete("admin_stats")
-        current_app.cache.delete("all_doctors")
+        cache.delete("admin_stats")
+        cache.delete("all_doctors")
 
         return jsonify({"message": "Doctor added successfully"}), 201
 
@@ -269,9 +270,11 @@ def update_doctor(id):
         try:
             cost = float(data["appointment_cost"])
             if cost < 0:
-                return jsonify({"message": "appointment_cost must be non-negative"}), 400
+                return jsonify(
+                    {"message": "appointment_cost must be non-negative"}
+                ), 400
             doctor.appointment_cost = cost
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return jsonify({"message": "appointment_cost must be a number"}), 400
 
     availability_payload, availability_error = _normalize_availability_payload(
@@ -299,7 +302,7 @@ def update_doctor(id):
     )
 
     db.session.commit()
-    current_app.cache.delete("all_doctors")
+    cache.delete("all_doctors")
     return jsonify(
         {"message": "Doctor updated successfully", "doctor": doctor.to_dict()}
     )
@@ -344,7 +347,7 @@ def manage_departments():
         db.session.add(department)
         db.session.commit()
 
-        current_app.cache.delete("all_departments")
+        cache.delete("all_departments")
         return jsonify(
             {"message": "Department created", "department": department.to_dict()}
         ), 201
@@ -379,7 +382,7 @@ def delete_department(id):
         ), 400
     db.session.delete(dept)
     db.session.commit()
-    current_app.cache.delete("all_departments")
+    cache.delete("all_departments")
     return jsonify({"message": "Department deleted"})
 
 
@@ -421,8 +424,8 @@ def delete_doctor(id):
     db.session.commit()
 
     # Invalidate cache
-    current_app.cache.delete("admin_stats")
-    current_app.cache.delete("all_doctors")
+    cache.delete("admin_stats")
+    cache.delete("all_doctors")
 
     return jsonify({"message": "Doctor deleted"})
 
@@ -603,7 +606,7 @@ def delete_patient(id):
     db.session.commit()
 
     # Invalidate cache
-    current_app.cache.delete("admin_stats")
+    cache.delete("admin_stats")
 
     return jsonify({"message": "Patient deleted"})
 

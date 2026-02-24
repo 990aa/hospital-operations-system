@@ -276,7 +276,12 @@ try:
 
     # Pick first bookable day.
     day = next(
-        (d for d in doc["upcoming_availability"] if d["remaining_slots"] > 1), None
+        (
+            d
+            for d in (doc or {}).get("upcoming_availability", [])
+            if d["remaining_slots"] > 1
+        ),
+        None,
     )
     if not day:
         raise RuntimeError("No available day with at least 2 slots")

@@ -12,7 +12,7 @@ roles_users = db.Table(
 )
 
 
-class Role(db.Model, RoleMixin):
+class Role(db.Model, RoleMixin):  # type: ignore[misc]
     """
     Role model for user authorization.
 
@@ -32,7 +32,7 @@ class Role(db.Model, RoleMixin):
     description = db.Column(db.String(255))
 
 
-class User(db.Model, UserMixin):
+class User(db.Model, UserMixin):  # type: ignore[misc]
     """
     User model for handling authentication and basic user details.
 
@@ -79,12 +79,12 @@ class User(db.Model, UserMixin):
             "username": self.username,
             "email": self.email,
             "phone": self.phone,
-            "roles": [r.name for r in self.roles],
+            "roles": [r.name for r in (self.roles or [])],  # type: ignore[union-attr]
             "name": self.name,
         }
 
 
-class Department(db.Model):
+class Department(db.Model):  # type: ignore[misc]
     """
     Department/Specialization model.
 
@@ -108,7 +108,7 @@ class Department(db.Model):
         return {"id": self.id, "name": self.name, "description": self.description}
 
 
-class Doctor(db.Model):
+class Doctor(db.Model):  # type: ignore[misc]
     """
     Doctor details linked to a User.
 
@@ -171,7 +171,9 @@ class Doctor(db.Model):
             "slot_minutes": self.slot_minutes or 30,
             "bio": self.bio or "",
             "email_notifications": self.email_notifications,
-            "appointment_cost": self.appointment_cost if self.appointment_cost is not None else 500.0,
+            "appointment_cost": self.appointment_cost
+            if self.appointment_cost is not None
+            else 500.0,
         }
 
     def get_availability_days(self):
@@ -184,7 +186,7 @@ class Doctor(db.Model):
         return [day.strip() for day in days.split(",") if day.strip()]
 
 
-class Patient(db.Model):
+class Patient(db.Model):  # type: ignore[misc]
     """
     Patient details linked to a User.
 
@@ -223,7 +225,7 @@ class Patient(db.Model):
         }
 
 
-class Appointment(db.Model):
+class Appointment(db.Model):  # type: ignore[misc]
     """
     Appointment model linking Patient and Doctor.
 
@@ -281,7 +283,7 @@ class Appointment(db.Model):
         }
 
 
-class Treatment(db.Model):
+class Treatment(db.Model):  # type: ignore[misc]
     """
     Treatment record for a completed appointment.
 
@@ -317,7 +319,7 @@ class Treatment(db.Model):
         }
 
 
-class ExportJob(db.Model):
+class ExportJob(db.Model):  # type: ignore[misc]
     """
     Model for tracking async CSV export jobs.
 
@@ -364,7 +366,7 @@ class ExportJob(db.Model):
         }
 
 
-class Payment(db.Model):
+class Payment(db.Model):  # type: ignore[misc]
     """
     Model for tracking patient payments (dummy portal - no actual processing).
 

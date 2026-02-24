@@ -13,11 +13,12 @@ All routes require doctor role authentication.
 Author: Abdul Ahad
 """
 
-from flask import Blueprint, request, jsonify, current_app, send_file
+from flask import Blueprint, request, jsonify, send_file
 from flask_security import current_user, roles_required
 from sqlalchemy import and_
 from datetime import datetime, timedelta
 
+from backend.extensions import cache
 from models.database import db, Doctor, Patient, Appointment, Treatment, Payment
 from backend.pdf_reports import (
     generate_monthly_report_pdf,
@@ -144,7 +145,7 @@ def update_doctor_availability():
     )
     db.session.commit()
 
-    current_app.cache.delete("all_doctors")
+    cache.delete("all_doctors")
     return jsonify({"message": "Availability updated", "doctor": doctor.to_dict()})
 
 
@@ -180,7 +181,7 @@ def doctor_appointments():
 
     # Try cache for common queries
     cache_key = f"doctor_appointments_{doctor.id}_{status_filter}_{date_from}_{date_to}"
-    cached = current_app.cache.get(cache_key)
+    cached = cache.get(cache_key)
     if cached:
         return jsonify(cached)
 
@@ -221,7 +222,7 @@ def doctor_appointments():
         results.append(d)
 
     # Cache for 30 seconds
-    current_app.cache.set(cache_key, results, timeout=30)
+    cache.set(cache_key, results, timeout=30)
 
     return jsonify(results)
 
@@ -329,14 +330,14 @@ def complete_appointment(id):
     db.session.commit()
 
     # Invalidate caches
-    current_app.cache.delete("admin_stats")
-    current_app.cache.delete(f"doctor_appointments_{doctor.id}")
+    cache.delete("admin_stats")
+    cache.delete(f"doctor_appointments_{doctor.id}")
     # Clear all variations of patient appointment cache
-    current_app.cache.delete(f"patient_appointments_{appointment.patient_id}_None")
-    current_app.cache.delete(f"patient_appointments_{appointment.patient_id}_Booked")
-    current_app.cache.delete(f"patient_appointments_{appointment.patient_id}_Completed")
-    current_app.cache.delete(f"patient_appointments_{appointment.patient_id}_Cancelled")
-    current_app.cache.delete(f"patient_history_{appointment.patient_id}")
+    cache.delete(f"patient_appointments_{appointment.patient_id}_None")
+    cache.delete(f"patient_appointments_{appointment.patient_id}_Booked")
+    cache.delete(f"patient_appointments_{appointment.patient_id}_Completed")
+    cache.delete(f"patient_appointments_{appointment.patient_id}_Cancelled")
+    cache.delete(f"patient_history_{appointment.patient_id}")
 
     return jsonify(
         {
@@ -377,7 +378,7 @@ def update_treatment(id):
 
     db.session.commit()
 
-    current_app.cache.delete(f"patient_history_{appointment.patient_id}")
+    cache.delete(f"patient_history_{appointment.patient_id}")
     return jsonify(
         {"message": "Treatment updated successfully", "treatment": treatment.to_dict()}
     )
@@ -425,7 +426,7 @@ def get_patient_full_history(patient_id):
 
     # Try cache
     cache_key = f"patient_history_{patient_id}"
-    cached = current_app.cache.get(cache_key)
+    cached = cache.get(cache_key)
     if cached:
         return jsonify(cached)
 
@@ -464,7 +465,7 @@ def get_patient_full_history(patient_id):
     }
 
     # Cache for 1 minute
-    current_app.cache.set(cache_key, result, timeout=60)
+    cache.set(cache_key, result, timeout=60)
 
     return jsonify(result)
 

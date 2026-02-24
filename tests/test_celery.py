@@ -251,3 +251,82 @@ def test_export_csv_sends_email_on_completion(mock_email, test_client, patient_t
     job = status_resp.get_json()
     # Job should be completed or pending in eager mode
     assert job["status"] in ["completed", "pending", "processing"]
+
+
+# ---------------------------------------------------------------------------
+# Celery configuration – Windows-safe pool tests
+# ---------------------------------------------------------------------------
+
+
+def test_celery_uses_solo_pool_on_windows():
+    """
+    Verify that the Celery config selects 'solo' worker pool on Windows.
+
+    The 'prefork' pool uses billiard shared-memory primitives (semaphores,
+    named pipes) that raise PermissionError / OSError on Windows.  The 'solo'
+    pool runs tasks in the main process, avoiding these issues entirely.
+    """
+    import sys
+    from backend.celery_config import make_celery
+
+    celery_instance = make_celery()
+    pool_setting = celery_instance.conf.worker_pool
+
+    if sys.platform == "win32":
+        assert pool_setting == "solo", (
+            f"Expected 'solo' pool on Windows but got '{pool_setting}'. "
+            "The prefork pool causes PermissionError/OSError on Windows."
+        )
+    else:
+        assert pool_setting in ("prefork", "solo"), (
+            f"Unexpected pool setting '{pool_setting}'"
+        )
+
+
+def test_celery_solo_pool_concurrency_is_one_on_windows():
+    """
+    Verify that worker_concurrency is 1 when 'solo' pool is used on Windows.
+
+    The solo pool is single-threaded, so a concurrency > 1 would silently be
+    ignored; setting it explicitly to 1 avoids confusing log output.
+    """
+    import sys
+    from backend.celery_config import make_celery
+
+    celery_instance = make_celery()
+    if sys.platform == "win32":
+        assert celery_instance.conf.worker_concurrency == 1
+
+
+def test_celery_config_has_required_settings():
+    """
+    Verify key Celery configuration settings are present and valid.
+    """
+    from backend.celery_config import celery
+
+    assert celery.conf.task_serializer == "json"
+    assert "json" in celery.conf.accept_content
+    assert celery.conf.result_serializer == "json"
+    assert celery.conf.timezone == "UTC"
+    assert celery.conf.enable_utc is True
+    assert celery.conf.task_track_started is True
+    assert celery.conf.worker_pool in ("solo", "prefork")
+
+
+def test_celery_beat_schedule_has_expected_tasks():
+    """
+    Verify that the Celery beat schedule contains the expected periodic tasks.
+    """
+    from backend.celery_config import celery
+
+    schedule = celery.conf.beat_schedule
+    assert "daily-appointment-reminders" in schedule
+    assert "monthly-doctor-reports" in schedule
+    assert (
+        schedule["daily-appointment-reminders"]["task"]
+        == "backend.tasks.send_daily_reminders"
+    )
+    assert (
+        schedule["monthly-doctor-reports"]["task"]
+        == "backend.tasks.send_monthly_reports"
+    )

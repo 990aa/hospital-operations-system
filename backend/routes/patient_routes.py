@@ -15,12 +15,13 @@ Author: Abdul Ahad
 import os
 import secrets
 
-from flask import Blueprint, request, jsonify, current_app, send_file
+from flask import Blueprint, request, jsonify, send_file
 from flask_security import login_required, current_user, roles_required
 from sqlalchemy import or_, and_
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timedelta, date
 
+from backend.extensions import cache
 from models.database import (
     db,
     User,
@@ -259,7 +260,7 @@ def search_doctors():
 
     # Try to get from cache for common queries (1 minute cache)
     cache_key = f"doctors_{department_id}_{search}"
-    cached = current_app.cache.get(cache_key)
+    cached = cache.get(cache_key)
     if cached:
         return jsonify(cached)
 
@@ -270,7 +271,7 @@ def search_doctors():
         result.append(doctor_data)
 
     # Cache for 1 minute (60 seconds)
-    current_app.cache.set(cache_key, result, timeout=60)
+    cache.set(cache_key, result, timeout=60)
 
     return jsonify(result)
 
@@ -288,7 +289,7 @@ def get_departments():
     """
     # Try cache first
     cache_key = "all_departments"
-    cached = current_app.cache.get(cache_key)
+    cached = cache.get(cache_key)
     if cached:
         return jsonify(cached)
 
@@ -296,7 +297,7 @@ def get_departments():
     result = [d.to_dict() for d in depts]
 
     # Cache for 5 minutes (300 seconds)
-    current_app.cache.set(cache_key, result, timeout=300)
+    cache.set(cache_key, result, timeout=300)
 
     return jsonify(result)
 
@@ -375,11 +376,11 @@ def book_appointment():
         return jsonify({"message": "Doctor is not available on this date"}), 409
 
     # Invalidate relevant caches so stats and appointment lists reflect changes immediately.
-    current_app.cache.delete("admin_stats")
-    current_app.cache.delete(f"patient_appointments_{patient.id}_None")
-    current_app.cache.delete(f"patient_appointments_{patient.id}_Booked")
-    current_app.cache.delete(f"patient_appointments_{patient.id}_Completed")
-    current_app.cache.delete(f"patient_appointments_{patient.id}_Cancelled")
+    cache.delete("admin_stats")
+    cache.delete(f"patient_appointments_{patient.id}_None")
+    cache.delete(f"patient_appointments_{patient.id}_Booked")
+    cache.delete(f"patient_appointments_{patient.id}_Completed")
+    cache.delete(f"patient_appointments_{patient.id}_Cancelled")
 
     return jsonify(
         {
@@ -419,7 +420,7 @@ def my_appointments():
 
         # Try cache for patient's appointments (30 second cache)
         cache_key = f"patient_appointments_{patient.id}_{status_filter}"
-        cached = current_app.cache.get(cache_key)
+        cached = cache.get(cache_key)
         if cached:
             return jsonify(cached)
 
@@ -458,7 +459,11 @@ def my_appointments():
         d["paid"] = _has_active_completed_payment(app.id)
         d["payment_status"] = latest_payment.status if latest_payment else "unpaid"
         d["payment_amount"] = latest_payment.amount if latest_payment else None
-        d["appointment_cost"] = (app.doctor.appointment_cost if app.doctor and app.doctor.appointment_cost is not None else 500.0)
+        d["appointment_cost"] = (
+            app.doctor.appointment_cost
+            if app.doctor and app.doctor.appointment_cost is not None
+            else 500.0
+        )
         d["payment_date"] = (
             latest_payment.payment_date.isoformat()
             if latest_payment and latest_payment.payment_date
@@ -470,7 +475,7 @@ def my_appointments():
     # Cache patient results for 30 seconds
     if current_user.has_role("patient"):
         cache_key = f"patient_appointments_{patient.id}_{status_filter}"
-        current_app.cache.set(cache_key, results, timeout=30)
+        cache.set(cache_key, results, timeout=30)
 
     return jsonify(results)
 
@@ -546,11 +551,11 @@ def cancel_appointment(id):
     db.session.commit()
 
     # Invalidate caches
-    current_app.cache.delete("admin_stats")
-    current_app.cache.delete(f"patient_appointments_{appointment.patient_id}_None")
-    current_app.cache.delete(f"patient_appointments_{appointment.patient_id}_Booked")
-    current_app.cache.delete(f"patient_appointments_{appointment.patient_id}_Completed")
-    current_app.cache.delete(f"patient_appointments_{appointment.patient_id}_Cancelled")
+    cache.delete("admin_stats")
+    cache.delete(f"patient_appointments_{appointment.patient_id}_None")
+    cache.delete(f"patient_appointments_{appointment.patient_id}_Booked")
+    cache.delete(f"patient_appointments_{appointment.patient_id}_Completed")
+    cache.delete(f"patient_appointments_{appointment.patient_id}_Cancelled")
 
     return jsonify({"message": "Appointment cancelled successfully"})
 
@@ -621,11 +626,11 @@ def update_appointment_status(id):
     db.session.commit()
 
     # Invalidate caches
-    current_app.cache.delete("admin_stats")
-    current_app.cache.delete(f"patient_appointments_{appointment.patient_id}_None")
-    current_app.cache.delete(f"patient_appointments_{appointment.patient_id}_Booked")
-    current_app.cache.delete(f"patient_appointments_{appointment.patient_id}_Completed")
-    current_app.cache.delete(f"patient_appointments_{appointment.patient_id}_Cancelled")
+    cache.delete("admin_stats")
+    cache.delete(f"patient_appointments_{appointment.patient_id}_None")
+    cache.delete(f"patient_appointments_{appointment.patient_id}_Booked")
+    cache.delete(f"patient_appointments_{appointment.patient_id}_Completed")
+    cache.delete(f"patient_appointments_{appointment.patient_id}_Cancelled")
 
     return jsonify(
         {
@@ -835,13 +840,17 @@ def update_profile():
                 parts = [p.strip().lower() for p in raw_pref.split(",") if p.strip()]
                 invalid = [p for p in parts if p not in allowed_prefs]
                 if invalid:
-                    return jsonify({"message": f"Invalid notification preference: {invalid}. Use email or sms."}), 400
+                    return jsonify(
+                        {
+                            "message": f"Invalid notification preference: {invalid}. Use email or sms."
+                        }
+                    ), 400
                 patient.notification_pref = ",".join(parts) if parts else "email"
 
     db.session.commit()
 
     # Invalidate user cache
-    current_app.cache.delete(f"user_{user.id}")
+    cache.delete(f"user_{user.id}")
 
     return jsonify({"message": "Profile updated successfully"})
 
@@ -900,7 +909,9 @@ def process_payment(appointment_id):
     payment_method = data.get("payment_method", "credit_card")
     # Only credit card and debit card are accepted; insurance has been removed.
     if payment_method not in ("credit_card", "debit_card"):
-        return jsonify({"message": "Invalid payment method. Use credit_card or debit_card."}), 400
+        return jsonify(
+            {"message": "Invalid payment method. Use credit_card or debit_card."}
+        ), 400
 
     card_number = data.get("card_number", "")
     notes = data.get("notes", "")

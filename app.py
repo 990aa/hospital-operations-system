@@ -17,10 +17,17 @@ from sqlalchemy import inspect
 from werkzeug.exceptions import HTTPException
 
 from flask import Flask, render_template, jsonify, request
-from flask_caching import Cache
 from models.database import db, User, Role, Department
 from flask_security import Security, SQLAlchemyUserDatastore
 from flask_security.utils import hash_password
+
+# Shared extension singleton (Cache) initialised inside create_app()
+from backend.extensions import cache
+
+# Ensure all front-end vendor assets are present before serving requests.
+# Downloads only on first run (or when files are missing); no-op thereafter.
+from backend.ensure_vendors import ensure_vendors
+ensure_vendors()
 
 # Import route blueprints
 from backend.routes.auth_routes import auth_bp
@@ -30,6 +37,20 @@ from backend.routes.patient_routes import patient_bp
 
 # Import Celery configuration
 from backend.celery_config import celery
+
+
+class HospitalApp(Flask):
+    """
+    Typed Flask subclass that declares the custom attribute attached
+    by create_app() so that static type checkers (ty, mypy) can resolve
+    ``app.user_datastore`` without raising ``unresolved-attribute`` errors.
+
+    The ``Cache`` singleton is now a module-level object in
+    ``backend.extensions`` and is imported directly by route modules,
+    avoiding the need for a ``current_app.cache`` dynamic lookup.
+    """
+
+    user_datastore: SQLAlchemyUserDatastore
 
 
 def create_app(test_config=None):
@@ -46,7 +67,9 @@ def create_app(test_config=None):
         Configured Flask application instance
     """
     # Create Flask app with custom template and static folders
-    app = Flask(__name__, template_folder="frontend", static_folder="frontend/static")
+    app = HospitalApp(
+        __name__, template_folder="frontend", static_folder="frontend/static"
+    )
 
     # Database Configuration
     # Using SQLite
@@ -78,11 +101,10 @@ def create_app(test_config=None):
     )  # 5 minutes default cache expiry
 
     # Initialize cache with app
-    cache = Cache()
+    # ``cache`` is the module-level singleton from backend.extensions so that
+    # route modules can import it directly with a static type instead of going
+    # through the dynamic ``current_app.cache`` attribute.
     cache.init_app(app)
-
-    # Make cache available globally
-    app.cache = cache
 
     # Initialize Extensions
     # Initialize SQLAlchemy
@@ -145,7 +167,7 @@ def create_app(test_config=None):
         return {
             "status": "healthy",
             "timestamp": datetime.now().isoformat(),
-            "cache": "connected" if app.cache else "not configured",
+            "cache": "connected" if cache else "not configured",
         }
 
     # --- TEST_ONLY_BLOCK END ---

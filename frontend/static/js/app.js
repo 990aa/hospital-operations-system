@@ -138,7 +138,7 @@ createApp({
                 bio: '',
                 appointment_cost: 500
             },
-            patientSearch: ''
+            patientSearch: '',
             // Admin "doctor's patients" panel state
             adminViewDoctorPatients: null,   // Doctor obj currently being inspected
             adminDoctorPatientsList: [],     // Patients of that doctor loaded from API
