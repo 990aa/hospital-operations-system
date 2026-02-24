@@ -152,13 +152,11 @@ Doctors configure their availability through the Availability tab: they select w
 
 ### 7.6 Admin Capabilities
 
-The administrator has comprehensive system oversight including creating, editing, and deleting doctors and patients; managing departments; viewing all appointments with multi-dimensional filters; auditing all payment transactions; and accessing aggregate statistics. When creating or editing a doctor, the administrator sets the **Consultation Fee (₹)** — the fixed cost patients will be charged for appointments with that doctor. A dedicated "Doctor's Patients" panel allows the admin to inspect all patients linked to any specific doctor and edit them directly without switching between tabs.
+The administrator has system oversight including creating, editing, and deleting doctors and patients; managing departments; viewing all appointments with multi-dimensional filters; auditing all payment transactions; and accessing aggregate statistics. When creating or editing a doctor, the administrator sets the fixed cost patients will be charged for appointments with that doctor. A dedicated Doctor's Patients panel allows the admin to inspect all patients linked to any specific doctor and edit them directly.
 
 ### 7.7 Patient Capabilities
 
-Registered patients can browse doctors as interactive profile cards, each showing the doctor's name, department, availability, slot duration, consultation fee, and bio. Cards can be filtered by department selection or searched by name, allowing patients to quickly find the appropriate specialist. Clicking a card selects that doctor for booking. The department-first browsing UI shows all available medical specialisations as selectable buttons, filtering the doctor list on selection. Before each consultation, patients complete a payment step. After consultation, they can view their full treatment history including diagnosis, prescription, and doctor's notes in a read-only format; history is updated automatically by the system and cannot be manually edited. Patients can also export their complete treatment record as a CSV file.
-
-Notification preferences are configured via Email and SMS checkboxes in the profile settings. Both channels can be enabled simultaneously, ensuring patients receive reminders through all preferred methods.
+Registered patients can browse doctors as interactive profile cards, each showing the doctor's name, department, availability, slot duration, consultation fee, and bio. Cards can be filtered by department selection or searched by name, allowing patients to quickly find the appropriate specialist. After consultation, they can view their full treatment history including diagnosis, prescription, and doctor's notes in a read-only format; history is updated automatically by the system. Patients can also export their complete treatment record as a CSV file. Notification preferences are configured via Email and SMS checkboxes in the profile settings.
 
 ---
 
@@ -166,7 +164,7 @@ Notification preferences are configured via Email and SMS checkboxes in the prof
 
 ### 8.1 Architecture
 
-Celery manages all background task execution. Redis serves as both the message broker (task queue) and result backend. A custom `ContextTask` base class injects the Flask application context into every task execution, making database sessions, configuration, and extensions available within background code.
+Celery manages all background task execution. Redis serves as both the message broker (task queue) and result backend. A `ContextTask` base class injects the Flask application context into every task execution, making database sessions, configuration, and extensions available within background code.
 
 ### 8.2 Daily Appointment Reminders
 
@@ -174,7 +172,7 @@ A Celery Beat periodic task runs every morning at 8:00 AM. It queries all appoin
 
 ### 8.3 Monthly Doctor Activity Report
 
-On the first calendar day of each month, Celery Beat dispatches a task that iterates over all doctors with email notifications enabled. For each doctor, it queries all appointments in the preceding month, computes statistics (total appointments, completed, cancelled, unique patients treated), and sends an HTML email summary to the doctor's registered address. Doctors can also download a PDF rendition of their monthly report on-demand from the Reports tab, generated using the ReportLab library.
+On the first calendar day of each month, Celery Beat dispatches a task that iterates over all doctors with email notifications enabled. For each doctor, it queries all appointments in the preceding month, computes statistics (total appointments, completed, cancelled, unique patients treated), and sends an HTML email summary to the doctor's registered address. Doctors can also download a PDF rendition of their monthly report on-demand from the Reports tab.
 
 ### 8.4 CSV Treatment Export
 
