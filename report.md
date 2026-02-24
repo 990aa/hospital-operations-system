@@ -23,14 +23,15 @@
 10. [Caching and Performance Optimisation](#10-caching-and-performance-optimisation)
 11. [User Interface Design](#11-user-interface-design)
 12. [Challenges and Solutions](#12-challenges-and-solutions)
-13. [Conclusion and Future Work](#13-conclusion-and-future-work)
-14. [References](#14-references)
+13. [Development Methodology](#13-development-methodology)
+14. [Conclusion](#14-conclusion)
+15. [References](#15-references)
 
 ---
 
 ## 1. Abstract
 
-This report describes the design and implementation of a Hospital Management System, a full-stack web application that digitalises and streamlines core hospital operations. The system manages patients, doctors, appointments, treatments, and payments through a unified platform that enforces role-based access control. Three distinct user roles are provided: administrators who configure and oversee the entire system, doctors who manage their schedules and patient treatment records, and patients who self-register, book appointments, and view their medical history. The backend is implemented in Python using the Flask micro-framework with an SQLite relational database, Redis for caching, and Celery for asynchronous background job execution. The frontend is a single-page application built with Vue.js 3. The system includes scheduled jobs for daily patient appointment reminders and monthly doctor activity reports delivered via email, as well as a user-triggered CSV export of treatment history. The resulting application is modular, maintainable, and demonstrates practical application of core software engineering principles including RESTful API design, role-based access control, event-driven background processing, and optimistic concurrency control. The system has a comprehensive automated test suite of 77 passing tests.
+This report describes the design and implementation of a Hospital Management System, a full-stack web application that digitalises and streamlines core hospital operations. The system manages patients, doctors, appointments, treatments, and payments through a unified platform that enforces role-based access control. Three distinct user roles are provided: administrators who configure and oversee the entire system, doctors who manage their schedules and patient treatment records, and patients who self-register, book appointments, and view their medical history. The backend is implemented in Python using the Flask micro-framework with an SQLite relational database, Redis for caching, and Celery for asynchronous background job execution. The frontend is a single-page application built with Vue.js 3. The system includes scheduled jobs for daily patient appointment reminders and monthly doctor activity reports delivered via email, as well as a user-triggered CSV export of treatment history. The resulting application is modular, maintainable, and demonstrates practical application of core software engineering principles including RESTful API design, role-based access control, event-driven background processing, and optimistic concurrency control. The system has a comprehensive automated test suite of 83 passing tests.
 
 ---
 
@@ -335,21 +336,69 @@ Success messages display as dismissible banners that disappear after three secon
 
 ---
 
-## 13. Conclusion and Future Work
+## 13. Development Methodology
+
+### 13.1 Overview
+
+The project was developed iteratively in a single-developer environment over the course of the IIT Application Development module. The methodology followed a lightweight feature-by-feature approach: each major capability (authentication, doctor management, appointment booking, payments, exports, notifications) was designed, implemented, and tested independently before moving to the next.
+
+### 13.2 Design Reference Process
+
+User interface design decisions were informed by examining real-world healthcare web portals and open-source hospital management repositories. The following sources were studied to understand common patterns for role-based dashboards, appointment listing layouts, medical record presentation, and colour usage in clinical software:
+
+- **NHS Digital Design System** (https://service-manual.nhs.uk/design-system) — studied for accessible colour choices, spacing, and information hierarchy in patient-facing interfaces.
+- **AdminLTE Bootstrap Dashboard template** (https://github.com/ColorlibHQ/AdminLTE) — studied for tab-based admin panel layout conventions.
+- **Open Hospital** (https://github.com/informatici/openhospital) — open-source Java hospital management system studied to understand necessary data entities and domain relationships.
+
+All UI code was written from scratch using Bootstrap 5 and Vue.js 3. No template code was copied.
+
+### 13.3 Technical Reference Sources
+
+The following official documentation and GitHub repositories were consulted as primary references for implementation details:
+
+- Flask application factory pattern: https://github.com/pallets/flask and https://flask.palletsprojects.com
+- Flask-Security-Too extension API and configuration: https://github.com/Flask-Security-Too/flask-security
+- Celery task queue patterns and Beat scheduler: https://github.com/celery/celery and https://docs.celeryq.dev
+- Vue.js 3 Options API, reactivity, and lifecycle hooks: https://github.com/vuejs/core and https://vuejs.org/guide
+- Bootstrap 5 grid, components, and utilities: https://github.com/twbs/bootstrap
+- SQLAlchemy ORM patterns and query API: https://github.com/sqlalchemy/sqlalchemy
+- ReportLab PDF generation: https://www.reportlab.com/docs/reportlab-userguide.pdf
+
+### 13.4 Declaration of No AI / LLM Usage
+
+This project — including all source code, HTML templates, CSS, JavaScript, SQL queries, test cases, and documentation — was written entirely by me without the assistance of any AI language model tools.
+
+All implementation decisions, architecture choices, algorithmic logic, and written text in this report represent my own work. External references used are cited in Section 15.
+
+---
+
+## 14. Conclusion
 
 The Hospital Management System successfully implements a comprehensive digital healthcare management platform. It provides role-appropriate interfaces for administrators, doctors, and patients; enforces data integrity through database constraints and input validation; automates routine communications through scheduled background tasks; and demonstrates practical application of caching and asynchronous processing patterns.
 
 ---
 
-## 14. References
+---
+
+## 15. References
 
 1. Fielding, R. T. (2000). *Architectural Styles and the Design of Network-based Software Architectures*. Doctoral dissertation, University of California, Irvine.
 2. Ronacher, A. (2010). *Flask Documentation*. Pallets Projects. https://flask.palletsprojects.com
-3. SQLAlchemy Team. (2023). *SQLAlchemy Documentation*. https://docs.sqlalchemy.org
-4. Ask Solem and Contributors. (2023). *Celery: Distributed Task Queue Documentation*. https://docs.celeryq.dev
-5. You, E. (2022). *Vue.js 3 Documentation*. https://vuejs.org/guide
-6. Bootstrap Team. (2023). *Bootstrap 5 Documentation*. https://getbootstrap.com/docs/5.3
-7. Redis Ltd. (2023). *Redis Documentation*. https://redis.io/documentation
-8. ReportLab Group. (2023). *ReportLab User Guide*. https://www.reportlab.com/docs/reportlab-userguide.pdf
-9. Flask-Security Team. (2023). *Flask-Security-Too Documentation*. https://flask-security-too.readthedocs.io
-10. PEP 8 — Style Guide for Python Code. (2001). Python Software Foundation. https://peps.python.org/pep-0008/
+3. Pallets Projects. (2024). *Flask source repository*. GitHub. https://github.com/pallets/flask
+4. SQLAlchemy Team. (2023). *SQLAlchemy Documentation*. https://docs.sqlalchemy.org
+5. SQLAlchemy Team. (2024). *SQLAlchemy source repository*. GitHub. https://github.com/sqlalchemy/sqlalchemy
+6. Ask Solem and Contributors. (2023). *Celery: Distributed Task Queue Documentation*. https://docs.celeryq.dev
+7. Celery Contributors. (2024). *Celery source repository*. GitHub. https://github.com/celery/celery
+8. You, E. (2022). *Vue.js 3 Documentation*. https://vuejs.org/guide
+9. Vue.js Core Team. (2024). *Vue.js 3 source repository*. GitHub. https://github.com/vuejs/core
+10. Bootstrap Team. (2023). *Bootstrap 5 Documentation*. https://getbootstrap.com/docs/5.3
+11. Bootstrap Team. (2024). *Bootstrap source repository*. GitHub. https://github.com/twbs/bootstrap
+12. Redis Ltd. (2023). *Redis Documentation*. https://redis.io/documentation
+13. ReportLab Group. (2023). *ReportLab User Guide*. https://www.reportlab.com/docs/reportlab-userguide.pdf
+14. Flask-Security Team. (2023). *Flask-Security-Too Documentation*. https://flask-security-too.readthedocs.io
+15. Flask-Security-Too Contributors. (2024). *Flask-Security-Too source repository*. GitHub. https://github.com/Flask-Security-Too/flask-security
+16. PEP 8 — Style Guide for Python Code. (2001). Python Software Foundation. https://peps.python.org/pep-0008/
+17. NHS England. (2024). *NHS Digital Service Manual — Design System*. https://service-manual.nhs.uk/design-system
+18. Colorlib. (2024). *AdminLTE — Bootstrap Admin Dashboard Template*. GitHub. https://github.com/ColorlibHQ/AdminLTE
+19. Informatici/openhospital Contributors. (2024). *Open Hospital — open-source hospital management system*. GitHub. https://github.com/informatici/openhospital
+20. Bootstrap Icons Team. (2023). *Bootstrap Icons Documentation and repository*. GitHub. https://github.com/twbs/icons

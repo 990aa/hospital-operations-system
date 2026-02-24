@@ -42,7 +42,9 @@ hospital-management-system/
 ├── implementation-reference.md  # This file
 ├── backend/
 │   ├── __init__.py
-│   ├── celery_config.py      # Celery Beat schedule configuration
+│   ├── celery_config.py      # Celery Beat schedule + Windows pool fix
+│   ├── ensure_vendors.py     # Downloads front-end vendor assets on first run
+│   ├── extensions.py         # Shared Flask extension singletons (Cache)
 │   ├── pdf_reports.py        # ReportLab PDF generation helpers
 │   ├── tasks.py              # All Celery task definitions
 │   ├── validators.py         # Input validation decorators
@@ -58,7 +60,11 @@ hospital-management-system/
 │   ├── index.html            # The entire SPA HTML
 │   └── static/
 │       ├── css/style.css
-│       └── js/app.js         # All Vue.js logic
+│       ├── js/app.js         # All Vue.js logic
+│       └── vendor/           # Auto-downloaded on first startup by ensure_vendors.py
+│           ├── css/          # Bootstrap CSS, Bootstrap Icons CSS
+│           │   └── fonts/    # Bootstrap icon fonts (woff/woff2)
+│           └── js/           # Bootstrap JS, Vue 3, Plotly
 ├── tests/
 │   ├── conftest.py           # Shared fixtures
 │   ├── test_admin.py
@@ -66,13 +72,16 @@ hospital-management-system/
 │   ├── test_appointments.py
 │   ├── test_cache.py
 │   ├── test_celery.py
-│   └── test_flow.py
+│   ├── test_flow.py
+│   └── test_routes_rendering.py
 ├── exports/                  # Generated CSV export files live here
 └── scripts/
     └── stress_test.py        # Concurrency stress test
 ```
 
 **Key principle:** Each backend domain (admin, doctor, patient, auth) has its own blueprint file. The Vue.js SPA is a single file (`index.html`) served statically. All API calls go to `/api/...` endpoints.
+
+> **Vendor assets**: Front-end libraries (Bootstrap, Vue, Plotly) are **not** committed to the repository. Instead, `backend/ensure_vendors.py` downloads them on first startup and caches them under `frontend/static/vendor/`. This keeps the repository lightweight while still serving everything locally.
 
 ---
 
@@ -82,6 +91,28 @@ hospital-management-system/
 
 The entire Flask application is created inside `create_app(test_config=None)`. This is the **application factory pattern**.
 
+#### `HospitalApp` — typed Flask subclass
+
+A thin subclass of `Flask` is defined in `app.py`:
+
+```python
+class HospitalApp(Flask):
+    user_datastore: SQLAlchemyUserDatastore
+```
+
+This adds a typed `user_datastore` attribute so that type checkers (e.g. `ty`) can verify accesses like `current_app.user_datastore.find_user(...)` without emitting `unknown-attribute` errors.
+
+#### `backend/extensions.py` — shared extension singletons
+
+Flask extensions that need to be imported by multiple blueprint files (currently `flask_caching.Cache`) are instantiated once in `backend/extensions.py`:
+
+```python
+from flask_caching import Cache
+cache: Cache = Cache()
+```
+
+All route files import `from backend.extensions import cache` and call `cache.get/set/delete()` directly.  `cache.init_app(app)` is called inside `create_app()`. This avoids circular imports that would occur if cache were instantiated inside `app.py` and imported from there.
+
 #### Why use a factory?
 
 - Tests can call `create_app({'TESTING': True, 'SQLALCHEMY_DATABASE_URI': 'sqlite:///:memory:'})` and get a fresh isolated instance without polluting the real database.
@@ -89,14 +120,15 @@ The entire Flask application is created inside `create_app(test_config=None)`. T
 
 #### What `create_app` does step by step:
 
-1. **Instantiates Flask** with `static_folder='frontend/static'` and `template_folder='frontend'`.
-2. **Loads configuration** — default values are set in code (Redis URLs, SQLite path, mail settings). If `test_config` is passed, those values override the defaults.
-3. **Initialises extensions** — `db.init_app(app)`, `mail.init_app(app)`, `cache.init_app(app)`, `security = Security(app, user_datastore)` (Flask-Security).
-4. **Initialises Celery** — calls `make_celery(app)` from `backend/celery_config.py`.
-5. **Registers blueprints** — all four blueprints (`auth_bp`, `admin_bp`, `doctor_bp`, `patient_bp`) are registered with `app.register_blueprint(bp, url_prefix='/api')`.
-6. **Calls `create_initial_data(app)`** inside a `with app.app_context()` block to seed the database.
-7. **Registers the frontend route** — `GET /` serves `index.html`.
-8. **Returns the configured app**.
+1. **Calls `ensure_vendors()`** at module import time (before the factory runs) to download any missing front-end vendor assets to `frontend/static/vendor/`.
+2. **Instantiates Flask** using `HospitalApp` (a typed subclass) with `static_folder='frontend/static'` and `template_folder='frontend'`.
+3. **Loads configuration** — default values are set in code (Redis URLs, SQLite path, mail settings). If `test_config` is passed, those values override the defaults.
+4. **Initialises extensions** — `db.init_app(app)`, `mail.init_app(app)`, `cache.init_app(app)`, `security = Security(app, user_datastore)` (Flask-Security).
+5. **Initialises Celery** — calls `make_celery(app)` from `backend/celery_config.py`.
+6. **Registers blueprints** — all four blueprints (`auth_bp`, `admin_bp`, `doctor_bp`, `patient_bp`) are registered with `app.register_blueprint(bp, url_prefix='/api')`.
+7. **Calls `create_initial_data(app)`** inside a `with app.app_context()` block to seed the database.
+8. **Registers the frontend route** — `GET /` serves `index.html`.
+9. **Returns the configured app**.
 
 #### `create_initial_data(app)`
 
@@ -630,6 +662,24 @@ Redis also receives Celery task messages. When Python code calls `export_patient
 
 ## 12. Celery — Task Queue and Scheduling
 
+### Windows — `solo` worker pool
+
+Celery's default `prefork` pool relies on `os.fork()`, which does not exist on Windows. Running the worker on Windows without setting the pool raises `PermissionError` / `OSError` at startup. 
+
+`backend/celery_config.py` detects the platform and downgrades to the `solo` pool on Windows:
+
+```python
+import sys
+
+_is_windows = sys.platform == "win32"
+celery.conf.update(
+    worker_pool="solo" if _is_windows else "prefork",
+    worker_concurrency=1 if _is_windows else (os.cpu_count() or 1),
+)
+```
+
+The `solo` pool runs tasks synchronously in the worker process with concurrency 1. It is functionally identical for development; POSIX servers use `prefork` with full concurrency.
+
 ### Configuration (`backend/celery_config.py`)
 
 ```python
@@ -751,17 +801,55 @@ Available validators:
 
 ## 16. Frontend Architecture (Vue.js 3)
 
-**Files:** `frontend/index.html`, `frontend/static/js/app.js`
+**Files:** `frontend/index.html`, `frontend/static/js/app.js`, `backend/ensure_vendors.py`
+
+### Front-end Vendor Asset Management
+
+Large third-party libraries (Bootstrap, Vue.js, Plotly) are **not** committed to the repository to keep it lightweight and avoid plagiarism-checker false positives on minified third-party code.
+
+Instead, `backend/ensure_vendors.py` is a pure-stdlib Python module that:
+
+1. Defines a list of 7 assets (CSS, fonts, JS) with their CDN URLs and local destination paths.
+2. On each import it checks whether every file exists under `frontend/static/vendor/`.
+3. Downloads any missing file using `urllib.request` (no third-party libraries required) with a descriptive `User-Agent` header.
+4. On subsequent imports it exits immediately (all `Path.exists()` checks are true).
+
+`app.py` imports and calls `ensure_vendors()` at module scope, so the check runs once per process start — before any request is served.
+
+To force a re-download (e.g. to update a library version):
+
+```bash
+uv run python -m backend.ensure_vendors --force
+```
+
+### `v-cloak` and the Loading Spinner
+
+The entire `<div id="app">` carries a `v-cloak` attribute. The CSS rule:
+
+```css
+[v-cloak] { display: none; }
+```
+
+suppresses raw `{{ }}` interpolation tokens that would flash before Vue processes the template. Vue removes `v-cloak` automatically when the app mounts.
+
+Because Plotly alone is ~4.4 MB and loaded synchronously, there is a brief blank-page period while the browser downloads and parses the bundles. A CSS-only spinner solves this:
+
+```css
+#app-loading { position: fixed; inset: 0; display: flex; … }
+body:has(#app:not([v-cloak])) #app-loading { display: none; }
+```
+
+A `<div id="app-loading">` placed before `<div id="app">` is always visible. The `:has()` selector automatically hides it the moment Vue removes `v-cloak` — no JavaScript needed.
 
 ### Single-File SPA Pattern
 
 The entire SPA is served as a single HTML file (`index.html`). It:
 
-1. Loads Bootstrap 5 CSS from CDN.
-2. Loads Vue.js 3 from CDN.
-3. Loads Plotly.js from CDN.
+1. Loads Bootstrap 5 CSS from the local vendor directory.
+2. Loads Vue.js 3 from the local vendor directory.
+3. Loads Plotly.js from the local vendor directory.
 4. Loads the custom `style.css`.
-5. Contains all HTML template markup inside a single `<div id="app">`.
+5. Contains all HTML template markup inside a single `<div id="app" v-cloak>`.
 6. Loads `app.js` which defines and mounts the Vue app.
 
 There is no build system, Webpack, or separate component files. This is intentional for simplicity — the system runs without any Node.js compilation step.
