@@ -31,7 +31,7 @@
 
 ## 1. Abstract
 
-This report describes the design and implementation of a Hospital Management System, a full-stack web application that digitalises and streamlines core hospital operations. The system manages patients, doctors, appointments, treatments, and payments through a unified platform that enforces role-based access control. Three distinct user roles are provided: administrators who configure and oversee the entire system, doctors who manage their schedules and patient treatment records, and patients who self-register, book appointments, and view their medical history. The backend is implemented in Python using the Flask micro-framework with an SQLite relational database, Redis for caching, and Celery for asynchronous background job execution. The frontend is a single-page application built with Vue.js 3. The system includes scheduled jobs for daily patient appointment reminders and monthly doctor activity reports delivered via email, as well as a user-triggered CSV export of treatment history. The resulting application is modular, maintainable, and demonstrates practical application of core software engineering principles including RESTful API design, role-based access control, event-driven background processing, and optimistic concurrency control. The system has a comprehensive automated test suite of 83 passing tests.
+This report describes the design and implementation of a Hospital Management System, a full-stack web application that digitalises and streamlines core hospital operations. The system manages patients, doctors, appointments, treatments, and payments through a unified platform that enforces role-based access control. Three distinct user roles are provided: administrators who configure and oversee the entire system, doctors who manage their schedules and patient treatment records, and patients who self-register, book appointments, and view their medical history. The backend is implemented in Python using the Flask with an SQLite relational database, Redis for caching, and Celery for asynchronous background job execution. The frontend is built with Vue.js 3. The system includes scheduled jobs for daily patient appointment reminders and monthly doctor activity reports delivered via email, as well as a user-triggered CSV export of treatment history. The resulting application is modular, maintainable, and demonstrates practical application of core software engineering principles including RESTful API design, role-based access control, event-driven background processing, and optimistic concurrency control. The system has a comprehensive automated test suite of 83 passing tests.
 
 ---
 
@@ -52,18 +52,6 @@ The system follows a RESTful API architecture where the backend exposes well-def
 ---
 
 ## 3. Background and Literature Review
-
-### 3.1 Hospital Management Systems
-
-Hospital Management Systems have been the subject of significant academic and commercial attention. Early systems were monolithic desktop applications deployed locally within hospital premises. The shift to web-based architectures enabled centralised data storage, remote access, and multi-user collaboration. Modern systems typically implement role-based access control (RBAC) to restrict data visibility and operations to authorised actors, and integrate background automation for communications and reporting.
-
-### 3.2 Web Application Architecture
-
-The project employs a three-tier client-server architecture with a clear separation between the backend (data management and business logic), the data store, and the frontend (presentation layer). The REST architectural style, as described by Fielding (2000), provides a stateless, uniform interface between the presentation and application tiers through HTTP methods and JSON-encoded payloads.
-
-### 3.3 Python Web Frameworks
-
-Flask is a micro-framework for Python that provides routing, request handling, and extension integration while imposing minimal structural constraints. Its lightweight nature makes it well-suited for API servers. Flask-Security extends Flask with user authentication, role management, and session handling, integrating directly with SQLAlchemy models.
 
 ### 3.4 Asynchronous Task Processing
 
