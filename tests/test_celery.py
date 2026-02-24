@@ -97,8 +97,10 @@ def test_no_google_chat_in_tasks():
     Per requirement, all Google Chat webhook integration must be removed.
     """
     import backend.tasks as tasks_module
-    assert not hasattr(tasks_module, "send_google_chat_message"), \
+
+    assert not hasattr(tasks_module, "send_google_chat_message"), (
         "send_google_chat_message should not exist - Google Chat is not supported"
+    )
 
 
 def test_daily_reminders_task_exists():
@@ -192,6 +194,7 @@ def test_build_monthly_report_html():
 def test_daily_reminders_sends_email(mock_email, test_client):
     """Verify daily_reminders task calls send_email for today's appointments."""
     from datetime import date
+
     today = date.today().isoformat()
 
     # Create appointment for today directly in DB (bypass API to avoid session conflicts)
@@ -216,6 +219,7 @@ def test_daily_reminders_sends_email(mock_email, test_client):
         db.session.commit()
 
         from backend.tasks import send_daily_reminders
+
         # Call .run() directly so it executes within the current app context
         result = send_daily_reminders.run()
         assert result["total"] >= 1  # Task found today's appointment
@@ -226,6 +230,7 @@ def test_monthly_report_sends_email(mock_email, test_client, admin_token):
     """Verify send_monthly_reports task runs and returns expected structure."""
     with test_client.application.app_context():
         from backend.tasks import send_monthly_reports
+
         # Call .run() directly inside the test app context so DB tables are accessible
         result = send_monthly_reports.run()
         # Task ran without error; report count may be 0 if no completed appointments in prior month

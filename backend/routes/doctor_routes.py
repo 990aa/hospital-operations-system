@@ -19,7 +19,10 @@ from sqlalchemy import and_
 from datetime import datetime, timedelta
 
 from models.database import db, Doctor, Patient, Appointment, Treatment, Payment
-from backend.pdf_reports import generate_monthly_report_pdf, generate_patient_history_pdf
+from backend.pdf_reports import (
+    generate_monthly_report_pdf,
+    generate_patient_history_pdf,
+)
 from backend.routes.patient_routes import _create_serial_appointment
 
 # Create Blueprint for doctor routes
@@ -58,10 +61,16 @@ def _normalize_availability_payload(data, doctor):
     if not normalized_days:
         return None, "At least one availability day is required"
 
-    availability_start = (data.get("availability_start") or doctor.availability_start or "09:00").strip()
-    availability_end = (data.get("availability_end") or doctor.availability_end or "17:00").strip()
+    availability_start = (
+        data.get("availability_start") or doctor.availability_start or "09:00"
+    ).strip()
+    availability_end = (
+        data.get("availability_end") or doctor.availability_end or "17:00"
+    ).strip()
     try:
-        start_hour, start_minute = [int(part) for part in availability_start.split(":", 1)]
+        start_hour, start_minute = [
+            int(part) for part in availability_start.split(":", 1)
+        ]
         end_hour, end_minute = [int(part) for part in availability_end.split(":", 1)]
     except Exception:
         return None, "availability_start and availability_end must be in HH:MM format"
@@ -206,7 +215,9 @@ def doctor_appointments():
         d["paid"] = _has_active_completed_payment(app.id)
         d["payment_status"] = latest_payment.status if latest_payment else "unpaid"
         d["payment_amount"] = latest_payment.amount if latest_payment else None
-        d["payment_transaction_id"] = latest_payment.transaction_id if latest_payment else None
+        d["payment_transaction_id"] = (
+            latest_payment.transaction_id if latest_payment else None
+        )
         results.append(d)
 
     # Cache for 30 seconds
@@ -255,7 +266,9 @@ def complete_appointment(id):
         return jsonify({"message": "Cannot complete cancelled appointment"}), 400
 
     if not _has_active_completed_payment(appointment.id):
-        return jsonify({"message": "Payment required before consultation completion"}), 400
+        return jsonify(
+            {"message": "Payment required before consultation completion"}
+        ), 400
 
     # Optional doctor-scheduled follow-up date. Uses the same booking policy
     # as patient booking: date format validation + within upcoming 7 days.
@@ -346,7 +359,9 @@ def update_treatment(id):
     if appointment.doctor_id != doctor.id:
         return jsonify({"message": "Unauthorized - not your appointment"}), 403
     if appointment.status != "Completed":
-        return jsonify({"message": "Treatment can be updated only for completed appointments"}), 400
+        return jsonify(
+            {"message": "Treatment can be updated only for completed appointments"}
+        ), 400
 
     treatment = Treatment.query.filter_by(appointment_id=appointment.id).first()
     if not treatment:
@@ -363,7 +378,9 @@ def update_treatment(id):
     db.session.commit()
 
     current_app.cache.delete(f"patient_history_{appointment.patient_id}")
-    return jsonify({"message": "Treatment updated successfully", "treatment": treatment.to_dict()})
+    return jsonify(
+        {"message": "Treatment updated successfully", "treatment": treatment.to_dict()}
+    )
 
 
 # Patient History Routes
@@ -549,6 +566,7 @@ def download_monthly_report(month, year):
 
     # Query appointments for the specified month
     from datetime import date
+
     start_date = date(year, month, 1)
     if month == 12:
         end_date = date(year + 1, 1, 1)
@@ -558,33 +576,37 @@ def download_monthly_report(month, year):
     start_date_str = start_date.strftime("%Y-%m-%d")
     end_date_str = end_date.strftime("%Y-%m-%d")
 
-    appointments = Appointment.query.filter(
-        and_(
-            Appointment.doctor_id == doctor.id,
-            Appointment.date >= start_date_str,
-            Appointment.date < end_date_str
+    appointments = (
+        Appointment.query.filter(
+            and_(
+                Appointment.doctor_id == doctor.id,
+                Appointment.date >= start_date_str,
+                Appointment.date < end_date_str,
+            )
         )
-    ).order_by(Appointment.date.desc()).all()
+        .order_by(Appointment.date.desc())
+        .all()
+    )
 
     # Build appointments data
     appointments_data = []
     for apt in appointments:
         data = {
-            'appointment_date': _normalize_date_str(apt.date),
-            'patient_name': apt.patient.user.name if apt.patient else 'Unknown',
-            'status': apt.status,
-            'diagnosis': ''
+            "appointment_date": _normalize_date_str(apt.date),
+            "patient_name": apt.patient.user.name if apt.patient else "Unknown",
+            "status": apt.status,
+            "diagnosis": "",
         }
         if apt.treatment:
-            data['diagnosis'] = apt.treatment.diagnosis
+            data["diagnosis"] = apt.treatment.diagnosis
         appointments_data.append(data)
 
     # Calculate statistics
     stats = {
-        'total_appointments': len(appointments),
-        'completed': sum(1 for a in appointments if a.status == 'Completed'),
-        'cancelled': sum(1 for a in appointments if a.status == 'Cancelled'),
-        'unique_patients': len(set(a.patient_id for a in appointments))
+        "total_appointments": len(appointments),
+        "completed": sum(1 for a in appointments if a.status == "Completed"),
+        "cancelled": sum(1 for a in appointments if a.status == "Cancelled"),
+        "unique_patients": len(set(a.patient_id for a in appointments)),
     }
 
     # Generate PDF
@@ -593,15 +615,15 @@ def download_monthly_report(month, year):
         month=month,
         year=year,
         appointments_data=appointments_data,
-        stats=stats
+        stats=stats,
     )
 
     # Send file
     return send_file(
         pdf_bytes,
-        mimetype='application/pdf',
+        mimetype="application/pdf",
         as_attachment=True,
-        download_name=f'monthly_report_{month}_{year}_{doctor.user.name}.pdf'
+        download_name=f"monthly_report_{month}_{year}_{doctor.user.name}.pdf",
     )
 
 
@@ -636,40 +658,43 @@ def download_patient_history_pdf(patient_id):
         ), 403
 
     # Get all completed appointments with treatments
-    appointments = Appointment.query.filter(
-        and_(
-            Appointment.patient_id == patient_id,
-            Appointment.status == 'Completed'
+    appointments = (
+        Appointment.query.filter(
+            and_(
+                Appointment.patient_id == patient_id, Appointment.status == "Completed"
+            )
         )
-    ).order_by(Appointment.date.desc()).all()
+        .order_by(Appointment.date.desc())
+        .all()
+    )
 
     # Build appointments data
     appointments_data = []
     for apt in appointments:
         data = {
-            'appointment_date': _normalize_date_str(apt.date),
-            'doctor_name': apt.doctor.user.name if apt.doctor else 'Unknown',
-            'diagnosis': '',
-            'treatment_description': ''
+            "appointment_date": _normalize_date_str(apt.date),
+            "doctor_name": apt.doctor.user.name if apt.doctor else "Unknown",
+            "diagnosis": "",
+            "treatment_description": "",
         }
         if apt.treatment:
-            data['diagnosis'] = apt.treatment.diagnosis
-            data['treatment_description'] = apt.treatment.prescription
+            data["diagnosis"] = apt.treatment.diagnosis
+            data["treatment_description"] = apt.treatment.prescription
         appointments_data.append(data)
 
     # Generate PDF
     pdf_bytes = generate_patient_history_pdf(
         patient_name=patient.user.name,
         patient_id=patient.id,
-        appointments_data=appointments_data
+        appointments_data=appointments_data,
     )
 
     # Send file
     return send_file(
         pdf_bytes,
-        mimetype='application/pdf',
+        mimetype="application/pdf",
         as_attachment=True,
-        download_name=f'patient_history_{patient.id}_{patient.user.name}.pdf'
+        download_name=f"patient_history_{patient.id}_{patient.user.name}.pdf",
     )
 
 
@@ -747,7 +772,7 @@ def list_doctor_patients():
         )
 
     # Sort so most-recently-visited patients appear first
-    result.sort(key=lambda x: (x["last_visit"] or ""), reverse=True)
+    result.sort(key=lambda x: x["last_visit"] or "", reverse=True)
 
     return jsonify(result)
 
@@ -772,8 +797,12 @@ def doctor_payment_details():
     total_refunded = 0.0
     for payment in payments:
         row = payment.to_dict()
-        row["appointment_date"] = payment.appointment.date if payment.appointment else None
-        row["appointment_time"] = payment.appointment.time if payment.appointment else None
+        row["appointment_date"] = (
+            payment.appointment.date if payment.appointment else None
+        )
+        row["appointment_time"] = (
+            payment.appointment.time if payment.appointment else None
+        )
         row["patient_name"] = payment.patient.user.name if payment.patient else None
         items.append(row)
 

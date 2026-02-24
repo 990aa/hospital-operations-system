@@ -48,11 +48,15 @@ class ApiClient:
         self.session = requests.Session()
 
     def request(self, method: str, path: str, **kwargs: Any) -> requests.Response:
-        response = self.session.request(method, f"{API}{path}", timeout=TIMEOUT, **kwargs)
+        response = self.session.request(
+            method, f"{API}{path}", timeout=TIMEOUT, **kwargs
+        )
         return response
 
     def login(self, username: str, password: str) -> dict[str, Any]:
-        response = self.request("POST", "/login", json={"username": username, "password": password})
+        response = self.request(
+            "POST", "/login", json={"username": username, "password": password}
+        )
         response.raise_for_status()
         return response.json()
 
@@ -85,7 +89,12 @@ def create_stress_doctor(admin: ApiClient, department_id: int) -> dict[str, Any]
     search = admin.request("GET", f"/admin/doctors?search={username}")
     search.raise_for_status()
     doctor = search.json()[0]
-    return {"id": doctor["id"], "username": username, "password": username, "department_id": department_id}
+    return {
+        "id": doctor["id"],
+        "username": username,
+        "password": username,
+        "department_id": department_id,
+    }
 
 
 def create_stress_patient() -> dict[str, str]:
@@ -104,12 +113,16 @@ def create_stress_patient() -> dict[str, str]:
     return {"username": username, "password": username}
 
 
-def patient_book_flow(patient_creds: dict[str, str], doctor_id: int, target_date: str) -> dict[str, Any]:
+def patient_book_flow(
+    patient_creds: dict[str, str], doctor_id: int, target_date: str
+) -> dict[str, Any]:
     """Execute booking + payment flow for one patient, returning status and IDs."""
     client = ApiClient()
     client.login(patient_creds["username"], patient_creds["password"])
 
-    booking = client.request("POST", "/appointments", json={"doctor_id": doctor_id, "date": target_date})
+    booking = client.request(
+        "POST", "/appointments", json={"doctor_id": doctor_id, "date": target_date}
+    )
     if booking.status_code == 201:
         appointment_id = booking.json()["appointment_id"]
         payment = client.request(
@@ -171,7 +184,9 @@ def run() -> None:
     results: list[dict[str, Any]] = []
     with ThreadPoolExecutor(max_workers=12) as executor:
         futures = [
-            executor.submit(patient_book_flow, patient_creds, hot_doctor["id"], booking_date)
+            executor.submit(
+                patient_book_flow, patient_creds, hot_doctor["id"], booking_date
+            )
             for patient_creds in patients
         ]
         for future in as_completed(futures):
@@ -185,7 +200,9 @@ def run() -> None:
         for index, patient_creds in enumerate(patients):
             doctor = doctors[index % len(doctors)]
             distributed_futures.append(
-                executor.submit(patient_book_flow, patient_creds, doctor["id"], booking_date)
+                executor.submit(
+                    patient_book_flow, patient_creds, doctor["id"], booking_date
+                )
             )
         for future in as_completed(distributed_futures):
             distributed_results.append(future.result())
@@ -203,7 +220,9 @@ def run() -> None:
     doctor_client.login(hot_doctor["username"], hot_doctor["password"])
     doctor_appointments = doctor_client.request("GET", "/doctor/appointments")
     doctor_appointments.raise_for_status()
-    booked_items = [item for item in doctor_appointments.json() if item["status"] == "Booked"]
+    booked_items = [
+        item for item in doctor_appointments.json() if item["status"] == "Booked"
+    ]
 
     to_complete = booked_items[: min(8, len(booked_items))]
     follow_up_date = (datetime.now() + timedelta(days=3)).strftime("%Y-%m-%d")
@@ -256,7 +275,13 @@ def run() -> None:
     # Count refunds from admin payment feed.
     payments = admin.request("GET", "/admin/payments")
     payments.raise_for_status()
-    stats.refunds_created = len([p for p in payments.json().get("payments", []) if p.get("status") == "refunded"])
+    stats.refunds_created = len(
+        [
+            p
+            for p in payments.json().get("payments", [])
+            if p.get("status") == "refunded"
+        ]
+    )
 
     print("\n=== Stress Test Summary ===")
     print(f"Doctors created: {stats.doctors_created}")

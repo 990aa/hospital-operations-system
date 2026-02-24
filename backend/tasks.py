@@ -77,7 +77,11 @@ def send_daily_reminders(self):
 
         # Prepare reminder message
         subject = "Hospital Appointment Reminder"
-        visit_type = "Follow-up Consultation" if getattr(appointment, "is_follow_up", False) else "Consultation"
+        visit_type = (
+            "Follow-up Consultation"
+            if getattr(appointment, "is_follow_up", False)
+            else "Consultation"
+        )
         message = f"""
 Dear {patient.user.name},
 
@@ -313,12 +317,18 @@ def export_patient_treatments(self, patient_id, export_job_id):
                         "notes": treatment.notes if treatment else "N/A",
                         "next_visit_suggested": next_visit,
                         "appointment_status": appointment.status,
-                        "is_follow_up": bool(getattr(appointment, "is_follow_up", False)),
+                        "is_follow_up": bool(
+                            getattr(appointment, "is_follow_up", False)
+                        ),
                         "follow_up_source_appointment_id": getattr(
                             appointment, "follow_up_source_appointment_id", None
                         ),
-                        "payment_status": latest_payment.status if latest_payment else "unpaid",
-                        "payment_amount": latest_payment.amount if latest_payment else "N/A",
+                        "payment_status": latest_payment.status
+                        if latest_payment
+                        else "unpaid",
+                        "payment_amount": latest_payment.amount
+                        if latest_payment
+                        else "N/A",
                     }
                 )
 

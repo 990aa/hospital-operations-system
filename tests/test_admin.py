@@ -425,7 +425,9 @@ def test_admin_update_patient(admin_token):
         },
     )
 
-    patient = admin_token.get("/api/admin/patients?search=patientedit").get_json()["patients"][0]
+    patient = admin_token.get("/api/admin/patients?search=patientedit").get_json()[
+        "patients"
+    ][0]
     update = admin_token.put(
         f"/api/admin/patients/{patient['id']}",
         json={
@@ -437,7 +439,9 @@ def test_admin_update_patient(admin_token):
     )
     assert update.status_code == 200
 
-    refreshed = admin_token.get("/api/admin/patients?search=updated").get_json()["patients"]
+    refreshed = admin_token.get("/api/admin/patients?search=updated").get_json()[
+        "patients"
+    ]
     assert any(row["name"] == "Patient Updated" for row in refreshed)
 
 

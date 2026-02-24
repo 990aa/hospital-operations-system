@@ -54,7 +54,7 @@ def create_app(test_config=None):
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False  # Disable warning
 
     # Security Configuration
-    app.config["SECRET_KEY"] = "thisisasecretkey" 
+    app.config["SECRET_KEY"] = "thisisasecretkey"
     app.config["SECURITY_PASSWORD_SALT"] = "somesalt"
     app.config["SECURITY_REGISTERABLE"] = False  # Only admin can register doctors
     app.config["SECURITY_SEND_REGISTER_EMAIL"] = False  # Disable email for now
@@ -147,6 +147,7 @@ def create_app(test_config=None):
             "timestamp": datetime.now().isoformat(),
             "cache": "connected" if app.cache else "not configured",
         }
+
     # --- TEST_ONLY_BLOCK END ---
 
     # --- TEST_ONLY_BLOCK START ---
@@ -165,6 +166,7 @@ def create_app(test_config=None):
         payload = request.get_json(silent=True) or {}
         app.logger.error("CLIENT_ERROR %s", payload)
         return jsonify({"logged": True})
+
     # --- TEST_ONLY_BLOCK END ---
 
     @app.errorhandler(404)
@@ -284,7 +286,9 @@ def create_initial_data(app):
         # Create unique index for doctor/date/time to prevent duplicate slots
         # under simultaneous booking attempts.
         existing_indexes = {
-            idx["name"] for idx in inspector.get_indexes("appointment") if idx.get("name")
+            idx["name"]
+            for idx in inspector.get_indexes("appointment")
+            if idx.get("name")
         }
         if "uq_appointment_doctor_date_time" not in existing_indexes:
             try:

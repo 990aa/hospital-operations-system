@@ -56,7 +56,9 @@ def _normalize_availability_payload(data):
     availability_end = (data.get("availability_end") or "17:00").strip()
 
     try:
-        start_hour, start_minute = [int(part) for part in availability_start.split(":", 1)]
+        start_hour, start_minute = [
+            int(part) for part in availability_start.split(":", 1)
+        ]
         end_hour, end_minute = [int(part) for part in availability_end.split(":", 1)]
     except Exception:
         return None, "availability_start and availability_end must be in HH:MM format"
@@ -237,7 +239,9 @@ def update_doctor(id):
     data = request.json or {}
 
     if "username" in data and data["username"] != user.username:
-        if User.query.filter(User.username == data["username"], User.id != user.id).first():
+        if User.query.filter(
+            User.username == data["username"], User.id != user.id
+        ).first():
             return jsonify({"message": "Username already exists"}), 400
         user.username = data["username"]
 
@@ -263,8 +267,12 @@ def update_doctor(id):
 
     availability_payload, availability_error = _normalize_availability_payload(
         {
-            "availability_days": data.get("availability_days", doctor.get_availability_days()),
-            "availability_start": data.get("availability_start", doctor.availability_start),
+            "availability_days": data.get(
+                "availability_days", doctor.get_availability_days()
+            ),
+            "availability_start": data.get(
+                "availability_start", doctor.availability_start
+            ),
             "availability_end": data.get("availability_end", doctor.availability_end),
             "slot_minutes": data.get("slot_minutes", doctor.slot_minutes),
         }
@@ -283,7 +291,9 @@ def update_doctor(id):
 
     db.session.commit()
     current_app.cache.delete("all_doctors")
-    return jsonify({"message": "Doctor updated successfully", "doctor": doctor.to_dict()})
+    return jsonify(
+        {"message": "Doctor updated successfully", "doctor": doctor.to_dict()}
+    )
 
 
 @admin_bp.route("/departments", methods=["GET", "POST"])
@@ -314,14 +324,21 @@ def manage_departments():
         # like "Cardiology" and "cardiology".
         existing = Department.query.filter(Department.name.ilike(name)).first()
         if existing:
-            return jsonify({"message": "Department already exists", "department": existing.to_dict()}), 200
+            return jsonify(
+                {
+                    "message": "Department already exists",
+                    "department": existing.to_dict(),
+                }
+            ), 200
 
         department = Department(name=name, description=description)
         db.session.add(department)
         db.session.commit()
 
         current_app.cache.delete("all_departments")
-        return jsonify({"message": "Department created", "department": department.to_dict()}), 201
+        return jsonify(
+            {"message": "Department created", "department": department.to_dict()}
+        ), 201
 
     search = request.args.get("search", "").strip()
     query = Department.query
@@ -346,9 +363,11 @@ def delete_department(id):
     # Check if any doctors are assigned
     assigned_count = Doctor.query.filter_by(department_id=id).count()
     if assigned_count > 0:
-        return jsonify({
-            "message": f"Cannot delete department: {assigned_count} doctor(s) still assigned. Reassign or delete those doctors first."
-        }), 400
+        return jsonify(
+            {
+                "message": f"Cannot delete department: {assigned_count} doctor(s) still assigned. Reassign or delete those doctors first."
+            }
+        ), 400
     db.session.delete(dept)
     db.session.commit()
     current_app.cache.delete("all_departments")
@@ -457,7 +476,7 @@ def admin_doctor_patients(doctor_id):
             }
         )
 
-    result.sort(key=lambda x: (x["last_visit"] or ""), reverse=True)
+    result.sort(key=lambda x: x["last_visit"] or "", reverse=True)
     return jsonify(result)
 
 
@@ -606,7 +625,9 @@ def update_patient(id):
         patient.notification_pref = data.get("notification_pref") or "email"
 
     db.session.commit()
-    return jsonify({"message": "Patient updated successfully", "patient": patient.to_dict()})
+    return jsonify(
+        {"message": "Patient updated successfully", "patient": patient.to_dict()}
+    )
 
 
 @admin_bp.route("/admin/appointments", methods=["GET"])
@@ -690,7 +711,9 @@ def admin_appointments():
     elif type_filter in {"consultation", "normal"}:
         query = query.filter(Appointment.is_follow_up.is_(False))
 
-    appointments = query.order_by(Appointment.date.desc(), Appointment.time.desc()).all()
+    appointments = query.order_by(
+        Appointment.date.desc(), Appointment.time.desc()
+    ).all()
 
     results = []
     for appointment in appointments:
@@ -704,8 +727,12 @@ def admin_appointments():
             .first()
         )
         row["paid"] = bool(
-            Payment.query.filter_by(appointment_id=appointment.id, status="completed").count()
-            > Payment.query.filter_by(appointment_id=appointment.id, status="refunded").count()
+            Payment.query.filter_by(
+                appointment_id=appointment.id, status="completed"
+            ).count()
+            > Payment.query.filter_by(
+                appointment_id=appointment.id, status="refunded"
+            ).count()
         )
         row["payment_status"] = latest_payment.status if latest_payment else "unpaid"
 
@@ -803,8 +830,7 @@ def admin_payments():
     doctor_user = aliased(User, name="doc_user")
 
     query = (
-        Payment.query
-        .join(Appointment, Payment.appointment_id == Appointment.id)
+        Payment.query.join(Appointment, Payment.appointment_id == Appointment.id)
         .join(Patient, Payment.patient_id == Patient.id)
         .join(patient_user, Patient.user_id == patient_user.id)
         .join(Doctor, Appointment.doctor_id == Doctor.id)
@@ -831,7 +857,10 @@ def admin_payments():
             )
         )
     if date_filter:
-        query = query.filter(Payment.payment_date >= date_filter, Payment.payment_date < date_filter + "T23:59:59")
+        query = query.filter(
+            Payment.payment_date >= date_filter,
+            Payment.payment_date < date_filter + "T23:59:59",
+        )
 
     payments = query.order_by(Payment.payment_date.desc(), Payment.id.desc()).all()
 

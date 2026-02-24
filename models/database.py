@@ -239,7 +239,9 @@ class Appointment(db.Model):
 
     __tablename__ = "appointment"
     __table_args__ = (
-        db.UniqueConstraint("doctor_id", "date", "time", name="uq_appointment_doctor_date_time"),
+        db.UniqueConstraint(
+            "doctor_id", "date", "time", name="uq_appointment_doctor_date_time"
+        ),
     )
     id = db.Column(db.Integer, primary_key=True)
     patient_id = db.Column(db.Integer, db.ForeignKey("patient.id"), nullable=False)
@@ -411,6 +413,8 @@ class Payment(db.Model):
             "card_last4": self.card_last4,
             "status": self.status,
             "transaction_id": self.transaction_id,
-            "payment_date": self.payment_date.isoformat() if self.payment_date else None,
+            "payment_date": self.payment_date.isoformat()
+            if self.payment_date
+            else None,
             "notes": self.notes,
         }

@@ -90,7 +90,11 @@ def _parse_time_string(time_str, fallback):
 
 def _doctor_days(doctor):
     """Return normalized availability day set for a doctor."""
-    days = doctor.get_availability_days() if hasattr(doctor, "get_availability_days") else []
+    days = (
+        doctor.get_availability_days()
+        if hasattr(doctor, "get_availability_days")
+        else []
+    )
     return {day for day in days if day in WEEKDAY_TO_INDEX}
 
 
@@ -159,7 +163,13 @@ def _doctor_availability_next_7_days(doctor):
     return results
 
 
-def _create_serial_appointment(doctor, patient_id, date_str, is_follow_up=False, follow_up_source_appointment_id=None):
+def _create_serial_appointment(
+    doctor,
+    patient_id,
+    date_str,
+    is_follow_up=False,
+    follow_up_source_appointment_id=None,
+):
     """Create booked appointment using first available serial slot with retry.
 
     This helper is shared by patient booking and doctor-scheduled follow-ups.
@@ -349,7 +359,9 @@ def book_appointment():
         if appointment_date < datetime.now().date():
             return jsonify({"message": "Cannot book appointments in the past"}), 400
         if appointment_date > datetime.now().date() + timedelta(days=6):
-            return jsonify({"message": "Appointments can be booked only within next 7 days"}), 400
+            return jsonify(
+                {"message": "Appointments can be booked only within next 7 days"}
+            ), 400
     except ValueError:
         return jsonify({"message": "Invalid date format. Use YYYY-MM-DD"}), 400
 
@@ -509,7 +521,9 @@ def cancel_appointment(id):
 
     # Refund policy: if patient cancels a pre-paid appointment, create
     # a refund ledger entry for admin/doctor visibility.
-    if current_user.has_role("patient") and _has_active_completed_payment(appointment.id):
+    if current_user.has_role("patient") and _has_active_completed_payment(
+        appointment.id
+    ):
         latest_completed = (
             Payment.query.filter_by(appointment_id=appointment.id, status="completed")
             .order_by(Payment.payment_date.desc(), Payment.id.desc())
@@ -859,7 +873,9 @@ def process_payment(appointment_id):
 
     # Consultation payments must be completed before doctor marks appointment complete.
     if appointment.status != "Booked":
-        return jsonify({"message": "Payments are only allowed for booked appointments"}), 400
+        return jsonify(
+            {"message": "Payments are only allowed for booked appointments"}
+        ), 400
 
     # Avoid duplicate active payments for same appointment.
     if _has_active_completed_payment(appointment_id):
@@ -900,11 +916,13 @@ def process_payment(appointment_id):
     db.session.add(payment)
     db.session.commit()
 
-    return jsonify({
-        "message": "Payment processed successfully",
-        "payment": payment.to_dict(),
-        "transaction_id": transaction_id
-    }), 201
+    return jsonify(
+        {
+            "message": "Payment processed successfully",
+            "payment": payment.to_dict(),
+            "transaction_id": transaction_id,
+        }
+    ), 201
 
 
 @patient_bp.route("/patient/payments", methods=["GET"])
@@ -922,22 +940,32 @@ def get_patient_payments():
         return jsonify({"message": "Patient profile not found"}), 404
 
     # Get all payments
-    payments = Payment.query.filter_by(patient_id=patient.id).order_by(
-        Payment.payment_date.desc()
-    ).all()
+    payments = (
+        Payment.query.filter_by(patient_id=patient.id)
+        .order_by(Payment.payment_date.desc())
+        .all()
+    )
 
     # Build result with appointment details
     result = []
     for payment in payments:
         payment_dict = payment.to_dict()
-        payment_dict["appointment_date"] = payment.appointment.date if payment.appointment.date else None
-        payment_dict["doctor_name"] = payment.appointment.doctor.user.name if payment.appointment.doctor else "Unknown"
+        payment_dict["appointment_date"] = (
+            payment.appointment.date if payment.appointment.date else None
+        )
+        payment_dict["doctor_name"] = (
+            payment.appointment.doctor.user.name
+            if payment.appointment.doctor
+            else "Unknown"
+        )
         result.append(payment_dict)
 
     return jsonify(result)
 
 
-@patient_bp.route("/patient/appointment/<int:appointment_id>/payment-status", methods=["GET"])
+@patient_bp.route(
+    "/patient/appointment/<int:appointment_id>/payment-status", methods=["GET"]
+)
 @roles_required("patient")
 def check_payment_status(appointment_id):
     """
@@ -965,12 +993,13 @@ def check_payment_status(appointment_id):
     payment = _latest_payment(appointment_id)
 
     if payment:
-        return jsonify({
-            "paid": _has_active_completed_payment(appointment_id),
-            "payment": payment.to_dict()
-        })
+        return jsonify(
+            {
+                "paid": _has_active_completed_payment(appointment_id),
+                "payment": payment.to_dict(),
+            }
+        )
     else:
-        return jsonify({
-            "paid": False,
-            "message": "No payment found for this appointment"
-        })
+        return jsonify(
+            {"paid": False, "message": "No payment found for this appointment"}
+        )

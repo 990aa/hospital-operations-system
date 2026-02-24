@@ -13,8 +13,6 @@ Author: Abdul Ahad
 import pytest
 import os
 import sys
-import threading
-import time
 
 # Add project root to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -182,9 +180,7 @@ def doctor_token(test_client):
     Returns:
         Test client with doctor session
     """
-    test_client.post(
-        "/api/login", json={"username": "doctor", "password": "doctor"}
-    )
+    test_client.post("/api/login", json={"username": "doctor", "password": "doctor"})
     return test_client
 
 
@@ -197,9 +193,7 @@ def patient_token(test_client):
     Returns:
         Test client with patient session
     """
-    test_client.post(
-        "/api/login", json={"username": "patient", "password": "patient"}
-    )
+    test_client.post("/api/login", json={"username": "patient", "password": "patient"})
     return test_client
 
 

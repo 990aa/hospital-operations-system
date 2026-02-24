@@ -1,669 +1,351 @@
-# Hospital Management System - Project Report
+# Hospital Management System
 
-## Student Details
-**Name:** Abdul Ahad  
-**ID:** 24f200293  
+## Project Report
+
+**Student Name:** Abdul Ahad  
+**Student ID:** 24f200293  
+**Course:** IIT Application Development  
+**Date:** February 2026  
 
 ---
 
 ## Table of Contents
-1. [Executive Summary](#executive-summary)
-2. [Problem Statement & Approach](#problem-statement--approach)
-3. [System Architecture](#system-architecture)
-4. [Database Design](#database-design)
-5. [API Documentation](#api-documentation)
-6. [Implementation Details](#implementation-details)
-7. [Key Features](#key-features)
-8. [Additional Features](#additional-features)
-9. [Testing & Performance](#testing--performance)
-10. [Demo Information](#demo-information)
+
+1. [Abstract](#1-abstract)
+2. [Introduction](#2-introduction)
+3. [Background and Literature Review](#3-background-and-literature-review)
+4. [Problem Statement](#4-problem-statement)
+5. [System Design and Architecture](#5-system-design-and-architecture)
+6. [Database Design](#6-database-design)
+7. [Implementation](#7-implementation)
+8. [Background Jobs and Asynchronous Processing](#8-background-jobs-and-asynchronous-processing)
+9. [Security and Validation](#9-security-and-validation)
+10. [Caching and Performance Optimisation](#10-caching-and-performance-optimisation)
+11. [User Interface Design](#11-user-interface-design)
+12. [Challenges and Solutions](#12-challenges-and-solutions)
+13. [Conclusion and Future Work](#13-conclusion-and-future-work)
+14. [References](#14-references)
 
 ---
 
-## Summary
+## 1. Abstract
 
-The Hospital Management System (HMS) is a comprehensive web application designed to streamline hospital operations by managing patients, doctors, appointments, and treatments efficiently. Built using modern web technologies, the system provides role-based access for Admins, Doctors, and Patients, while automating routine tasks through background job processing.
-
----
-
-### Problem Statement
-Hospitals struggle with manual processes and disconnected software systems that lead to:
-- Scheduling conflicts and double-booking
-- Lost patient records and incomplete medical histories
-- Inefficient communication between doctors and patients
-- Manual tracking of appointments and treatments
-- Lack of automated reporting and reminders
-
-### Approach
-
-#### 1. **Requirements Analysis**
-We carefully analyzed the problem statement and identified three distinct user roles (Admin, Doctor, Patient) with specific functionalities for each. We mapped out user workflows and identified critical endpoints for data management.
-
-#### 2. **Technology Stack Selection**
-We selected technologies that balance modern best practices with the project requirements:
-- **Flask** for the RESTful API backend (lightweight, scalable)
-- **Vue.js** for reactive, component-based frontend
-- **SQLite** for relational data persistence
-- **Redis** for caching frequently accessed data
-- **Celery** for background job processing
-
-#### 3. **Database Schema Design**
-We designed a normalized relational database schema with:
-- Clear separation of concerns (User, Role, Doctor, Patient, Appointment, Treatment)
-- Proper foreign key relationships to maintain data integrity
-- Indexes on frequently queried fields for performance
-- Many-to-many relationship for user roles
-
-#### 4. **API-First Development**
-We adopted an API-first approach where:
-- All business logic resides in the backend
-- Frontend communicates only via RESTful API endpoints
-- Clear separation between presentation and business logic
-- Each API endpoint is documented and follows REST conventions
-
-#### 5. **Security Implementation**
-We implemented role-based access control (RBAC) using Flask-Security-Too:
-- Password hashing with Argon2
-- Session-based authentication
-- Role-based route protection
-- User input validation
-
-#### 6. **Performance Optimization**
-We optimized performance through:
-- Redis caching for dashboard statistics (5-minute expiry)
-- Database query optimization with proper joins
-- Background job processing for long-running tasks
-- Pagination for large datasets
+This report describes the design and implementation of a Hospital Management System (HMS), a full-stack web application that digitalises and streamlines core hospital operations. The system manages patients, doctors, appointments, treatments, and payments through a unified platform that enforces role-based access control. Three distinct user roles are provided: administrators who configure and oversee the entire system, doctors who manage their schedules and patient treatment records, and patients who self-register, book appointments, and view their medical history. The backend is implemented in Python using the Flask micro-framework with an SQLite relational database, Redis for caching, and Celery for asynchronous background job execution. The frontend is a single-page application built with Vue.js 3. The system includes scheduled jobs for daily patient appointment reminders and monthly doctor activity reports delivered via email, as well as a user-triggered CSV export of treatment history. The resulting application is modular, maintainable, and demonstrates practical application of core software engineering principles including RESTful API design, role-based access control, event-driven background processing, and optimistic concurrency control.
 
 ---
 
-### Component Breakdown
+## 2. Introduction
 
-#### Frontend Components
-- **Login/Register Component**: User authentication interface
-- **Admin Dashboard**: Statistics, doctor/patient management, search
-- **Doctor Dashboard**: Appointment viewing, treatment recording, patient history
-- **Patient Dashboard**: Doctor search, appointment booking, treatment history
+Healthcare organisations globally are under pressure to operate with greater efficiency, accuracy, and transparency. Traditional paper-based or fragmented digital systems struggle to keep pace with the volume of patient interactions, scheduling demands, and regulatory requirements of modern hospitals. A well-designed Hospital Management System provides a centralised platform where administrative staff, clinical practitioners, and patients can coordinate through a unified system.
 
-#### Backend Modules
-- **auth_routes.py**: Authentication endpoints (login, logout, register)
-- **admin_routes.py**: Admin functionality (CRUD doctors/patients, statistics)
-- **doctor_routes.py**: Doctor functionality (appointments, treatments, patient history)
-- **patient_routes.py**: Patient functionality (search, book, profile, export)
-- **tasks.py**: Celery background tasks (reminders, reports, CSV export)
-- **database.py**: SQLAlchemy models and relationships
+This project implements such a system as a web application. The primary objectives are:
+
+- To enable administrators to manage doctors, patients, departments, and appointment records with full create, read, update, and delete capabilities.
+- To allow doctors to view their appointment schedules, complete consultations with diagnosis and prescription records, update past treatment histories, and manage their weekly availability.
+- To enable patients to self-register, browse doctors by department, book appointments within a doctor's available time slots, pay before consultation, view their full treatment history, and export records.
+- To automate routine communications through scheduled background jobs.
+- To implement caching strategies that improve responsiveness under concurrent usage.
+
+The system follows a RESTful API architecture where the backend exposes well-defined endpoints and the frontend consumes them through HTTP requests. This separation of concerns ensures that each layer can evolve independently and that the system is testable at each level.
 
 ---
 
-## Database Design
+## 3. Background and Literature Review
 
-### Entity-Relationship Diagram
+### 3.1 Hospital Management Systems
 
-![ER Diagram](er_diagram.png)
+Hospital Management Systems have been the subject of significant academic and commercial attention. Early systems were monolithic desktop applications deployed locally within hospital premises. The shift to web-based architectures enabled centralised data storage, remote access, and multi-user collaboration. Modern systems typically implement role-based access control (RBAC) to restrict data visibility and operations to authorised actors, and integrate background automation for communications and reporting.
 
-### Table Schemas & Relationships
+### 3.2 Web Application Architecture
 
-#### 1. **USER Table**
-**Purpose**: Central authentication and profile table for all users
+The project employs a three-tier client-server architecture with a clear separation between the backend (data management and business logic), the data store, and the frontend (presentation layer). The REST architectural style, as described by Fielding (2000), provides a stateless, uniform interface between the presentation and application tiers through HTTP methods and JSON-encoded payloads.
 
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| id | INTEGER | PRIMARY KEY | Unique user identifier |
-| username | VARCHAR(255) | UNIQUE, NOT NULL | Login username |
-| email | VARCHAR(255) | UNIQUE | Email address |
-| phone | VARCHAR(20) | | Contact phone number |
-| password | VARCHAR(255) | NOT NULL | Hashed password (Argon2) |
-| active | BOOLEAN | | Account active status |
-| fs_uniquifier | VARCHAR(255) | UNIQUE, NOT NULL | Flask-Security identifier |
-| name | VARCHAR(100) | NOT NULL | Display name |
+### 3.3 Python Web Frameworks
 
-**Relationships**:
-- One-to-Many with ROLE (via roles_users association table)
-- One-to-One with DOCTOR
-- One-to-One with PATIENT
+Flask is a micro-framework for Python that provides routing, request handling, and extension integration while imposing minimal structural constraints. Its lightweight nature makes it well-suited for API servers. Flask-Security extends Flask with user authentication, role management, and session handling, integrating directly with SQLAlchemy models.
 
-**Indexes**: username, email, fs_uniquifier
+### 3.4 Asynchronous Task Processing
+
+Background job frameworks such as Celery allow compute-intensive or time-sensitive operations to be decoupled from the HTTP request-response cycle. Celery uses a message broker (Redis in this project) to queue tasks and one or more worker processes to consume and execute them. This pattern is essential for operations such as sending emails, generating reports, and processing exports without blocking the web server.
+
+### 3.5 Single-Page Application Design
+
+Vue.js 3 is a progressive JavaScript framework for building user interfaces. Unlike traditional multi-page applications, a single-page application (SPA) loads once and dynamically updates the DOM as the user navigates. This provides a more responsive experience and reduces unnecessary server round-trips for page rendering.
 
 ---
 
-#### 2. **ROLE Table**
-**Purpose**: Define user roles for access control
+## 4. Problem Statement
 
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| id | INTEGER | PRIMARY KEY | Role identifier |
-| name | VARCHAR(80) | UNIQUE | Role name (admin, doctor, patient) |
-| description | VARCHAR(255) | | Role description |
+Hospitals require coordinated management of multiple entities — staff, patients, appointments, and records — often with competing demands. The specific problems this system addresses are:
 
-**Relationships**:
-- Many-to-Many with USER (via roles_users)
+**Scheduling Conflicts:** Without centralised scheduling, double-booking of doctor time slots is a common occurrence. Patients and staff lack visibility into a doctor's real-time availability.
 
-**Default Roles**:
-- `admin`: Full system access
-- `doctor`: Access to assigned appointments and patient records
-- `patient`: Access to own appointments and profile
+**Disconnected Records:** Patient medical histories, diagnoses, and prescriptions are often siloed per appointment. This prevents doctors from building a holistic view of a patient's health over time.
+
+**Manual Communication:** Reminding patients of upcoming appointments, notifying doctors of their monthly performance, and alerting patients when their data export is complete are operations typically handled manually or not at all.
+
+**Payment Tracking:** The financial exchange for consultations requires a clear record linking patients, doctors, appointments, and amounts, with support for refunds when appointments are cancelled.
+
+**Access Control:** Different stakeholders have different informational needs and permissions. Patients must not see other patients' records. Doctors must not modify system-wide configurations. Administrators must be able to oversee all entities.
 
 ---
 
-#### 3. **ROLES_USERS Table (Association Table)**
-**Purpose**: Many-to-many relationship between users and roles
+## 5. System Design and Architecture
 
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| user_id | INTEGER | FOREIGN KEY (user.id) | User reference |
-| role_id | INTEGER | FOREIGN KEY (role.id) | Role reference |
+### 5.1 Architectural Overview
 
----
+The system follows a three-tier architecture:
 
-#### 4. **DEPARTMENT Table**
-**Purpose**: Medical specializations/departments
+1. **Presentation Tier** — Vue.js 3 SPA served as a static HTML/JS file.
+2. **Application Tier** — Flask RESTful API handling business logic and data access.
+3. **Data Tier** — SQLite relational database for persistent storage; Redis for caching and as the Celery message broker.
 
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| id | INTEGER | PRIMARY KEY | Department identifier |
-| name | VARCHAR(50) | UNIQUE, NOT NULL | Department name |
-| description | VARCHAR(200) | | Department description |
+All HTTP communication between the presentation and application tiers uses JSON payloads. All API routes are prefixed with `/api` to distinguish them from the static frontend document.
 
-**Relationships**:
-- One-to-Many with DOCTOR
+### 5.2 Technology Stack
 
-**Seeded Departments**:
-- General Medicine
-- Cardiology
-- Dermatology
-- Pediatrics
-- Neurology
+| Component | Technology | Rationale |
+|---|---|---|
+| Backend framework | Flask (Python) | Lightweight, extensible, large ecosystem |
+| Authentication | Flask-Security | RBAC, password hashing, session management |
+| ORM | SQLAlchemy (Flask-SQLAlchemy) | Abstraction over SQL, additive migration support |
+| Database | SQLite | Zero-configuration, sufficient for project scale |
+| Cache and Broker | Redis | In-memory speed, supports pub-sub and task queuing |
+| Background jobs | Celery | Production-grade distributed task queue |
+| Email delivery | Flask-Mail / SMTP | Standard email delivery through SMTP providers |
+| PDF generation | ReportLab | Python-native PDF creation for monthly reports |
+| Frontend | Vue.js 3 (CDN) | Reactive components, minimal build tooling |
+| CSS | Bootstrap 5 | Responsive grid, accessible components |
+| Charts | Plotly.js | Interactive dashboard visualisations |
 
----
+### 5.3 Application Factory Pattern
 
-#### 5. **DOCTOR Table**
-**Purpose**: Doctor-specific profile information
+The Flask application factory pattern is used via a `create_app(test_config=None)` function. This function encapsulates all extension initialisation, blueprint registration, and configuration loading. The factory pattern enables isolated test instances with overridden configurations — such as an in-memory SQLite database and synchronous Celery execution — without modifying production code.
 
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| id | INTEGER | PRIMARY KEY | Doctor identifier |
-| user_id | INTEGER | FOREIGN KEY (user.id), NOT NULL | Reference to User |
-| department_id | INTEGER | FOREIGN KEY (department.id), NOT NULL | Department reference |
-| availability | VARCHAR(500) | DEFAULT 'Mon-Fri, 9AM-5PM' | Working schedule |
-| email_notifications | BOOLEAN | DEFAULT True | Enable monthly reports |
+### 5.4 Blueprint Structure
 
-**Relationships**:
-- Many-to-One with USER (via user_id)
-- Many-to-One with DEPARTMENT (via department_id)
-- One-to-Many with APPOINTMENT
+Routes are organised into four Flask Blueprints, all registered under the `/api` prefix:
 
-**Business Logic**:
-- Doctors must be assigned to exactly one department
-- Availability is stored as a string for flexibility
-- Email notifications control monthly activity reports
+- **auth_bp** — Login, logout, patient self-registration.
+- **admin_bp** — Full system management: doctors, patients, departments, appointments, payments, statistics.
+- **doctor_bp** — Doctor-scoped operations: appointments, treatment records, patient history, availability, PDF reports, earnings.
+- **patient_bp** — Patient-scoped operations: doctor browsing, appointment booking, payments, CSV export, profile management.
+
+This modular structure ensures each domain's routes are cohesive, independently testable, and maintainable.
 
 ---
 
-#### 6. **PATIENT Table**
-**Purpose**: Patient-specific profile information
+## 6. Database Design
 
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| id | INTEGER | PRIMARY KEY | Patient identifier |
-| user_id | INTEGER | FOREIGN KEY (user.id), NOT NULL | Reference to User |
-| medical_history | TEXT | DEFAULT '' | Patient's medical history |
-| notification_pref | VARCHAR(20) | DEFAULT 'email' | Notification preference |
+### 6.1 Entity Overview
 
-**Relationships**:
-- Many-to-One with USER (via user_id)
-- One-to-Many with APPOINTMENT
-- One-to-Many with EXPORT_JOB
+The database comprises eight core entities:
 
-**Notification Preferences**:
-- `email`: Email notifications
-- `sms`: SMS notifications
-- `chat`: Google Chat notifications
-- `none`: No notifications
+- **User** — Shared authentication record for all user types.
+- **Role** and **roles_users** — Flask-Security RBAC relationship table.
+- **Department** — Medical specialisation (e.g., Cardiology, Neurology).
+- **Doctor** — Doctor-specific profile extending User, linked to a Department.
+- **Patient** — Patient-specific profile extending User.
+- **Appointment** — Booking linking Patient and Doctor for a specific date and time slot.
+- **Treatment** — Consultation outcome (diagnosis, prescription, notes) linked to a completed Appointment.
+- **Payment** — Financial transaction record linked to an Appointment and Patient.
+- **ExportJob** — Tracks asynchronous CSV export requests initiated by patients.
 
----
+### 6.2 Key Design Decisions
 
-#### 7. **APPOINTMENT Table**
-**Purpose**: Schedule appointments between patients and doctors
+**User-Profile Separation:** All users share a single `User` table for authentication credentials. Type-specific data is stored in linked `Doctor` and `Patient` profile records. This simplifies credential management and allows Flask-Security to operate on a single unified model.
 
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| id | INTEGER | PRIMARY KEY | Appointment identifier |
-| patient_id | INTEGER | FOREIGN KEY (patient.id), NOT NULL | Patient reference |
-| doctor_id | INTEGER | FOREIGN KEY (doctor.id), NOT NULL | Doctor reference |
-| date | VARCHAR(20) | NOT NULL | Appointment date (YYYY-MM-DD) |
-| time | VARCHAR(10) | NOT NULL | Appointment time (HH:MM) |
-| status | VARCHAR(20) | DEFAULT 'Booked' | Status (Booked/Completed/Cancelled) |
+**Structured Availability Storage:** Doctor availability is stored as three structured columns — `availability_days` (comma-separated weekday abbreviations), `availability_start` and `availability_end` (HH:MM strings), and `slot_minutes` (integer duration). This enables the backend to programmatically generate all valid time slots and compare them against existing bookings without complex date arithmetic.
 
-**Relationships**:
-- Many-to-One with PATIENT (via patient_id)
-- Many-to-One with DOCTOR (via doctor_id)
-- One-to-One with TREATMENT
+**Appointment Uniqueness Constraint:** A database-level unique index on `(doctor_id, date, time)` prevents race conditions when multiple patients attempt to book the same slot simultaneously, providing a final guarantee beyond the application-level retry logic.
 
-**Constraints & Validation**:
-- No double-booking: Same doctor cannot have multiple appointments at same date/time
-- Status transitions: Booked → Completed/Cancelled (no reversals)
-- Date validation: Cannot book appointments in the past
+**Follow-up Appointment Traceability:** An `is_follow_up` boolean and `follow_up_source_appointment_id` self-referencing foreign key on the Appointment table allow doctors to schedule follow-up consultations from within the completion workflow while maintaining a clear parent-child relationship.
 
-**Indexes**: (doctor_id, date, time), patient_id, status
+**Payment as Audit Ledger:** Payment records use positive amounts for completed transactions and negative amounts for refunds. This ledger-style approach allows net figures to be computed with simple arithmetic and maintains a full immutable audit trail.
+
+### 6.3 Entity Relationships
+
+Key relationships include:
+
+- `USER` one-to-one with `DOCTOR` (profile extension via `user_id` FK)
+- `USER` one-to-one with `PATIENT` (profile extension via `user_id` FK)
+- `DEPARTMENT` one-to-many with `DOCTOR`
+- `PATIENT` one-to-many with `APPOINTMENT`
+- `DOCTOR` one-to-many with `APPOINTMENT`
+- `APPOINTMENT` one-to-one with `TREATMENT`
+- `APPOINTMENT` one-to-many with `PAYMENT` (one per transaction, including refunds)
+- `PATIENT` one-to-many with `EXPORT_JOB`
+- `APPOINTMENT` self-referencing for follow-up linkage
 
 ---
 
-#### 8. **TREATMENT Table**
-**Purpose**: Medical records for completed appointments
+## 7. Implementation
 
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| id | INTEGER | PRIMARY KEY | Treatment identifier |
-| appointment_id | INTEGER | FOREIGN KEY (appointment.id), NOT NULL | Appointment reference |
-| diagnosis | TEXT | NOT NULL | Medical diagnosis |
-| prescription | TEXT | NOT NULL | Prescribed medications/treatment |
-| notes | TEXT | | Additional doctor notes |
+### 7.1 Authentication and Authorisation
 
-**Relationships**:
-- One-to-One with APPOINTMENT (via appointment_id)
+Flask-Security manages user sessions using cookie-based tokens. Passwords are hashed using HMAC-SHA512 with a configurable salt (`SECURITY_PASSWORD_SALT`). The `roles_required` decorator gates each route to the appropriate user type. The patient self-registration endpoint creates only `patient`-role users; doctor creation is exclusively an administrator operation, preventing patients from escalating their privileges.
 
-**Business Logic**:
-- Treatment can only be created for appointments with status 'Completed'
-- Treatment records are immutable once created
-- Each appointment can have at most one treatment record
+On the frontend, the Vue.js application calls `GET /api/current-user` on page load to restore an existing session and routes the user directly to their role-specific dashboard without requiring re-authentication.
 
----
+### 7.2 Appointment Booking and Serial Slot Assignment
 
-#### 9. **EXPORT_JOB Table**
-**Purpose**: Track asynchronous CSV export jobs
+The booking system uses a serial slot-assignment algorithm to ensure fairness and prevent conflicts:
 
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| id | INTEGER | PRIMARY KEY | Job identifier |
-| patient_id | INTEGER | FOREIGN KEY (patient.id), NOT NULL | Patient reference |
-| status | VARCHAR(20) | DEFAULT 'pending' | Job status |
-| file_path | VARCHAR(500) | | Path to generated CSV |
-| created_at | DATETIME | DEFAULT CURRENT_TIMESTAMP | Job creation time |
-| completed_at | DATETIME | | Job completion time |
-| error_message | TEXT | | Error message if failed |
+1. The patient selects a doctor and a date from the doctor's 7-day availability window.
+2. The backend generates all possible time slots between the doctor's start and end time at the configured slot granularity.
+3. Already-booked slots for that doctor and date are excluded from the candidate list.
+4. The first remaining slot is assigned to the new appointment.
+5. A retry loop of three attempts handles the race condition where a concurrent booking takes the assigned slot between generation and the database commit.
+6. The database unique constraint on `(doctor_id, date, time)` serves as the final guarantee, raising an `IntegrityError` on conflict.
 
-**Relationships**:
-- Many-to-One with PATIENT (via patient_id)
+This approach is fair (first-come-first-served, earliest slot first) and safe under concurrent load.
 
-**Status Values**:
-- `pending`: Job queued, not started
-- `processing`: Job currently running
-- `completed`: Job finished successfully
-- `failed`: Job encountered an error
+### 7.3 Treatment and Patient History
 
----
+When a doctor marks an appointment as completed, they record a diagnosis, prescription, and optional notes. This creates a `Treatment` record. Simultaneously, a short summary is appended to the patient's cumulative `medical_history` text field for a quick plain-text log. Doctors can subsequently edit any treatment record they originally created, either through the appointment details modal or through the "My Patients" tab. This allows corrections to be made post-consultation and ensures the history reflects the most accurate clinical information.
 
-### Database Relationships Summary
+### 7.4 Payment Portal
 
-**One-to-One Relationships**:
-- User ↔ Doctor
-- User ↔ Patient  
-- Appointment ↔ Treatment
+The payment portal simulates an actual payment gateway to demonstrate the integration architecture without connecting to a live payment provider. When a patient pays for a booked appointment, a `Payment` record is created with `status="completed"`, the payment method, and only the last four digits of the provided card number. A randomly generated transaction ID serves as an audit reference.
 
-**One-to-Many Relationships**:
-- Department → Doctor
-- Doctor → Appointment
-- Patient → Appointment
-- Patient → ExportJob
+When a patient cancels a paid appointment, the system automatically creates a corresponding refund `Payment` record with a negative amount and `status="refunded"`. The constraint that payment must precede consultation completion is enforced at the backend route level, ensuring the financial workflow is correctly ordered.
 
-**Many-to-Many Relationships**:
-- User ↔ Role (via roles_users)
+### 7.5 Doctor Availability Management
+
+Doctors configure their availability through the Availability tab: they select which days of the week they are available, their working hours, and the consultation slot duration. When a doctor saves their availability, the cache for the public doctor listing is invalidated so patients immediately see the updated schedule. Admin users can also configure doctor availability when creating or editing a doctor profile.
+
+### 7.6 Admin Capabilities
+
+The administrator has comprehensive system oversight including creating, editing, and deleting doctors and patients; managing departments; viewing all appointments with multi-dimensional filters; auditing all payment transactions; and accessing aggregate statistics. A dedicated "Doctor's Patients" panel allows the admin to inspect all patients linked to any specific doctor and edit them directly without switching between tabs.
+
+### 7.7 Patient Capabilities
+
+Registered patients can browse doctors organised by department, view full doctor profiles including bio, contact details, and upcoming slot availability, and book appointments. The department-first browsing UI shows all available medical specialisations as selectable buttons, filtering the doctor list on selection. Before each consultation, patients complete a payment step. After consultation, they can view their full treatment history including diagnosis, prescription, and doctor's notes, and export their complete treatment record as a CSV file.
 
 ---
 
-## API Documentation
+## 8. Background Jobs and Asynchronous Processing
 
-### Base URL
-```
-http://localhost:5000/api
-```
+### 8.1 Architecture
 
-## Implementation Details
+Celery manages all background task execution. Redis serves as both the message broker (task queue) and result backend. A custom `ContextTask` base class injects the Flask application context into every task execution, making database sessions, configuration, and extensions available within background code.
 
-**Flask-SQLAlchemy**: ORM for database operations
-- Provides Pythonic database interactions
-- Automatic SQL query generation
-- Built-in connection pooling
-- Easy model relationships
+### 8.2 Daily Appointment Reminders
 
-**Flask-Security-Too**: Authentication & Authorization
-- Session-based authentication
-- Password hashing (Argon2)
-- Role-based access control (decorators: `@roles_required`)
-- CSRF protection
+A Celery Beat periodic task runs every morning at 8:00 AM. It queries all appointments scheduled for the current day with status "Booked" and a corresponding completed payment. For each qualifying appointment, an email reminder is sent to the patient detailing the appointment time and doctor. The notification respects each patient's `notification_pref` setting.
 
-**Flask-Caching**: Redis-backed caching
-- Reduces database load
-- Configurable TTL (Time To Live)
-- Cache invalidation on data updates
-- Supports multiple cache backends
+### 8.3 Monthly Doctor Activity Report
 
-**Celery**: Background task processing
-- Scheduled tasks (via Celery Beat)
-- Async task execution
-- Task retry logic
-- Result backend for status tracking
+On the first calendar day of each month, Celery Beat dispatches a task that iterates over all doctors with email notifications enabled. For each doctor, it queries all appointments in the preceding month, computes statistics (total appointments, completed, cancelled, unique patients treated), and sends an HTML email summary to the doctor's registered address. Doctors can also download a PDF rendition of their monthly report on-demand from the Reports tab, generated using the ReportLab library.
+
+### 8.4 CSV Treatment Export
+
+When a patient initiates an export from their dashboard, an `ExportJob` record is created with status "pending" and a Celery task is dispatched immediately. The task queries all completed appointments with treatment records, writes a CSV file to the `exports/` directory, updates the job to "completed" with the file path, and sends an email notification to the patient. The patient can check status and download the file when ready. Only one active export per patient is permitted at a time.
+
+### 8.5 Redis Caching
+
+Beyond the Celery broker role, Redis provides the Flask-Caching backend. Frequently read data — doctor lists, department lists, appointment summaries, patient histories — are cached with per-endpoint TTLs ranging from 30 seconds to 5 minutes. Cache invalidation is explicit: every write operation that could affect a cached value calls `cache.delete()` on all relevant keys to maintain consistency.
 
 ---
 
-#### Frontend: Vue.js 3
+## 9. Security and Validation
 
-**Implementation Approach**: Simplified Single-Page Application
-- **Structure**: Single HTML file with inline CSS + separate JavaScript file
-- **Vue.js Version**: 3.x via CDN (development build for debugging)
-- **Architecture**: Options API (simpler than Composition API)
-- **Jinja2 Integration**: Using `{% raw %}` blocks to prevent template conflicts
+### 9.1 Authentication
 
-**Hospital UI Design**:
-- **Color Palette**:
-  - Medical Green: `#388e3c` (primary actions, success states)
-  - Medical Red: `#d32f2f` (alerts, danger states)
-  - Professional Grays: `#f5f5f5`, `#e0e0e0`, `#424242` (backgrounds, borders)
-  - Clean White: `#ffffff` (cards, containers)
-- **Design Philosophy**: No gradients, no bright blues/purples, no emojis
-- **Typography**: Segoe UI for clean, professional appearance
-- **Layout**: Bootstrap 5 grid system for responsive design
+All API routes beyond login and the public doctor search require a valid session cookie. The `login_required` and `roles_required` decorators ensure unauthenticated or unauthorised requests receive HTTP 401 or 403 responses respectively, never reaching business logic.
 
-**Key Features**:
-- **Role-Based UI**: Conditional rendering with `v-if="hasRole('admin')"`
-- **Tab Navigation**: Separate tabs for different functionalities
-- **Form Validation**: Client-side validation before API calls
-- **Error Handling**: User-friendly error messages with auto-hide alerts
-- **Responsive Design**: Mobile-friendly with Bootstrap grid
-- **Professional Theme**: Clean hospital aesthetic throughout
+### 9.2 Authorisation Boundaries
 
-**HTTP Client**: Fetch API
-- RESTful API communication
-- JSON request/response handling
-- Error handling and user feedback
-- CORS credentials included for sessions
+Role-based access control ensures that patients access only their own data; doctors can only view and complete their own appointments and edit only their own treatment records; and administrators have elevated access to all entities but are still constrained to the defined operations.
 
-**UI Framework**: Bootstrap 5
-- Responsive grid system
-- Pre-styled components (buttons, forms, tables, cards)
-- Professional appearance
-- Mobile-first design
-- Bootstrap Icons for medical symbols
+### 9.3 Input Validation
 
+Custom decorator-based validators (`validate_required_fields`, `validate_string_length`, `validate_email`, `validate_password_strength`) are applied to authentication endpoints. These validators run before the route function and return structured 400 error responses for invalid input, preventing malformed data from reaching the database layer.
+
+### 9.4 Error Handling
+
+A centralised exception handler logs full tracebacks to the server terminal while returning generic "Internal server error" messages to the client. Frontend errors are forwarded to a backend logging endpoint and written to the terminal, ensuring that no implementation details are exposed in the user interface.
 
 ---
 
-### Key Implementation Patterns
+## 10. Caching and Performance Optimisation
 
-### Security Measures
+The application uses Redis-backed caching via Flask-Caching to reduce database query overhead for frequently accessed, infrequently changed data.
 
-1. **Password Hashing**: Argon2 algorithm (OWASP recommended)
-2. **SQL Injection Prevention**: SQLAlchemy ORM parameterized queries
-3. **Session Management**: Flask-Session with secure cookies
-4. **Role-Based Access Control**: Enforced at API level
-5. **Input Validation**: Required fields, type checking, business rule validation
+- **Admin Statistics** — 5-minute TTL. Aggregate counts change infrequently.
+- **Doctor Appointments** — 30-second TTL. Changes frequently through bookings and cancellations.
+- **All Doctors List** — 60-second TTL. Includes computed upcoming availability, moderately expensive to recompute.
+- **Patient History** — 60-second TTL. Changes only when a doctor adds or updates a treatment record.
 
----
-
-### Performance Optimizations
-
-1. **Database Indexing**:
-   - Primary keys (automatic)
-   - Foreign keys (indexed)
-   - Unique constraints (username, email, fs_uniquifier)
-
-2. **Caching Strategy**:
-   - Dashboard stats: 5 minutes
-   - Doctor listings: 1 minute
-   - Appointment queries: 30 seconds
-
-3. **Query Optimization**:
-   - Eager loading with joins
-   - Pagination for large datasets
-   - Selective field loading
-
-4. **Background Processing**:
-   - CSV export: Async via Celery
-   - Daily reminders: Scheduled Celery Beat task
-   - Monthly reports: Scheduled Celery Beat task
+Cache invalidation is triggered immediately by write operations affecting cached entities, preventing stale data from being served within the TTL window.
 
 ---
 
-## Key Features
+## 11. User Interface Design
 
-### 1. **Role-Based Access Control**
-- Three distinct roles: Admin, Doctor, Patient
-- Fine-grained permissions per role
-- Secure authentication with password hashing
-- Session-based login/logout
+### 11.1 Design Principles
 
-### 2. **Advanced Search Functionality**
-**Admin Search**:
-- Search patients by name, ID, email, phone
-- Search doctors by name, username, department
+The interface uses a professional medical aesthetic. The colour palette employs medical green for primary actions, blue for informational elements, and red for alerts and destructive actions. All design uses flat colours without gradients or decorative imagery. Responsive layout is provided by Bootstrap 5.
 
-**Patient Search**:
-- Find doctors by name or specialization
-- Filter by department
+### 11.2 Single-Page Application
 
-### 3. **Conflict Prevention**
-- No double-booking: Prevents same doctor from having multiple appointments at same time
-- Patient conflict check: Prevents patients from booking overlapping appointments
-- Date validation: Cannot book appointments in the past
+The Vue.js frontend is served as a single HTML document. Application state is managed in a single Vue component using the Options API. Role-specific regions are conditionally rendered based on the authenticated user's role. Tab navigation switches the active view without page reloads, providing a fluid experience.
 
-### 4. **Complete Treatment History**
-- Full medical records for each patient
-- Chronologically ordered appointment history
-- Diagnosis, prescription, and doctor notes for each visit
-- Accessible by assigned doctors for informed consultations
+### 11.3 Role-Specific Dashboards
 
-### 5. **Dynamic Status Management**
-**Appointment Status Flow**:
-- Booked → Completed (by doctor)
-- Booked → Cancelled (by patient, doctor, or admin)
-- No status reversals (completed/cancelled appointments are final)
+The **Admin Dashboard** provides tabs for statistics, doctor management, patient management, appointments, and payments. The **Doctor Dashboard** provides tabs for appointments (colour-coded by urgency), a patients list with history viewer, reports, payments, availability configuration, and a read-only profile. The **Patient Dashboard** provides tabs for booking (department-first browsing), appointments (with treatment detail), payments, and profile management.
 
-### 6. **Performance Through Caching**
-- Redis-backed caching for frequently accessed data
-- Configurable cache expiry times
-- Automatic cache invalidation on data updates
-- Significant reduction in database load
+### 11.4 Responsive Feedback
 
-### 7. **Asynchronous CSV Export**
-- Patient-triggered export of complete treatment history
-- Background processing via Celery
-- Status tracking (pending → processing → completed → failed)
-- Download link when ready
-- Email notification on completion
+Success messages display as dismissible banners that disappear after three seconds. Error conditions are never displayed in the interface — all errors are forwarded to the server terminal log. This protects users from technical details while remaining fully diagnostic for developers.
 
 ---
 
-## Additional Features
+## 12. Challenges and Solutions
 
-### 1. **Scheduled Background Jobs**
+### 12.1 Concurrent Booking Race Condition
 
-#### Daily Appointment Reminders
-- **Frequency**: Every day at 8:00 AM
-- **Recipients**: Patients with appointments scheduled for that day
-- **Channels**: Email/SMS/Google Chat (based on patient preference)
-- **Implementation**: Celery Beat scheduled task
+**Challenge:** Multiple patients attempting to book the last available slot simultaneously could each read the slot as available and commit conflicting appointments.
 
-#### Monthly Activity Reports for Doctors
-- **Frequency**: 1st day of every month
-- **Recipients**: All doctors with email_notifications enabled
-- **Content**: 
-  - Total appointments for the month
-  - Completed vs. cancelled breakdown
-  - Most common diagnoses
-  - Patient count
-- **Format**: HTML email with formatted tables
+**Solution:** A unique database index on `(doctor_id, date, time)` raises an `IntegrityError` on the second commit. The booking function catches this, rolls back, and retries up to three times. This optimistic concurrency approach is efficient in the common case while safe in the edge case.
 
----
+### 12.2 Date Serialisation Inconsistency
 
-### 2. **Pagination Support**
-- Admin patient list: Paginated (50 per page default)
-- Admin export job monitoring: Paginated (20 per page)
-- Configurable page size
-- Total count and page count in response
+**Challenge:** Database date columns could return either Python `date` objects or plain strings depending on context, causing `AttributeError` exceptions during JSON serialisation.
+
+**Solution:** A `_normalize_date_str` helper function accepts both string and date-object inputs and consistently returns a `YYYY-MM-DD` string. All serialisation paths use this function.
+
+### 12.3 Flask App Context in Celery Tasks
+
+**Challenge:** Celery worker processes run outside the Flask request context. Database models and Flask extensions are not available by default.
+
+**Solution:** A custom `ContextTask` base class overrides Celery's `__call__` method to execute each task body inside a `with app.app_context()` block, making all Flask resources available transparently.
+
+### 12.4 Multi-Variant Cache Invalidation
+
+**Challenge:** Patient appointment caches are keyed by both `patient_id` and `status_filter`, producing four cache entries per patient. A status-changing write must invalidate all four.
+
+**Solution:** Every relevant write operation explicitly calls `cache.delete()` for all four key variants (None, Booked, Completed, Cancelled). This guarantees consistency without a more complex cache tagging system.
 
 ---
 
-### 3. **Comprehensive Error Handling**
-- HTTP status codes follow REST conventions
-- Descriptive error messages
-- Proper exception handling
-- Validation error details
+## 13. Conclusion and Future Work
+
+The Hospital Management System successfully implements a comprehensive digital healthcare management platform. It provides role-appropriate interfaces for administrators, doctors, and patients; enforces data integrity through database constraints and input validation; automates routine communications through scheduled background tasks; and demonstrates practical application of caching and asynchronous processing patterns.
+
+Potential future enhancements include integration with a real payment gateway for actual transaction processing, a mobile native application with push notification support, more sophisticated scheduling algorithms accommodating recurring appointments and resource constraints, and machine learning models for predictive analytics on appointment and treatment data.
 
 ---
 
-### 4. **Data Export Format**
-The CSV export includes:
-- Patient ID and name
-- Appointment date and time
-- Consulting doctor name
-- Department
-- Diagnosis
-- Prescription/treatment
-- Doctor notes
-- Next visit (if suggested)
+## 14. References
 
----
-
-### 5. **Email Notification System**
-- Welcome email on patient registration (optional)
-- Appointment reminder emails
-- Export completion notifications
-- Monthly doctor reports
-
----
-
-### 6. **Profile Management**
-- Patients can update their profile
-- Update name, email, phone
-- Manage medical history
-- Set notification preferences
-- Email uniqueness validation
-
----
-
-### 7. **Admin Monitoring Dashboard**
-- Real-time statistics
-- Total counts: doctors, patients, appointments
-- Status breakdown: booked, completed, cancelled
-- Export job monitoring
-- Search and filter capabilities
-
----
-
-### 8. **Doctor Availability Management**
-- Doctors can set custom availability schedules
-- Stored as flexible string format
-- Can be extended to structured time slots in future
-- Displayed to patients when booking
-
----
-
-### Performance Metrics
-
-**Without Caching**:
-- Dashboard stats query: ~150ms
-- Doctor list query: ~80ms
-- Patient appointment list: ~120ms
-
-**With Caching** (Redis):
-- Dashboard stats (cached): ~5ms (30x faster)
-- Doctor list (cached): ~3ms (26x faster)
-- Patient appointment list (cached): ~4ms (30x faster)
-
-**Background Jobs**:
-- CSV export for 100 appointments: ~2 seconds
-- Daily reminder processing (500 patients): ~10 seconds
-- Monthly report generation (20 doctors): ~5 seconds
-
----
-
-## Local Run Instructions
-
-### Local Setup Instructions
-
-1. **Clone the repository**
-```bash
-git clone 21f2002963/hospital-management-system
-cd hospital-management-system
-```
-
-2. **Install dependencies**
-```bash
-uv pip install -r requirements.txt
-```
-
-3. **Start Redis server**
-```bash
-redis-server
-```
-
-4. **Start Celery worker**
-```bash
-uv run celery -A backend.celery_config worker --loglevel=info
-```
-
-5. **Start Celery beat scheduler**
-```bash
-uv run celery -A backend.celery_config beat --loglevel=info
-```
-
-6. **Run Flask application**
-```bash
-uv run python app.py
-```
-
-7. **Access application**
-- URL: http://localhost:5000
-- Admin credentials: username=`admin`, password=`admin`
-
----
-
-### Demo Video Link
-> Video will demonstrate:
-> - User registration and login
-> - Admin dashboard and doctor management
-> - Doctor viewing appointments and completing treatments
-> - Patient booking appointments and viewing history
-> - CSV export functionality
-> - Background job processing
-
----
-
-## Conclusion
-
-The Hospital Management System successfully addresses the problem of manual hospital operations by providing a comprehensive, role-based web application.
----
-
-## Consolidated Implementation Enhancements
-
-### Appointment, Payment, and Refund Workflow
-- Consultation completion now strictly requires a successful pre-payment.
-- Patient cancellation of a paid appointment auto-generates a refund ledger entry.
-- Admin and doctor dashboards expose payment/refund summaries and transaction-level records.
-- Appointment payloads include payment and follow-up metadata for consistent cross-role visibility.
-
-### Follow-up Scheduling and Continuity of Care
-- Doctors can schedule follow-up visits while completing consultations using `next_visit_date`.
-- Follow-up allocation uses the same serial slot-allocation policy as standard patient booking.
-- Follow-ups are stored as standard appointments with explicit follow-up markers, enabling unified reminder and dashboard handling.
-
-### Concurrency Safety and Simultaneous Booking Protection
-- Appointment schema now enforces database-level uniqueness for `(doctor_id, date, time)`.
-- Booking logic includes retry-aware serial assignment to handle concurrent slot contention.
-- This combination prevents same-doctor same-time duplication even under parallel booking attempts.
-
-### Export, Reporting, and Reminder Reliability
-- CSV export now includes all appointment rows (not only completed records), preventing header-only files.
-- Export rows include treatment details where available plus payment/follow-up metadata.
-- Daily reminder content now differentiates consultation vs follow-up visit type.
-- Monthly report date handling remains robust for string-based date storage.
-
-### Dashboard Analytics and UX Behavior
-- Plotly-based visual analytics are integrated for Admin, Doctor, and Patient dashboards.
-- Graphs include role-relevant appointment/payment status breakdowns and financial views.
-- Appointment details panel lifecycle is now reset on tab switches, role changes, and logout/login transitions, preventing stale dialog persistence.
-
-### Verification Strategy
-- Functional and regression tests were extended for payment-before-completion, refund generation, follow-up creation, CSV row completeness, and duplicate-slot prevention.
-- A dedicated stress script (`scripts/stress_test.py`) executes concurrent booking/payment/completion/refund workflows against a live server.
-- This approach validates both correctness and operational behavior during heavy usage scenarios.
+1. Fielding, R. T. (2000). *Architectural Styles and the Design of Network-based Software Architectures*. Doctoral dissertation, University of California, Irvine.
+2. Ronacher, A. (2010). *Flask Documentation*. Pallets Projects. https://flask.palletsprojects.com
+3. SQLAlchemy Team. (2023). *SQLAlchemy Documentation*. https://docs.sqlalchemy.org
+4. Ask Solem and Contributors. (2023). *Celery: Distributed Task Queue Documentation*. https://docs.celeryq.dev
+5. You, E. (2022). *Vue.js 3 Documentation*. https://vuejs.org/guide
+6. Bootstrap Team. (2023). *Bootstrap 5 Documentation*. https://getbootstrap.com/docs/5.3
+7. Redis Ltd. (2023). *Redis Documentation*. https://redis.io/documentation
+8. ReportLab Group. (2023). *ReportLab User Guide*. https://www.reportlab.com/docs/reportlab-userguide.pdf
+9. Flask-Security Team. (2023). *Flask-Security-Too Documentation*. https://flask-security-too.readthedocs.io
+10. PEP 8 — Style Guide for Python Code. (2001). Python Software Foundation. https://peps.python.org/pep-0008/

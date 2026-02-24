@@ -13,7 +13,6 @@ Tests for:
 Author: Abdul Ahad
 """
 
-import threading  # kept for documentation; actual concurrent test uses sequential simulation
 from datetime import datetime, timedelta
 from sqlalchemy.exc import IntegrityError
 
@@ -319,7 +318,9 @@ def test_doctor_cannot_complete_without_payment(test_client):
     login(test_client, "patient", "patient")
     doctor_id = test_client.get("/api/doctors").get_json()[0]["id"]
     tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
-    test_client.post("/api/appointments", json={"doctor_id": doctor_id, "date": tomorrow})
+    test_client.post(
+        "/api/appointments", json={"doctor_id": doctor_id, "date": tomorrow}
+    )
 
     login(test_client, "doctor", "doctor")
     appointment_id = test_client.get("/api/doctor/appointments").get_json()[0]["id"]
@@ -335,7 +336,9 @@ def test_patient_cancel_triggers_refund_record(test_client):
     login(test_client, "patient", "patient")
     doctor_id = test_client.get("/api/doctors").get_json()[0]["id"]
     tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
-    test_client.post("/api/appointments", json={"doctor_id": doctor_id, "date": tomorrow})
+    test_client.post(
+        "/api/appointments", json={"doctor_id": doctor_id, "date": tomorrow}
+    )
 
     appointment_id = test_client.get("/api/my-appointments").get_json()[0]["id"]
     test_client.post(
@@ -361,7 +364,9 @@ def test_admin_and_doctor_payment_visibility_endpoints(test_client):
     login(test_client, "patient", "patient")
     doctor_id = test_client.get("/api/doctors").get_json()[0]["id"]
     tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
-    test_client.post("/api/appointments", json={"doctor_id": doctor_id, "date": tomorrow})
+    test_client.post(
+        "/api/appointments", json={"doctor_id": doctor_id, "date": tomorrow}
+    )
     appointment_id = test_client.get("/api/my-appointments").get_json()[0]["id"]
     test_client.post(
         f"/api/patient/payment/appointment/{appointment_id}",
@@ -400,17 +405,29 @@ def test_complete_with_follow_up_schedules_next_visit(test_client):
     login(test_client, "patient", "patient")
     doctor_id = test_client.get("/api/doctors").get_json()[0]["id"]
     tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
-    test_client.post("/api/appointments", json={"doctor_id": doctor_id, "date": tomorrow})
+    test_client.post(
+        "/api/appointments", json={"doctor_id": doctor_id, "date": tomorrow}
+    )
 
     appointment_id = test_client.get("/api/my-appointments").get_json()[0]["id"]
     test_client.post(
         f"/api/patient/payment/appointment/{appointment_id}",
-        json={"amount": 500, "payment_method": "credit_card", "card_number": "1111222233334444"},
+        json={
+            "amount": 500,
+            "payment_method": "credit_card",
+            "card_number": "1111222233334444",
+        },
     )
 
     # Select a valid availability date for deterministic follow-up scheduling.
-    availability = test_client.get(f"/api/doctors/{doctor_id}/availability").get_json()["availability"]
-    candidate_dates = [day["date"] for day in availability if day.get("remaining_slots", 0) > 0 and day["date"] != tomorrow]
+    availability = test_client.get(f"/api/doctors/{doctor_id}/availability").get_json()[
+        "availability"
+    ]
+    candidate_dates = [
+        day["date"]
+        for day in availability
+        if day.get("remaining_slots", 0) > 0 and day["date"] != tomorrow
+    ]
     follow_up_date = candidate_dates[0] if candidate_dates else tomorrow
 
     login(test_client, "doctor", "doctor")
@@ -438,7 +455,9 @@ def test_export_contains_data_rows_not_only_headers(test_client):
     login(test_client, "patient", "patient")
     doctor_id = test_client.get("/api/doctors").get_json()[0]["id"]
     tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
-    test_client.post("/api/appointments", json={"doctor_id": doctor_id, "date": tomorrow})
+    test_client.post(
+        "/api/appointments", json={"doctor_id": doctor_id, "date": tomorrow}
+    )
 
     trigger = test_client.post("/api/export/treatments")
     assert trigger.status_code in [200, 201]
@@ -546,30 +565,45 @@ def test_doctor_can_update_completed_treatment(test_client):
     login(test_client, "patient", "patient")
     doctor_id = test_client.get("/api/doctors").get_json()[0]["id"]
     tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
-    test_client.post("/api/appointments", json={"doctor_id": doctor_id, "date": tomorrow})
+    test_client.post(
+        "/api/appointments", json={"doctor_id": doctor_id, "date": tomorrow}
+    )
 
     appointment_id = test_client.get("/api/my-appointments").get_json()[0]["id"]
     test_client.post(
         f"/api/patient/payment/appointment/{appointment_id}",
-        json={"amount": 500, "payment_method": "credit_card", "card_number": "1234123412341234"},
+        json={
+            "amount": 500,
+            "payment_method": "credit_card",
+            "card_number": "1234123412341234",
+        },
     )
 
     login(test_client, "doctor", "doctor")
     complete = test_client.post(
         f"/api/appointments/{appointment_id}/complete",
-        json={"diagnosis": "Initial", "prescription": "Initial Rx", "notes": "Initial note"},
+        json={
+            "diagnosis": "Initial",
+            "prescription": "Initial Rx",
+            "notes": "Initial note",
+        },
     )
     assert complete.status_code == 200
 
     update = test_client.put(
         f"/api/doctor/appointments/{appointment_id}/treatment",
-        json={"diagnosis": "Updated", "prescription": "Updated Rx", "notes": "Updated note"},
+        json={
+            "diagnosis": "Updated",
+            "prescription": "Updated Rx",
+            "notes": "Updated note",
+        },
     )
     assert update.status_code == 200
     assert update.get_json()["treatment"]["diagnosis"] == "Updated"
 
 
 # ── Multi-doctor / multi-department / concurrent booking tests ─────────────────
+
 
 def test_multiple_departments_exist(test_client):
     """Conftest creates 4 departments; verify all are present."""
@@ -593,7 +627,9 @@ def test_multiple_doctors_across_departments(test_client):
     doctors = resp.get_json()
     assert len(doctors) >= 4, f"Expected ≥4 doctors, got {len(doctors)}"
     depts_represented = {d["department"] for d in doctors if d.get("department")}
-    assert len(depts_represented) >= 4, f"Expected doctors from ≥4 departments, got: {depts_represented}"
+    assert len(depts_represented) >= 4, (
+        f"Expected doctors from ≥4 departments, got: {depts_represented}"
+    )
 
 
 def test_multiple_patients_can_all_book_same_doctor(test_client):
@@ -606,7 +642,9 @@ def test_multiple_patients_can_all_book_same_doctor(test_client):
         login(test_client, uname, uname)
         doctors = test_client.get("/api/doctors").get_json()
         doctor_id = doctors[0]["id"]
-        resp = test_client.post("/api/appointments", json={"doctor_id": doctor_id, "date": tomorrow})
+        resp = test_client.post(
+            "/api/appointments", json={"doctor_id": doctor_id, "date": tomorrow}
+        )
         results[uname] = resp.status_code
 
     # All three bookings should succeed
@@ -649,8 +687,12 @@ def test_concurrent_booking_same_doctor_same_day(test_client):
     doctor_id = doctors[0]["id"]
 
     # Sequential booking simulation (same doctor, same day)
-    resp1 = client1.post("/api/appointments", json={"doctor_id": doctor_id, "date": tomorrow})
-    resp2 = client2.post("/api/appointments", json={"doctor_id": doctor_id, "date": tomorrow})
+    resp1 = client1.post(
+        "/api/appointments", json={"doctor_id": doctor_id, "date": tomorrow}
+    )
+    resp2 = client2.post(
+        "/api/appointments", json={"doctor_id": doctor_id, "date": tomorrow}
+    )
 
     assert resp1.status_code == 201, f"patient2 booking failed: {resp1.get_json()}"
     assert resp2.status_code == 201, f"patient3 booking failed: {resp2.get_json()}"
@@ -683,8 +725,12 @@ def test_patient_can_book_doctors_in_different_departments(test_client):
     dates = [tomorrow, day_after]
 
     for i, doc in enumerate(selected):
-        resp = test_client.post("/api/appointments", json={"doctor_id": doc["id"], "date": dates[i]})
-        assert resp.status_code == 201, f"Booking failed for doctor in {doc.get('department')}: {resp.get_json()}"
+        resp = test_client.post(
+            "/api/appointments", json={"doctor_id": doc["id"], "date": dates[i]}
+        )
+        assert resp.status_code == 201, (
+            f"Booking failed for doctor in {doc.get('department')}: {resp.get_json()}"
+        )
 
 
 def test_admin_sees_appointments_across_all_doctors(test_client):
@@ -697,8 +743,12 @@ def test_admin_sees_appointments_across_all_doctors(test_client):
     all_doctors = test_client.get("/api/doctors").get_json()
     assert len(all_doctors) >= 2
 
-    test_client.post("/api/appointments", json={"doctor_id": all_doctors[0]["id"], "date": tomorrow})
-    test_client.post("/api/appointments", json={"doctor_id": all_doctors[1]["id"], "date": day_after})
+    test_client.post(
+        "/api/appointments", json={"doctor_id": all_doctors[0]["id"], "date": tomorrow}
+    )
+    test_client.post(
+        "/api/appointments", json={"doctor_id": all_doctors[1]["id"], "date": day_after}
+    )
 
     # Admin views appointments
     login(test_client, "admin", "admin")
@@ -707,7 +757,9 @@ def test_admin_sees_appointments_across_all_doctors(test_client):
     data = resp.get_json()
     appointments = data if isinstance(data, list) else data.get("appointments", [])
     doctor_ids = {a["doctor_id"] for a in appointments}
-    assert len(doctor_ids) >= 2, f"Expected appointments from ≥2 doctors, found: {doctor_ids}"
+    assert len(doctor_ids) >= 2, (
+        f"Expected appointments from ≥2 doctors, found: {doctor_ids}"
+    )
 
 
 def test_doctor2_and_doctor3_have_independent_slots(test_client):
@@ -719,12 +771,16 @@ def test_doctor2_and_doctor3_have_independent_slots(test_client):
     doc2 = next(d for d in doctors if "doctor2" in d.get("username", ""))
     doc3 = next(d for d in doctors if "doctor3" in d.get("username", ""))
 
-    resp2 = test_client.post("/api/appointments", json={"doctor_id": doc2["id"], "date": tomorrow})
+    resp2 = test_client.post(
+        "/api/appointments", json={"doctor_id": doc2["id"], "date": tomorrow}
+    )
     assert resp2.status_code == 201
     time_doc2 = resp2.get_json()["assigned_time"]
 
     login(test_client, "patient2", "patient2")
-    resp3 = test_client.post("/api/appointments", json={"doctor_id": doc3["id"], "date": tomorrow})
+    resp3 = test_client.post(
+        "/api/appointments", json={"doctor_id": doc3["id"], "date": tomorrow}
+    )
     assert resp3.status_code == 201
     time_doc3 = resp3.get_json()["assigned_time"]
 

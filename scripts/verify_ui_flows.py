@@ -36,7 +36,9 @@ doctor = requests.Session()
 
 
 def login(session: requests.Session, username: str, password: str) -> dict:
-    response = session.post(f"{API}/login", json={"username": username, "password": password}, timeout=15)
+    response = session.post(
+        f"{API}/login", json={"username": username, "password": password}, timeout=15
+    )
     response.raise_for_status()
     return response.json()
 
@@ -96,11 +98,17 @@ try:
     )
     ok_add = add_doc.status_code in (201, 400)
 
-    docs = admin.get(f"{API}/admin/doctors?search={new_doc_username}", timeout=15).json()
+    docs = admin.get(
+        f"{API}/admin/doctors?search={new_doc_username}", timeout=15
+    ).json()
     target = next((d for d in docs if d["username"] == new_doc_username), None)
     if target:
         new_doc_id = target["id"]
-    ok_availability = bool(target) and target["availability_start"] == "09:00" and target["slot_minutes"] == 30
+    ok_availability = (
+        bool(target)
+        and target["availability_start"] == "09:00"
+        and target["slot_minutes"] == 30
+    )
     record("Doctor availability create/store", ok_add and ok_availability)
 except Exception as exc:
     record("Doctor availability create/store", False, str(exc))
@@ -109,12 +117,19 @@ except Exception as exc:
 # 4) HTML password visibility checks for register/login/add-doctor.
 try:
     html = requests.get(BASE_URL, timeout=15).text
-    has_login_password_hidden = 'v-if="isLogin"' in html and 'type="password" v-model="authForm.password"' in html
-    has_register_password_text = 'v-if="!isLogin"' in html and 'type="text" v-model="authForm.password"' in html
+    has_login_password_hidden = (
+        'v-if="isLogin"' in html
+        and 'type="password" v-model="authForm.password"' in html
+    )
+    has_register_password_text = (
+        'v-if="!isLogin"' in html and 'type="text" v-model="authForm.password"' in html
+    )
     has_add_doctor_password_text = 'type="text" v-model="newDoctor.password"' in html
     record(
         "Password visibility policy in frontend",
-        has_login_password_hidden and has_register_password_text and has_add_doctor_password_text,
+        has_login_password_hidden
+        and has_register_password_text
+        and has_add_doctor_password_text,
     )
 except Exception as exc:
     record("Password visibility policy in frontend", False, str(exc))
@@ -135,12 +150,18 @@ try:
         },
         timeout=15,
     )
-    reg_json_ok = reg_resp.headers.get("content-type", "").startswith("application/json")
+    reg_json_ok = reg_resp.headers.get("content-type", "").startswith(
+        "application/json"
+    )
 
-    patients_payload = admin.get(f"{API}/admin/patients?search={reg_username}", timeout=15).json()
+    patients_payload = admin.get(
+        f"{API}/admin/patients?search={reg_username}", timeout=15
+    ).json()
     patient_id = patients_payload["patients"][0]["id"]
     del_resp = admin.delete(f"{API}/admin/patients/{patient_id}", timeout=15)
-    del_json_ok = del_resp.headers.get("content-type", "").startswith("application/json")
+    del_json_ok = del_resp.headers.get("content-type", "").startswith(
+        "application/json"
+    )
 
     record("Mutating endpoints return JSON", reg_json_ok and del_json_ok)
 except Exception as exc:
@@ -150,8 +171,16 @@ except Exception as exc:
 # 6) No nameless auto-patients.
 try:
     patients_payload = admin.get(f"{API}/admin/patients", timeout=15).json()
-    nameless = [p for p in patients_payload.get("patients", []) if not (p.get("name") or "").strip()]
-    record("No nameless auto-created patients", len(nameless) == 0, f"count={len(nameless)}")
+    nameless = [
+        p
+        for p in patients_payload.get("patients", [])
+        if not (p.get("name") or "").strip()
+    ]
+    record(
+        "No nameless auto-created patients",
+        len(nameless) == 0,
+        f"count={len(nameless)}",
+    )
 except Exception as exc:
     record("No nameless auto-created patients", False, str(exc))
 
@@ -161,14 +190,22 @@ try:
     user = f"apptless_{date.today().strftime('%m%d')}"
     requests.post(
         f"{API}/register",
-        json={"username": user, "password": "apptlesspass", "name": "No Appointment", "email": f"{user}@test.com"},
+        json={
+            "username": user,
+            "password": "apptlesspass",
+            "name": "No Appointment",
+            "email": f"{user}@test.com",
+        },
         timeout=15,
     )
     empty_patient = requests.Session()
     login(empty_patient, user, "apptlesspass")
     my_apps = empty_patient.get(f"{API}/my-appointments", timeout=15)
     my_json = my_apps.json()
-    record("No-appointments flow returns empty list", my_apps.status_code == 200 and isinstance(my_json, list))
+    record(
+        "No-appointments flow returns empty list",
+        my_apps.status_code == 200 and isinstance(my_json, list),
+    )
 except Exception as exc:
     record("No-appointments flow returns empty list", False, str(exc))
 
@@ -178,20 +215,37 @@ try:
     profile_user = f"profile_{date.today().strftime('%m%d')}"
     requests.post(
         f"{API}/register",
-        json={"username": profile_user, "password": "profilepass", "name": "Profile Name", "email": f"{profile_user}@test.com"},
+        json={
+            "username": profile_user,
+            "password": "profilepass",
+            "name": "Profile Name",
+            "email": f"{profile_user}@test.com",
+        },
         timeout=15,
     )
     p = requests.Session()
     login(p, profile_user, "profilepass")
     upd = p.post(
         f"{API}/profile",
-        json={"name": "Profile Updated", "phone": "7778889999", "history": "Updated history", "notification_pref": "sms"},
+        json={
+            "name": "Profile Updated",
+            "phone": "7778889999",
+            "history": "Updated history",
+            "notification_pref": "sms",
+        },
         timeout=15,
     )
     profile_view = p.get(f"{API}/profile", timeout=15).json()
-    admin_view = admin.get(f"{API}/admin/patients?search={profile_user}", timeout=15).json()
+    admin_view = admin.get(
+        f"{API}/admin/patients?search={profile_user}", timeout=15
+    ).json()
     reflected = admin_view["patients"][0]["name"] == "Profile Updated"
-    record("Patient profile edit reflected for admin", upd.status_code == 200 and profile_view["name"] == "Profile Updated" and reflected)
+    record(
+        "Patient profile edit reflected for admin",
+        upd.status_code == 200
+        and profile_view["name"] == "Profile Updated"
+        and reflected,
+    )
 except Exception as exc:
     record("Patient profile edit reflected for admin", False, str(exc))
 
@@ -205,7 +259,12 @@ try:
     booking_user = f"book_{date.today().strftime('%m%d')}"
     requests.post(
         f"{API}/register",
-        json={"username": booking_user, "password": "bookpass123", "name": "Book User", "email": f"{booking_user}@test.com"},
+        json={
+            "username": booking_user,
+            "password": "bookpass123",
+            "name": "Book User",
+            "email": f"{booking_user}@test.com",
+        },
         timeout=15,
     )
     login(patient, booking_user, "bookpass123")
@@ -216,13 +275,23 @@ try:
     has_7_day = bool(doc) and len(doc.get("upcoming_availability", [])) == 7
 
     # Pick first bookable day.
-    day = next((d for d in doc["upcoming_availability"] if d["remaining_slots"] > 1), None)
+    day = next(
+        (d for d in doc["upcoming_availability"] if d["remaining_slots"] > 1), None
+    )
     if not day:
         raise RuntimeError("No available day with at least 2 slots")
 
     # Two bookings should get serial times.
-    b1 = patient.post(f"{API}/appointments", json={"doctor_id": new_doc_id, "date": day["date"]}, timeout=15).json()
-    b2 = patient.post(f"{API}/appointments", json={"doctor_id": new_doc_id, "date": day["date"]}, timeout=15).json()
+    b1 = patient.post(
+        f"{API}/appointments",
+        json={"doctor_id": new_doc_id, "date": day["date"]},
+        timeout=15,
+    ).json()
+    b2 = patient.post(
+        f"{API}/appointments",
+        json={"doctor_id": new_doc_id, "date": day["date"]},
+        timeout=15,
+    ).json()
 
     t1 = b1.get("assigned_time")
     t2 = b2.get("assigned_time")
@@ -238,7 +307,10 @@ try:
     in_admin = any(a.get("time") in (t1, t2) for a in admin_apps)
 
     serial = bool(t1 and t2 and t1 != t2)
-    record("7-day availability + serial booking + time visibility", has_7_day and serial and in_patient and in_doctor and in_admin)
+    record(
+        "7-day availability + serial booking + time visibility",
+        has_7_day and serial and in_patient and in_doctor and in_admin,
+    )
 except Exception as exc:
     record("7-day availability + serial booking + time visibility", False, str(exc))
 
