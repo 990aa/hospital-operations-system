@@ -136,6 +136,9 @@ createApp({
                 bio: ''
             },
             patientSearch: '',
+            // Admin "doctor's patients" panel state
+            adminViewDoctorPatients: null,   // Doctor obj currently being inspected
+            adminDoctorPatientsList: [],     // Patients of that doctor loaded from API
 
             // Doctor dashboard state.
             doctorTab: 'appointments',
@@ -143,6 +146,12 @@ createApp({
             doctorPayments: [],
             doctorPaymentSummary: {},
             doctorProfile: null,
+            // Doctor "My Patients" tab state
+            doctorPatients: [],              // Full list from API
+            filteredDoctorPatients: [],      // After local search filter
+            doctorPatientSearch: '',         // Search input value
+            selectedPatientHistory: null,    // Full history object for a selected patient
+            editingHistoryRecord: null,      // Appointment record being edited in history view
             availabilityForm: {
                 availability_days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
                 availability_start: '09:00',
@@ -171,6 +180,8 @@ createApp({
             bookingDeptFilter: '',
             bookingDoctorSearch: '',
             filteredBookingDoctors: [],
+            // Departments displayed as selectable buttons on patient booking tab
+            bookingDepartments: [],
             selectedDoctorProfile: null,
             bookingForm: {
                 doctor_id: '',
@@ -274,6 +285,12 @@ createApp({
             this.paymentAppointment = null;
             this.editingDoctorId = null;
             this.editingPatientId = null;
+            // Reset doctor patients panel
+            this.selectedPatientHistory = null;
+            this.editingHistoryRecord = null;
+            // Reset admin doctor-patients view
+            this.adminViewDoctorPatients = null;
+            this.adminDoctorPatientsList = [];
         },
         // Success-only toast helper; errors are never rendered to UI by design.
         showSuccess(message) {
@@ -336,6 +353,8 @@ createApp({
                 await this.loadDoctorProfile();
             }
             if (this.hasRole('patient')) {
+                // Load departments for the department selection buttons on booking tab
+                await this.loadBookingDepartments();
                 await this.loadDoctorsForBooking();
                 await this.loadPatientAppointments();
                 await this.loadPayments();
@@ -741,6 +760,16 @@ createApp({
                 await this.logError(error, 'deletePatient');
             }
         },
+        // Opens the "Doctor's Patients" panel from the admin doctors list.
+        // Loads all unique patients assigned to that doctor via the admin endpoint.
+        async viewDoctorPatients(doc) {
+            try {
+                this.adminViewDoctorPatients = doc;
+                this.adminDoctorPatientsList = await apiCall(`/admin/doctors/${doc.id}/patients`, 'GET');
+            } catch (error) {
+                await this.logError(error, 'viewDoctorPatients');
+            }
+        },
         // Loads admin appointment visibility table.
         async loadAdminAppointments() {
             try {
@@ -769,7 +798,20 @@ createApp({
         // --- Doctor methods ---
         async loadDoctorAppointments() {
             try {
-                this.doctorAppointments = await apiCall('/doctor/appointments', 'GET');
+                const raw = await apiCall('/doctor/appointments', 'GET');
+                // Sort so upcoming (Booked + future date) appear first,
+                // then past/completed, both sorted chronologically within each group.
+                const today = new Date().toISOString().slice(0, 10);
+                this.doctorAppointments = (raw || []).sort((a, b) => {
+                    const aUp = a.status === 'Booked' && a.date >= today;
+                    const bUp = b.status === 'Booked' && b.date >= today;
+                    // Upcoming appointments bubble to the top
+                    if (aUp && !bUp) return -1;
+                    if (!aUp && bUp) return 1;
+                    // Within same group sort by date then time ascending
+                    if (a.date !== b.date) return a.date.localeCompare(b.date);
+                    return (a.time || '').localeCompare(b.time || '');
+                });
                 this.filteredDoctorAppointments = this.doctorAppointments.slice();
                 this.$nextTick(() => this.renderDoctorCharts());
             } catch (error) {
@@ -797,6 +839,82 @@ createApp({
         clearDoctorPayFilters() {
             this.doctorPayFilters = { date: '', patient: '', status: '' };
             this.filteredDoctorPayments = this.doctorPayments.slice();
+        },
+
+        // Returns true when appointment is Booked and its date is today or in the future.
+        // Used to apply the upcoming-appointment highlight colour in the table row.
+        isUpcomingAppointment(apt) {
+            if (apt.status !== 'Booked') return false;
+            const today = new Date().toISOString().slice(0, 10);
+            return apt.date >= today;
+        },
+
+        // Loads the full patient list for the doctor's "My Patients" tab.
+        async loadDoctorPatients() {
+            try {
+                this.doctorPatients = await apiCall('/doctor/patients', 'GET');
+                this.filteredDoctorPatients = this.doctorPatients.slice();
+            } catch (error) {
+                await this.logError(error, 'loadDoctorPatients');
+            }
+        },
+        // Filters the doctor's patient list by the search field (case-insensitive).
+        filterDoctorPatients() {
+            const q = (this.doctorPatientSearch || '').trim().toLowerCase();
+            if (!q) {
+                this.filteredDoctorPatients = this.doctorPatients.slice();
+                return;
+            }
+            this.filteredDoctorPatients = this.doctorPatients.filter(p =>
+                (p.name || '').toLowerCase().includes(q) ||
+                (p.email || '').toLowerCase().includes(q) ||
+                (p.phone || '').toLowerCase().includes(q)
+            );
+        },
+        // Fetches and displays the full treatment history for a patient.
+        async viewPatientHistory(patientId) {
+            try {
+                const data = await apiCall(`/doctor/patients/${patientId}/history`, 'GET');
+                this.selectedPatientHistory = data;
+                this.editingHistoryRecord = null;
+            } catch (error) {
+                await this.logError(error, 'viewPatientHistory');
+            }
+        },
+        // Closes the patient history panel and resets editing state.
+        closePatientHistory() {
+            this.selectedPatientHistory = null;
+            this.editingHistoryRecord = null;
+        },
+        // Opens the inline treatment editor for a record in the history view.
+        startEditTreatmentFromHistory(record) {
+            this.editingHistoryRecord = record;
+            // Pre-fill the shared treatmentEditForm so the same save method works.
+            this.treatmentEditForm = {
+                diagnosis: record.treatment ? record.treatment.diagnosis : '',
+                prescription: record.treatment ? record.treatment.prescription : '',
+                notes: record.treatment ? record.treatment.notes : ''
+            };
+            // Set selectedAppointment so updateTreatment resolves the correct ID.
+            this.selectedAppointment = { id: record.appointment_id };
+        },
+        // Saves a treatment edit that was triggered from the patient history view.
+        async saveHistoryTreatmentEdit() {
+            if (!this.editingHistoryRecord) return;
+            try {
+                await apiCall(
+                    `/doctor/appointments/${this.editingHistoryRecord.appointment_id}/treatment`,
+                    'PUT',
+                    this.treatmentEditForm
+                );
+                this.editingHistoryRecord = null;
+                this.selectedAppointment = null;
+                // Reload history to reflect updated record
+                await this.viewPatientHistory(this.selectedPatientHistory.patient.id);
+                this.showSuccess('Treatment updated.');
+            } catch (error) {
+                await this.logError(error, 'saveHistoryTreatmentEdit');
+            }
         },
         async loadDoctorProfile() {
             try {
@@ -896,6 +1014,15 @@ createApp({
         },
 
         // --- Patient methods ---
+        // Loads departments for the patient booking department-selection buttons.
+        // Uses the public /departments endpoint so no auth issues.
+        async loadBookingDepartments() {
+            try {
+                this.bookingDepartments = await apiCall('/departments', 'GET');
+            } catch (error) {
+                await this.logError(error, 'loadBookingDepartments');
+            }
+        },
         async loadDoctorsForBooking() {
             try {
                 this.availableDoctors = await apiCall('/doctors', 'GET');

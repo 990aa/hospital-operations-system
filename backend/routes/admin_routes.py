@@ -399,6 +399,68 @@ def delete_doctor(id):
     return jsonify({"message": "Doctor deleted"})
 
 
+@admin_bp.route("/admin/doctors/<int:doctor_id>/patients", methods=["GET"])
+@roles_required("admin")
+def admin_doctor_patients(doctor_id):
+    """
+    List all unique patients assigned to a specific doctor.
+
+    Allows admin to inspect and then edit (via the patient update endpoint)
+    any patient who has had at least one appointment with the given doctor.
+
+    Args:
+        doctor_id: Doctor record ID to look up patients for.
+
+    Returns:
+        JSON array of patient summaries with appointment statistics.
+    """
+    doctor = Doctor.query.get_or_404(doctor_id)
+
+    # Fetch all appointments for this doctor to build unique patient set
+    appointments = Appointment.query.filter_by(doctor_id=doctor.id).all()
+
+    seen = {}
+    for apt in appointments:
+        pid = apt.patient_id
+        if pid not in seen:
+            seen[pid] = {
+                "patient": apt.patient,
+                "total": 0,
+                "completed": 0,
+                "booked": 0,
+                "last_visit": None,
+            }
+        seen[pid]["total"] += 1
+        if apt.status == "Completed":
+            seen[pid]["completed"] += 1
+            if seen[pid]["last_visit"] is None or apt.date > seen[pid]["last_visit"]:
+                seen[pid]["last_visit"] = apt.date
+        elif apt.status == "Booked":
+            seen[pid]["booked"] += 1
+
+    result = []
+    for pid, info in seen.items():
+        patient = info["patient"]
+        result.append(
+            {
+                "patient_id": patient.id,
+                "user_id": patient.user_id,
+                "name": patient.user.name,
+                "email": patient.user.email,
+                "phone": patient.user.phone,
+                "medical_history": patient.medical_history or "",
+                "notification_pref": patient.notification_pref or "email",
+                "total_appointments": info["total"],
+                "completed_appointments": info["completed"],
+                "booked_appointments": info["booked"],
+                "last_visit": info["last_visit"],
+            }
+        )
+
+    result.sort(key=lambda x: (x["last_visit"] or ""), reverse=True)
+    return jsonify(result)
+
+
 # Patient Management Routes
 
 
