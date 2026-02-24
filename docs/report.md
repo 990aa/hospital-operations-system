@@ -244,7 +244,7 @@ The following official documentation and GitHub repositories were consulted as p
 
 This project — including all source code, HTML templates, CSS, JavaScript, SQL queries, test cases, and documentation — was written entirely by me without the assistance of any AI language model tools.
 
-All implementation decisions, architecture choices, algorithmic logic, and written text in this report represent my own work. External references used are cited in Section 15.
+All implementation decisions, architecture choices, algorithmic logic, and written text in this report represent my own work. External references used are cited in Section 12.
 
 ---
 
