@@ -1076,8 +1076,30 @@ The `index.html` template is divided into role-scoped regions controlled by `v-i
 - `test_cache.py` — verifies cache hit/miss behaviour and invalidation.
 - `test_celery.py` — verifies task execution with `CELERY_TASK_ALWAYS_EAGER=True` (tasks run synchronously in tests).
 
-### Running Tests
+---
 
-```bash
-uv run pytest tests/ -v
-```
+## 12. Challenges and Solutions
+
+### 12.1 Concurrent Booking Race Condition
+
+**Challenge:** Multiple patients attempting to book the last available slot simultaneously could each read the slot as available and commit conflicting appointments.
+
+**Solution:** A unique database index on `(doctor_id, date, time)` raises an `IntegrityError` on the second commit. The booking function catches this, rolls back, and retries up to three times. This concurrency approach is efficient in the common case while safe in the edge case.
+
+### 12.2 Date Serialisation Inconsistency
+
+**Challenge:** Database date columns could return either Python `date` objects or plain strings depending on context, causing `AttributeError` exceptions during JSON serialisation.
+
+**Solution:** A `_normalize_date_str` helper function accepts both string and date-object inputs and consistently returns a `YYYY-MM-DD` string. All serialisation paths use this function.
+
+### 12.3 Flask App Context in Celery Tasks
+
+**Challenge:** Celery worker processes run outside the Flask request context. Database models and Flask extensions are not available by default.
+
+**Solution:** A custom `ContextTask` base class overrides Celery's `__call__` method to execute each task body inside a `with app.app_context()` block, making all Flask resources available transparently.
+
+### 12.4 Multi-Variant Cache Invalidation
+
+**Challenge:** Patient appointment caches are keyed by both `patient_id` and `status_filter`, producing four cache entries per patient. A status-changing write must invalidate all four.
+
+**Solution:** Every relevant write operation explicitly calls `cache.delete()` for all four key variants (None, Booked, Completed, Cancelled). This guarantees consistency without a more complex cache tagging system.
