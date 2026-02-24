@@ -162,6 +162,7 @@ Profile extension for doctor users:
 - `slot_minutes` — integer, e.g. 30 for 30-minute slots
 - `is_available` — boolean flag to globally enable/disable the doctor
 - `notification_pref` — boolean, whether to send monthly email reports
+- `appointment_cost` — float, fixed consultation fee in ₹ set by admin (default 500.0)
 - Relationships: `user`, `department`, `appointments`
 
 ### `Patient` Model
@@ -170,8 +171,8 @@ Profile extension for patient users:
 
 - `id`, `user_id` (FK → User)
 - `date_of_birth`, `gender`, `address`, `blood_group`, `emergency_contact`
-- `medical_history` — text blob accumulating short summaries appended each time a treatment is completed
-- `notification_pref`
+- `medical_history` — text blob accumulating short summaries appended each time a treatment is completed (read-only to patients; managed by clinical workflow)
+- `notification_pref` — comma-separated channel string: `"email"`, `"sms"`, or `"email,sms"`; patients choose via checkboxes in profile settings
 - Relationships: `user`, `appointments`, `export_jobs`
 
 ### `Appointment` Model
@@ -202,7 +203,7 @@ Financial ledger entries:
 
 - `id`, `appointment_id` (FK → Appointment), `patient_id` (FK → Patient)
 - `amount` — float. Positive = charge, negative = refund
-- `payment_method` — e.g. `"Credit Card"`, `"Debit Card"`, `"UPI"`
+- `payment_method` — `"credit_card"` or `"debit_card"` only (insurance not accepted)
 - `transaction_id` — randomly generated UUID-style string
 - `status` — `"completed"` or `"refunded"`
 - `card_last_four` — last 4 digits only (never store full card)
@@ -485,7 +486,7 @@ Books an appointment:
 
 ### `GET /api/my-appointments`
 
-Returns the current patient's appointments. Supports `status` filter. Includes linked treatment data (if completed) and payment status (whether payment has been made).
+Returns the current patient's appointments. Supports `status` filter. Includes linked treatment data (if completed), payment status (whether payment has been made), and `appointment_cost` (the doctor's fixed fee, so the frontend can display and pre-populate the payment form with the correct amount).
 
 ### `POST /api/appointments/<id>/cancel`
 
@@ -503,9 +504,12 @@ Returns the current status of a specific appointment (used to poll for updates a
 Creates a payment for a booked appointment:
 1. Verifies appointment belongs to this patient.
 2. Verifies no payment already exists.
-3. Validates payment method and card details.
-4. Creates a `Payment` record (stores only last 4 digits of card).
-5. Returns payment confirmation with transaction ID.
+3. Derives the payment amount from the doctor's `appointment_cost` (not from the request body — the amount is fixed and cannot be overridden by the client).
+4. Validates `payment_method` — only `"credit_card"` or `"debit_card"` are accepted.
+5. Creates a `Payment` record (stores only last 4 digits of card).
+6. Returns payment confirmation with transaction ID.
+
+All monetary values use Indian Rupees (₹).
 
 ### `GET /api/patient/payments`
 
@@ -832,10 +836,15 @@ All reactive state is declared in `data()`. Key groups:
 - `patientTab` — active tab: `"book"`, `"appointments"`, `"payments"`, `"profile"`
 - `bookingDepartments` — array of departments for the booking department-browser
 - `selectedBookingDepartment` — currently selected department ID filter
-- `availableDoctors` — array of doctors shown for booking
+- `availableDoctors` — array of doctors shown for booking as profile cards
+- `bookingDeptFilter` — currently selected department ID filter
+- `bookingDoctorSearch` — name search string for filtering booking doctor cards
+- `filteredBookingDoctors` — computed/filtered list of doctor cards
 - `myAppointments` — patient's own appointments
 - `selectedAppointment` — appointment being acted on (cancel, pay, view treatment)
-- `paymentForm` — payment form state
+- `paymentForm` — payment form state; `amount` is auto-set from `appointment.appointment_cost` and is read-only
+- `profileForm.notif_email` — boolean checkbox for email notifications
+- `profileForm.notif_sms` — boolean checkbox for SMS notifications
 
 ### UI State
 - `successMessage`, `isLoading`, various modal/dropdown toggles
@@ -869,12 +878,14 @@ All reactive state is declared in `data()`. Key groups:
 
 ### Patient Methods
 - `loadBookingDepartments()` — fetches `/patient/departments`
-- `selectBookingDepartment(deptId)` — sets filter and calls `loadDoctorsForBooking()`
-- `loadDoctorsForBooking()` — fetches `/api/doctors?department_id={filter}`
+- `selectBookingDepartment(deptId)` — sets `bookingDeptFilter` and filters doctor cards
+- `loadDoctorsForBooking()` — fetches `/api/doctors`, then filters by `bookingDeptFilter` and `bookingDoctorSearch`
+- `onDoctorCardClick(doc)` — sets `bookingForm.doctor_id`, triggers `onDoctorChange()`
 - `bookAppointment()` — `POST /api/appointments`
 - `loadMyAppointments()` — fetches `/api/my-appointments`
 - `cancelAppointment(id)` — `POST /api/appointments/{id}/cancel`
-- `makePayment()` — `POST /api/patient/payment/appointment/{id}`
+- `showPaymentForm(appointment)` — opens payment form, sets `paymentForm.amount` from `appointment.appointment_cost`
+- `processPayment()` / `makePayment()` — `POST /api/patient/payment/appointment/{id}`
 - `initiateExport()` — `POST /api/export/treatments`
 - `pollExportStatus()` — `GET /api/export/treatments/status` on interval until complete
 
@@ -910,8 +921,9 @@ The `index.html` template is divided into role-scoped regions controlled by `v-i
 
 ### Patient Dashboard (`v-if="activeRole === 'patient'"`)
 - Nav tabs: Book Appointment, My Appointments, Payments, Profile.
-- Book tab: Department buttons (`v-for="dept in bookingDepartments"`), then filtered doctor cards, then a booking modal.
-- My Appointments tab: appointment cards with treatment detail accordion, cancel and pay buttons as appropriate.
+- Book tab: Department filter buttons, text search input for doctor name, then scrollable grid of doctor profile cards (name, dept, availability, slot, fee ₹, bio). Clicking a card selects that doctor. Below the cards sits the date picker and booking confirmation.
+- My Appointments tab: appointment rows with treatment detail accordion; upcoming (Booked + future date) rows highlighted in light green. Cancel and Pay buttons as appropriate.
+- Profile tab: Email/SMS checkboxes for notification preferences; medical history displayed as read-only text (not editable by patient).
 
 ---
 
@@ -921,9 +933,9 @@ The `index.html` template is divided into role-scoped regions controlled by `v-i
 
 1. Patient loads app → `checkCurrentUser()` → returns `{role: "patient", ...}` → `loadInitialDataForRole()` is called.
 2. `loadInitialDataForRole()` calls `loadBookingDepartments()` → `GET /api/patient/departments` → populates department buttons.
-3. Patient clicks "Cardiology" → `selectBookingDepartment(3)` → `loadDoctorsForBooking()` → `GET /api/doctors?department_id=3` → list of cardiologists appears.
-4. Patient clicks "Book" on Dr. Smith → modal opens, `loadDoctorAvailability(dr_id)` → `GET /api/doctors/5/availability` → available dates/slots shown.
-5. Patient picks date and clicks "Confirm Booking" → `bookAppointment()` → `POST /api/appointments` with `{doctor_id: 5, date: "2026-03-10", notes: "..."}`.
+3. Patient browses doctor profile cards (all doctors visible). Selects "Cardiology" filter → only cardiologists shown. Types in search box to narrow by name.
+4. Patient clicks a doctor card → that doctor is selected; a date picker appears.
+5. Patient picks date and clicks "Confirm Booking" → `bookAppointment()` → `POST /api/appointments` with `{doctor_id: 5, date: "2026-03-10"}`.
 6. Backend: generates slots for that date, removes booked ones, assigns first free slot, creates Appointment, invalidates caches, returns `{appointment_id: 42}`.
 7. Success message shown. `loadMyAppointments()` refreshed.
 

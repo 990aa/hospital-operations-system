@@ -467,6 +467,10 @@
                                         <label class="form-label">Slot Minutes</label>
                                         <input type="number" v-model="newDoctor.slot_minutes" class="form-control" min="10" max="60" step="1" required>
                                     </div>
+                                    <div class="col-md-4 mb-2">
+                                        <label class="form-label">Consultation Fee (₹)</label>
+                                        <input type="number" v-model="newDoctor.appointment_cost" class="form-control" min="0" step="1" required>
+                                    </div>
                                     <div class="col-md-12 mb-2">
                                         <textarea v-model="newDoctor.bio" class="form-control" rows="2" placeholder="Doctor profile"></textarea>
                                     </div>
@@ -634,7 +638,12 @@
                     </div>
                     <div class="card">
                         <div class="card-body">
-                            <table class="table table-hover">
+                            <!-- Legend: upcoming appointments highlighted green -->
+                            <div class="mb-2 small">
+                                <span style="display:inline-block;width:14px;height:14px;background:#e8f5e9;border:1px solid #a5d6a7;vertical-align:middle;"></span>
+                                Upcoming (Booked, today or future)
+                            </div>
+                            <table class="table">
                                 <thead>
                                     <tr>
                                         <th>Date</th>
@@ -649,7 +658,8 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <tr v-for="apt in adminAppointments" :key="apt.id">
+                                    <tr v-for="apt in adminAppointments" :key="apt.id"
+                                        :style="isUpcomingAppointment(apt) ? 'background-color:#e8f5e9;' : ''">
                                         <td>{{ apt.date }}</td>
                                         <td>{{ apt.time }}</td>
                                         <td>{{ apt.patient_name }}</td>
@@ -680,9 +690,9 @@
                                 </thead>
                                 <tbody>
                                     <tr>
-                                        <td>${{ adminPaymentSummary.total_collected || 0 }}</td>
-                                        <td>${{ adminPaymentSummary.total_refunded || 0 }}</td>
-                                        <td>${{ adminPaymentSummary.net || 0 }}</td>
+                                        <td>₹{{ adminPaymentSummary.total_collected || 0 }}</td>
+                                        <td>₹{{ adminPaymentSummary.total_refunded || 0 }}</td>
+                                        <td>₹{{ adminPaymentSummary.net || 0 }}</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -709,7 +719,6 @@
                                         <option value="">All Methods</option>
                                         <option value="credit_card">Credit Card</option>
                                         <option value="debit_card">Debit Card</option>
-                                        <option value="insurance">Insurance</option>
                                     </select>
                                 </div>
                                 <div class="col-md-2">
@@ -737,7 +746,7 @@
                                         <td>{{ payment.payment_date ? payment.payment_date.split('T')[0] : 'N/A' }}</td>
                                         <td>{{ payment.patient_name }}</td>
                                         <td>{{ payment.doctor_name }}</td>
-                                        <td>${{ payment.amount }}</td>
+                                        <td>₹{{ payment.amount }}</td>
                                         <td>{{ payment.payment_method }}</td>
                                         <td>{{ payment.status }}</td>
                                         <td>{{ payment.transaction_id }}</td>
@@ -902,9 +911,9 @@
                                 </thead>
                                 <tbody>
                                     <tr>
-                                        <td>${{ doctorPaymentSummary.total_earned || 0 }}</td>
-                                        <td>${{ doctorPaymentSummary.total_refunded || 0 }}</td>
-                                        <td>${{ doctorPaymentSummary.net_earned || 0 }}</td>
+                                        <td>₹{{ doctorPaymentSummary.total_earned || 0 }}</td>
+                                        <td>₹{{ doctorPaymentSummary.total_refunded || 0 }}</td>
+                                        <td>₹{{ doctorPaymentSummary.net_earned || 0 }}</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -943,7 +952,7 @@
                                     <tr v-for="payment in filteredDoctorPayments" :key="payment.id">
                                         <td>{{ payment.payment_date ? payment.payment_date.split('T')[0] : 'N/A' }}</td>
                                         <td>{{ payment.patient_name }}</td>
-                                        <td>${{ payment.amount }}</td>
+                                        <td>₹{{ payment.amount }}</td>
                                         <td>{{ payment.status }}</td>
                                         <td>{{ payment.transaction_id }}</td>
                                     </tr>
@@ -1188,26 +1197,38 @@
                                         <input v-model="bookingDoctorSearch" @input="filterBookingDoctors" class="form-control" placeholder="Doctor name">
                                     </div>
                                 </div>
+                                <!-- Doctor profile cards grid — click any card to select a doctor -->
                                 <div class="mb-3">
-                                    <label class="form-label">Select Doctor</label>
-                                    <select v-model="bookingForm.doctor_id" @change="onDoctorChange" class="form-select" required>
-                                        <option value="">Choose a doctor</option>
-                                        <option v-for="doc in filteredBookingDoctors" :key="doc.id" :value="doc.id">
-                                            {{ doc.name }} - {{ doc.department }}
-                                        </option>
-                                    </select>
+                                    <label class="form-label fw-semibold">Select a Doctor</label>
+                                    <p v-if="filteredBookingDoctors.length === 0" class="text-muted small">No doctors found for the selected filters.</p>
+                                    <div class="row g-2">
+                                        <div class="col-md-6 col-lg-4" v-for="doc in filteredBookingDoctors" :key="doc.id">
+                                            <div :class="['card h-100', String(bookingForm.doctor_id) === String(doc.id) ? 'border-success border-2' : 'border']"
+                                                style="cursor:pointer;"
+                                                @click="bookingForm.doctor_id = String(doc.id); onDoctorChange()">
+                                                <div class="card-body p-2">
+                                                    <div class="fw-semibold">{{ doc.name }}</div>
+                                                    <div class="small text-muted">{{ doc.department }}</div>
+                                                    <div class="small">{{ (doc.availability_days || []).join(', ') }} | {{ doc.availability_start }}-{{ doc.availability_end }}</div>
+                                                    <div class="small">{{ doc.slot_minutes }} min/slot &bull; Fee: ₹{{ doc.appointment_cost || 500 }}</div>
+                                                    <div v-if="doc.bio" class="small text-muted fst-italic mt-1">{{ doc.bio }}</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                                 <div v-if="selectedDoctor" class="mb-3">
                                     <div class="card border">
-                                        <div class="card-header">Doctor Details</div>
+                                        <div class="card-header">Selected Doctor Details</div>
                                         <div class="card-body p-2">
                                             <table class="table table-sm table-bordered mb-2">
                                                 <tbody>
                                                     <tr><th>Doctor ID</th><td>{{ selectedDoctor.id }}</td><th>Name</th><td>{{ selectedDoctor.name }}</td></tr>
-                                                    <tr><th>Department</th><td>{{ selectedDoctor.department }}</td><th>Specialization</th><td>{{ selectedDoctor.department }}</td></tr>
-                                                    <tr><th>Email</th><td>{{ selectedDoctor.email || 'N/A' }}</td><th>Phone</th><td>{{ selectedDoctor.phone || 'N/A' }}</td></tr>
-                                                    <tr><th>Availability Days</th><td>{{ selectedDoctor.availability_days.join(', ') }}</td><th>Hours</th><td>{{ selectedDoctor.availability_start }}-{{ selectedDoctor.availability_end }}</td></tr>
-                                                    <tr><th>Slot Duration</th><td>{{ selectedDoctor.slot_minutes }} mins</td><th>Bio</th><td>{{ selectedDoctor.bio || 'N/A' }}</td></tr>
+                                                    <tr><th>Department</th><td>{{ selectedDoctor.department }}</td><th>Email</th><td>{{ selectedDoctor.email || 'N/A' }}</td></tr>
+                                                    <tr><th>Phone</th><td>{{ selectedDoctor.phone || 'N/A' }}</td><th>Availability</th><td>{{ (selectedDoctor.availability_days || []).join(', ') }}</td></tr>
+                                                    <tr><th>Hours</th><td>{{ selectedDoctor.availability_start }}-{{ selectedDoctor.availability_end }}</td><th>Slot</th><td>{{ selectedDoctor.slot_minutes }} mins</td></tr>
+                                                    <tr><th>Consultation Fee</th><td colspan="3"><strong>₹{{ selectedDoctor.appointment_cost || 500 }}</strong></td></tr>
+                                                    <tr><th>Bio</th><td colspan="3">{{ selectedDoctor.bio || 'N/A' }}</td></tr>
                                                 </tbody>
                                             </table>
                                             <p class="mb-1 fw-semibold">Upcoming Availability (7 days):</p>
@@ -1257,6 +1278,11 @@
                     </div>
                     <div class="card">
                         <div class="card-body">
+                            <!-- Legend: upcoming appointments highlighted green -->
+                            <div class="mb-2 small">
+                                <span style="display:inline-block;width:14px;height:14px;background:#e8f5e9;border:1px solid #a5d6a7;vertical-align:middle;"></span>
+                                Upcoming (Booked, today or future)
+                            </div>
                             <table class="table">
                                 <thead>
                                     <tr>
@@ -1270,7 +1296,8 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <tr v-for="apt in filteredPatientAppointments" :key="apt.id">
+                                    <tr v-for="apt in filteredPatientAppointments" :key="apt.id"
+                                        :style="isUpcomingAppointment(apt) ? 'background-color:#e8f5e9;' : ''">
                                         <td>{{ apt.date }}</td>
                                         <td>{{ apt.time }}</td>
                                         <td>{{ apt.doctor_name }}</td>
@@ -1288,21 +1315,20 @@
                         </div>
                     </div>
 
-                    <!-- Payment Form (conditional display) -->
+                    <!-- Payment Form (fixed amount — no editable amount field) -->
                     <div v-if="paymentAppointment" class="card mt-3">
                         <div class="card-header">Make Payment</div>
                         <div class="card-body">
                             <form @submit.prevent="processPayment">
                                 <div class="mb-3">
-                                    <label class="form-label">Amount ($)</label>
-                                    <input type="number" v-model="paymentForm.amount" class="form-control" step="0.01" required>
+                                    <label class="form-label fw-semibold">Consultation Fee</label>
+                                    <div class="form-control bg-light fw-semibold">₹{{ paymentForm.amount }}</div>
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Payment Method</label>
                                     <select v-model="paymentForm.payment_method" class="form-select" required>
                                         <option value="credit_card">Credit Card</option>
                                         <option value="debit_card">Debit Card</option>
-                                        <option value="insurance">Insurance</option>
                                     </select>
                                 </div>
                                 <div class="mb-3">
@@ -1357,7 +1383,7 @@
                                     <tr v-for="payment in filteredPayments" :key="payment.id">
                                         <td>{{ payment.payment_date ? payment.payment_date.split('T')[0] : 'N/A' }}</td>
                                         <td>{{ payment.doctor_name }}</td>
-                                        <td>${{ payment.amount }}</td>
+                                        <td>₹{{ payment.amount }}</td>
                                         <td>{{ payment.payment_method }}</td>
                                         <td><span class="badge badge-completed">{{ payment.status }}</span></td>
                                         <td>{{ payment.transaction_id }}</td>
@@ -1379,16 +1405,19 @@
                             </div>
                             <div class="mb-2">
                                 <label class="form-label">Medical History</label>
-                                <textarea v-model="profileForm.history" class="form-control" rows="3"></textarea>
+                                <!-- Medical history is auto-updated by doctors after each consultation. Read-only for patients. -->
+                                <div class="form-control" style="min-height:80px;white-space:pre-wrap;background:#f8f9fa;color:#424242;">{{ profileForm.history || 'No medical history recorded yet.' }}</div>
                             </div>
                             <div class="mb-2">
-                                <label class="form-label">Notification Preference</label>
-                                <select v-model="profileForm.notification_pref" class="form-select">
-                                    <option value="email">Email</option>
-                                    <option value="sms">SMS</option>
-                                    <option value="chat">Chat</option>
-                                    <option value="none">None</option>
-                                </select>
+                                <label class="form-label d-block">Notification Preference</label>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" id="notifEmail" v-model="profileForm.notif_email">
+                                    <label class="form-check-label" for="notifEmail">Email</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" id="notifSms" v-model="profileForm.notif_sms">
+                                    <label class="form-check-label" for="notifSms">SMS</label>
+                                </div>
                             </div>
                             <button type="submit" class="btn btn-hospital-primary">Save Profile</button>
                         </form>

@@ -30,7 +30,7 @@
 
 ## 1. Abstract
 
-This report describes the design and implementation of a Hospital Management System, a full-stack web application that digitalises and streamlines core hospital operations. The system manages patients, doctors, appointments, treatments, and payments through a unified platform that enforces role-based access control. Three distinct user roles are provided: administrators who configure and oversee the entire system, doctors who manage their schedules and patient treatment records, and patients who self-register, book appointments, and view their medical history. The backend is implemented in Python using the Flask micro-framework with an SQLite relational database, Redis for caching, and Celery for asynchronous background job execution. The frontend is a single-page application built with Vue.js 3. The system includes scheduled jobs for daily patient appointment reminders and monthly doctor activity reports delivered via email, as well as a user-triggered CSV export of treatment history. The resulting application is modular, maintainable, and demonstrates practical application of core software engineering principles including RESTful API design, role-based access control, event-driven background processing, and optimistic concurrency control.
+This report describes the design and implementation of a Hospital Management System, a full-stack web application that digitalises and streamlines core hospital operations. The system manages patients, doctors, appointments, treatments, and payments through a unified platform that enforces role-based access control. Three distinct user roles are provided: administrators who configure and oversee the entire system, doctors who manage their schedules and patient treatment records, and patients who self-register, book appointments, and view their medical history. The backend is implemented in Python using the Flask micro-framework with an SQLite relational database, Redis for caching, and Celery for asynchronous background job execution. The frontend is a single-page application built with Vue.js 3. The system includes scheduled jobs for daily patient appointment reminders and monthly doctor activity reports delivered via email, as well as a user-triggered CSV export of treatment history. The resulting application is modular, maintainable, and demonstrates practical application of core software engineering principles including RESTful API design, role-based access control, event-driven background processing, and optimistic concurrency control. The system has a comprehensive automated test suite of 77 passing tests.
 
 ---
 
@@ -157,11 +157,15 @@ The database comprises eight core entities:
 
 **Structured Availability Storage:** Doctor availability is stored as three structured columns — `availability_days` (comma-separated weekday abbreviations), `availability_start` and `availability_end` (HH:MM strings), and `slot_minutes` (integer duration). This enables the backend to programmatically generate all valid time slots and compare them against existing bookings without complex date arithmetic.
 
+**Fixed Consultation Fee per Doctor:** The `Doctor` model includes an `appointment_cost` column (float, default ₹500) set by the administrator. This value is the single source of truth for each appointment's payment amount; the patient cannot override it during the payment step, ensuring billing consistency.
+
 **Appointment Uniqueness Constraint:** A database-level unique index on `(doctor_id, date, time)` prevents race conditions when multiple patients attempt to book the same slot simultaneously, providing a final guarantee beyond the application-level retry logic.
 
 **Follow-up Appointment Traceability:** An `is_follow_up` boolean and `follow_up_source_appointment_id` self-referencing foreign key on the Appointment table allow doctors to schedule follow-up consultations from within the completion workflow while maintaining a clear parent-child relationship.
 
 **Payment as Audit Ledger:** Payment records use positive amounts for completed transactions and negative amounts for refunds. This ledger-style approach allows net figures to be computed with simple arithmetic and maintains a full immutable audit trail.
+
+**Notification Preference as Comma-Separated Channels:** The `Patient` model's `notification_pref` column stores a comma-separated list of opted-in channels (`email`, `sms`, or `email,sms`). This replaces the single-value enum from earlier versions, allowing patients to opt into multiple channels simultaneously.
 
 ### 6.3 Entity Relationships
 
@@ -202,11 +206,11 @@ This approach is fair (first-come-first-served, earliest slot first) and safe un
 
 ### 7.3 Treatment and Patient History
 
-When a doctor marks an appointment as completed, they record a diagnosis, prescription, and optional notes. This creates a `Treatment` record. Simultaneously, a short summary is appended to the patient's cumulative `medical_history` text field for a quick plain-text log. Doctors can subsequently edit any treatment record they originally created, either through the appointment details modal or through the "My Patients" tab. This allows corrections to be made post-consultation and ensures the history reflects the most accurate clinical information.
+When a doctor marks an appointment as completed, they record a diagnosis, prescription, and optional notes. This creates a `Treatment` record. Simultaneously, a short summary is appended to the patient's cumulative `medical_history` text field for a quick plain-text log. Doctors can subsequently edit any treatment record they originally created, either through the appointment details modal or through the "My Patients" tab. Patients cannot manually edit their medical history; it is managed exclusively by the clinical workflow to maintain data integrity.
 
 ### 7.4 Payment Portal
 
-The payment portal simulates an actual payment gateway to demonstrate the integration architecture without connecting to a live payment provider. When a patient pays for a booked appointment, a `Payment` record is created with `status="completed"`, the payment method, and only the last four digits of the provided card number. A randomly generated transaction ID serves as an audit reference.
+The payment portal simulates an actual payment gateway to demonstrate the integration architecture without connecting to a live payment provider. The consultation fee for each appointment is fixed by the administator at the doctor level via the `appointment_cost` field. When a patient initiates payment, the amount is read directly from the doctor's `appointment_cost` and displayed as read-only in the interface — the patient cannot alter it. All monetary values are displayed in Indian Rupees (₹). Only credit card and debit card are accepted as payment methods; insurance is not supported. A `Payment` record is created with `status="completed"`, the payment method, and only the last four digits of the provided card number. A randomly generated transaction ID serves as an audit reference.
 
 When a patient cancels a paid appointment, the system automatically creates a corresponding refund `Payment` record with a negative amount and `status="refunded"`. The constraint that payment must precede consultation completion is enforced at the backend route level, ensuring the financial workflow is correctly ordered.
 
@@ -216,11 +220,13 @@ Doctors configure their availability through the Availability tab: they select w
 
 ### 7.6 Admin Capabilities
 
-The administrator has comprehensive system oversight including creating, editing, and deleting doctors and patients; managing departments; viewing all appointments with multi-dimensional filters; auditing all payment transactions; and accessing aggregate statistics. A dedicated "Doctor's Patients" panel allows the admin to inspect all patients linked to any specific doctor and edit them directly without switching between tabs.
+The administrator has comprehensive system oversight including creating, editing, and deleting doctors and patients; managing departments; viewing all appointments with multi-dimensional filters; auditing all payment transactions; and accessing aggregate statistics. When creating or editing a doctor, the administrator sets the **Consultation Fee (₹)** — the fixed cost patients will be charged for appointments with that doctor. A dedicated "Doctor's Patients" panel allows the admin to inspect all patients linked to any specific doctor and edit them directly without switching between tabs.
 
 ### 7.7 Patient Capabilities
 
-Registered patients can browse doctors organised by department, view full doctor profiles including bio, contact details, and upcoming slot availability, and book appointments. The department-first browsing UI shows all available medical specialisations as selectable buttons, filtering the doctor list on selection. Before each consultation, patients complete a payment step. After consultation, they can view their full treatment history including diagnosis, prescription, and doctor's notes, and export their complete treatment record as a CSV file.
+Registered patients can browse doctors as interactive profile cards, each showing the doctor's name, department, availability, slot duration, consultation fee, and bio. Cards can be filtered by department selection or searched by name, allowing patients to quickly find the appropriate specialist. Clicking a card selects that doctor for booking. The department-first browsing UI shows all available medical specialisations as selectable buttons, filtering the doctor list on selection. Before each consultation, patients complete a payment step. After consultation, they can view their full treatment history including diagnosis, prescription, and doctor's notes in a read-only format; history is updated automatically by the system and cannot be manually edited. Patients can also export their complete treatment record as a CSV file.
+
+Notification preferences are configured via Email and SMS checkboxes in the profile settings. Both channels can be enabled simultaneously, ensuring patients receive reminders through all preferred methods.
 
 ---
 
@@ -232,7 +238,7 @@ Celery manages all background task execution. Redis serves as both the message b
 
 ### 8.2 Daily Appointment Reminders
 
-A Celery Beat periodic task runs every morning at 8:00 AM. It queries all appointments scheduled for the current day with status "Booked" and a corresponding completed payment. For each qualifying appointment, an email reminder is sent to the patient detailing the appointment time and doctor. The notification respects each patient's `notification_pref` setting.
+A Celery Beat periodic task runs every morning at 8:00 AM. It queries all appointments scheduled for the current day with status "Booked" and a corresponding completed payment. For each qualifying appointment, a reminder is sent to the patient detailing the appointment time and doctor. The notification respects each patient's `notification_pref` setting, which stores a comma-separated list of opted-in channels. If both `email` and `sms` are listed, the patient receives reminders through both channels simultaneously.
 
 ### 8.3 Monthly Doctor Activity Report
 
@@ -293,7 +299,7 @@ The Vue.js frontend is served as a single HTML document. Application state is ma
 
 ### 11.3 Role-Specific Dashboards
 
-The **Admin Dashboard** provides tabs for statistics, doctor management, patient management, appointments, and payments. The **Doctor Dashboard** provides tabs for appointments (colour-coded by urgency), a patients list with history viewer, reports, payments, availability configuration, and a read-only profile. The **Patient Dashboard** provides tabs for booking (department-first browsing), appointments (with treatment detail), payments, and profile management.
+The **Admin Dashboard** provides tabs for statistics, doctor management (including setting consultation fees), patient management, appointments, and payments. The **Doctor Dashboard** provides tabs for appointments (colour-coded by urgency, with upcoming future appointments highlighted in light green for quick identification), a patients list with history viewer, reports, payments, availability configuration, and a read-only profile. The **Patient Dashboard** provides tabs for booking (doctor profile cards with department filter and name search), appointments (with treatment detail, upcoming appointments highlighted in light green), payments, and profile management (notification preferences as Email/SMS checkboxes; medical history displayed as read-only).
 
 ### 11.4 Responsive Feedback
 

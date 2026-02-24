@@ -299,8 +299,7 @@ def test_profile_update_reflects_in_get_profile(test_client):
             "name": "Updated Patient",
             "email": "updated.patient@test.com",
             "phone": "9998887777",
-            "history": "Updated medical history",
-            "notification_pref": "chat",
+            "notification_pref": "email,sms",
         },
     )
     assert update_response.status_code == 200
@@ -310,7 +309,7 @@ def test_profile_update_reflects_in_get_profile(test_client):
     profile = profile_response.get_json()
     assert profile["name"] == "Updated Patient"
     assert profile["email"] == "updated.patient@test.com"
-    assert profile["notification_pref"] == "chat"
+    assert profile["notification_pref"] == "email,sms"
 
 
 def test_doctor_cannot_complete_without_payment(test_client):

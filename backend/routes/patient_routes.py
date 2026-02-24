@@ -458,6 +458,7 @@ def my_appointments():
         d["paid"] = _has_active_completed_payment(app.id)
         d["payment_status"] = latest_payment.status if latest_payment else "unpaid"
         d["payment_amount"] = latest_payment.amount if latest_payment else None
+        d["appointment_cost"] = (app.doctor.appointment_cost if app.doctor and app.doctor.appointment_cost is not None else 500.0)
         d["payment_date"] = (
             latest_payment.payment_date.isoformat()
             if latest_payment and latest_payment.payment_date
@@ -825,10 +826,17 @@ def update_profile():
     if user.has_role("patient"):
         patient = Patient.query.filter_by(user_id=user.id).first()
         if patient:
-            if "history" in data:
-                patient.medical_history = data["history"]
+            # Medical history is auto-updated by doctors after each consultation.
+            # Patients cannot directly edit their own medical history.
+            allowed_prefs = {"email", "sms"}
             if "notification_pref" in data:
-                patient.notification_pref = data["notification_pref"]
+                raw_pref = data["notification_pref"] or ""
+                # Accept comma-separated string of allowed values only.
+                parts = [p.strip().lower() for p in raw_pref.split(",") if p.strip()]
+                invalid = [p for p in parts if p not in allowed_prefs]
+                if invalid:
+                    return jsonify({"message": f"Invalid notification preference: {invalid}. Use email or sms."}), 400
+                patient.notification_pref = ",".join(parts) if parts else "email"
 
     db.session.commit()
 
@@ -886,14 +894,16 @@ def process_payment(appointment_id):
     if not data:
         return jsonify({"message": "Request body required"}), 400
 
-    amount = data.get("amount")
+    # Amount is fixed to the doctor's appointment_cost — patients cannot override it.
+    amount = appointment.doctor.appointment_cost or 500.0
+
     payment_method = data.get("payment_method", "credit_card")
+    # Only credit card and debit card are accepted; insurance has been removed.
+    if payment_method not in ("credit_card", "debit_card"):
+        return jsonify({"message": "Invalid payment method. Use credit_card or debit_card."}), 400
+
     card_number = data.get("card_number", "")
     notes = data.get("notes", "")
-
-    # Validate amount
-    if not amount or amount <= 0:
-        return jsonify({"message": "Invalid amount"}), 400
 
     # Extract last 4 digits of card
     card_last4 = card_number[-4:] if len(card_number) >= 4 else "0000"

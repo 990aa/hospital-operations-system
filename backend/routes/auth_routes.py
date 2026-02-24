@@ -30,12 +30,15 @@ def login():
 
     user = User.query.filter_by(username=username).first()
 
-    # Using flask-security verify_password/hash_password logic if desired,
-    # but for "simplest codes" if I seeded with plain text, I should stick to plain text?
-    # NO. User requirements: "ensure ... flask security". Flask security defaults to hashing.
-    # The initial seeder in app.py created users with plain text passwords.
-    # I MUST update the seeder to use hash_password.
-    # And here I must use verify_password.
+    # If user not found at all, give a role-aware message so unregistered
+    # patients are directed to the register form rather than just told
+    # "Invalid credentials".
+    if not user:
+        # Check the role hint passed from the frontend (optional field, harmless if absent)
+        role_hint = (data.get("role") or "").lower()
+        if role_hint == "patient":
+            return jsonify({"message": "No account found. Please register first.", "not_registered": True}), 401
+        return jsonify({"message": "Invalid credentials"}), 401
 
     if user and verify_password(password, user.password):
         login_user(user)

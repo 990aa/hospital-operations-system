@@ -147,6 +147,8 @@ class Doctor(db.Model):
     email_notifications = db.Column(
         db.Boolean, default=True
     )  # Enable/disable monthly reports
+    # Fixed consultation fee set by admin.  Patients pay this exact amount at booking.
+    appointment_cost = db.Column(db.Float, default=500.0)
 
     # Relationships
     department = db.relationship("Department", backref="doctors")
@@ -169,6 +171,7 @@ class Doctor(db.Model):
             "slot_minutes": self.slot_minutes or 30,
             "bio": self.bio or "",
             "email_notifications": self.email_notifications,
+            "appointment_cost": self.appointment_cost if self.appointment_cost is not None else 500.0,
         }
 
     def get_availability_days(self):
@@ -201,8 +204,10 @@ class Patient(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
     medical_history = db.Column(db.Text, default="")
-    # Notification preference: 'email', 'sms', 'chat', 'none'
-    notification_pref = db.Column(db.String(20), default="email")
+    # Notification preference: comma-separated list of channels.
+    # Allowed values: any combination of 'email' and 'sms', e.g. 'email', 'sms', 'email,sms'.
+    # 'chat' and 'none' are no longer supported.
+    notification_pref = db.Column(db.String(50), default="email")
 
     def to_dict(self):
         """Return dictionary representation of the patient."""
@@ -388,7 +393,7 @@ class Payment(db.Model):
     amount = db.Column(db.Float, nullable=False)
     payment_method = db.Column(
         db.String(20), default="credit_card"
-    )  # credit_card, debit_card, insurance
+    )  # credit_card, debit_card
     card_last4 = db.Column(db.String(4), nullable=True)  # Last 4 digits for display
     status = db.Column(
         db.String(20), default="completed"

@@ -254,6 +254,10 @@ def create_initial_data(app):
             migration_statements.append(
                 "ALTER TABLE doctor ADD COLUMN bio TEXT DEFAULT ''"
             )
+        if "appointment_cost" not in doctor_columns:
+            migration_statements.append(
+                "ALTER TABLE doctor ADD COLUMN appointment_cost REAL DEFAULT 500.0"
+            )
 
         # Execute each migration statement in sequence.
         for statement in migration_statements:

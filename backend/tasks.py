@@ -74,6 +74,8 @@ def send_daily_reminders(self):
 
         # Get notification preference (default to email)
         pref = patient.notification_pref or "email"
+        # Preference is now a comma-separated string of channels, e.g. 'email', 'sms', 'email,sms'.
+        pref_channels = {p.strip().lower() for p in pref.split(",") if p.strip()}
 
         # Prepare reminder message
         subject = "Hospital Appointment Reminder"
@@ -101,15 +103,18 @@ Hospital Management Team
 """
 
         try:
-            # Send based on preference (email or sms only; chat not supported)
-            if pref == "email" and patient.user.email:
+            # Send via all preferred channels (email and/or sms).
+            notification_sent = False
+            if "email" in pref_channels and patient.user.email:
                 send_email(patient.user.email, subject, message)
                 results["emails_sent"] += 1
-            elif pref == "sms" and patient.user.phone:
+                notification_sent = True
+            if "sms" in pref_channels and patient.user.phone:
                 send_sms(patient.user.phone, message)
                 results["sms_sent"] += 1
-            else:
-                # Fallback to email if available
+                notification_sent = True
+            if not notification_sent:
+                # Fallback: send email if contact exists
                 if patient.user.email:
                     send_email(patient.user.email, subject, message)
                     results["emails_sent"] += 1

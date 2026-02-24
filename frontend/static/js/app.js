@@ -65,7 +65,9 @@ async function apiCall(url, method = 'GET', body = null) {
             requestBody: body,
             response: data
         });
-        throw new Error((data && data.message) || 'Request failed');
+        const apiErr = new Error((data && data.message) || 'Request failed');
+        apiErr.data = data;
+        throw apiErr;
     }
 
     return data;
@@ -133,9 +135,10 @@ createApp({
                 availability_start: '09:00',
                 availability_end: '17:00',
                 slot_minutes: 30,
-                bio: ''
+                bio: '',
+                appointment_cost: 500
             },
-            patientSearch: '',
+            patientSearch: ''
             // Admin "doctor's patients" panel state
             adminViewDoctorPatients: null,   // Doctor obj currently being inspected
             adminDoctorPatientsList: [],     // Patients of that doctor loaded from API
@@ -201,7 +204,8 @@ createApp({
                 email: '',
                 phone: '',
                 history: '',
-                notification_pref: 'email'
+                notif_email: true,
+                notif_sms: false
             },
             weekdayOptions: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
         };
@@ -381,13 +385,25 @@ createApp({
         async handleAuth() {
             try {
                 if (this.isLogin) {
-                    const response = await apiCall('/login', 'POST', {
-                        username: this.authForm.username,
-                        password: this.authForm.password
-                    });
-                    this.currentUser = response.user;
+                    let loginResp;
+                    try {
+                        loginResp = await apiCall('/login', 'POST', {
+                            username: this.authForm.username,
+                            password: this.authForm.password,
+                            role: this.selectedRole
+                        });
+                    } catch (loginErr) {
+                        const errData = loginErr.data || {};
+                        if (errData.not_registered) {
+                            this.isLogin = false;
+                            this.alertMsg = 'No account found for that username. Please register below, then log in.';
+                            return;
+                        }
+                        throw loginErr;
+                    }
+                    this.currentUser = loginResp.user;
                     this.resetTransientState();
-                    this.syncProfileForm(response.user);
+                    this.syncProfileForm(loginResp.user);
                     await this.loadInitialDataForRole();
                 } else {
                     await apiCall('/register', 'POST', {
@@ -645,7 +661,8 @@ createApp({
                 availability_start: '09:00',
                 availability_end: '17:00',
                 slot_minutes: 30,
-                bio: ''
+                bio: '',
+                appointment_cost: 500
             };
             this.doctorDepartmentQuery = '';
         },
@@ -663,7 +680,8 @@ createApp({
                 availability_start: doctor.availability_start || '09:00',
                 availability_end: doctor.availability_end || '17:00',
                 slot_minutes: doctor.slot_minutes || 30,
-                bio: doctor.bio || ''
+                bio: doctor.bio || '',
+                appointment_cost: doctor.appointment_cost || 500
             };
             this.syncDoctorDepartmentQueryFromId();
         },
@@ -1110,7 +1128,7 @@ createApp({
         showPaymentForm(appointment) {
             this.paymentAppointment = appointment;
             this.paymentForm = {
-                amount: 500,
+                amount: appointment.appointment_cost || 500,
                 payment_method: 'credit_card',
                 card_number: ''
             };
@@ -1150,7 +1168,9 @@ createApp({
                 const profile = this.hasRole('doctor') ? await apiCall('/doctor/profile', 'GET') : await apiCall('/profile', 'GET');
                 this.syncProfileForm(profile);
                 this.profileForm.history = profile.medical_history || '';
-                this.profileForm.notification_pref = profile.notification_pref || 'email';
+                const prefs = (profile.notification_pref || 'email').split(',').map(p => p.trim());
+                this.profileForm.notif_email = prefs.includes('email');
+                this.profileForm.notif_sms = prefs.includes('sms');
             } catch (error) {
                 await this.logError(error, 'loadProfile');
             }
@@ -1161,7 +1181,11 @@ createApp({
                 return;
             }
             try {
-                await apiCall('/profile', 'POST', this.profileForm);
+                const notifParts = [];
+                if (this.profileForm.notif_email) notifParts.push('email');
+                if (this.profileForm.notif_sms) notifParts.push('sms');
+                const payload = { ...this.profileForm, notification_pref: notifParts.join(',') || 'email' };
+                await apiCall('/profile', 'POST', payload);
                 const user = await apiCall('/current-user', 'GET');
                 this.currentUser = user;
                 this.showSuccess('Profile updated.');

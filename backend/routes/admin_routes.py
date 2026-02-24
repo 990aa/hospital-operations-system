@@ -193,6 +193,7 @@ def manage_doctors():
             slot_minutes=availability_payload["slot_minutes"],
             bio=data.get("bio", ""),
             email_notifications=data.get("email_notifications", True),
+            appointment_cost=float(data.get("appointment_cost") or 500.0),
         )
         db.session.add(new_doctor)
         db.session.commit()
@@ -264,6 +265,14 @@ def update_doctor(id):
         doctor.bio = data.get("bio") or ""
     if "email_notifications" in data:
         doctor.email_notifications = bool(data.get("email_notifications"))
+    if "appointment_cost" in data:
+        try:
+            cost = float(data["appointment_cost"])
+            if cost < 0:
+                return jsonify({"message": "appointment_cost must be non-negative"}), 400
+            doctor.appointment_cost = cost
+        except (TypeError, ValueError):
+            return jsonify({"message": "appointment_cost must be a number"}), 400
 
     availability_payload, availability_error = _normalize_availability_payload(
         {

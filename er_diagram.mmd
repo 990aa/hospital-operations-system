@@ -58,13 +58,14 @@ erDiagram
         int slot_minutes "Consultation slot duration in minutes"
         text bio "Doctor profile information"
         boolean email_notifications "Enable monthly reports"
+        float appointment_cost "Fixed consultation fee in rupees"
     }
     
     PATIENT {
         int id PK "Primary Key"
         int user_id FK "Foreign Key to USER"
         text medical_history "Patient medical history"
-        string notification_pref "Notification preference: email, sms, chat, none"
+        string notification_pref "Notification channels: email, sms, or email,sms"
     }
     
     APPOINTMENT {
