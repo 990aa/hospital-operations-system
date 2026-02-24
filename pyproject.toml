@@ -16,10 +16,18 @@ dependencies = [
     "redis",
     "pandas",
     "bleach>=6.3.0",
-    "argon2-cffi>=25.1.0"
+    "argon2-cffi>=25.1.0",
+    "pymupdf>=1.27.1",
+    "requests>=2.32.5",
 ]
 
 [project.optional-dependencies]
 dev = ["pytest"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-cov>=7.0.0",
+]
 
 
