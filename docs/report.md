@@ -102,9 +102,7 @@ Key relationships include:
 
 ### 5.1 Authentication and Authorisation
 
-Flask-Security manages user sessions using cookie-based tokens. Passwords are hashed using a configurable salt (`SECURITY_PASSWORD_SALT`). The `roles_required` decorator gates each route to the appropriate user type. The patient self-registration endpoint creates only `patient`-role users; doctor creation is exclusively an admin operation.
-
-On the frontend, the Vue.js application calls `GET /api/current-user` on page load to restore an existing session and routes the user directly to their role-specific dashboard without requiring re-authentication.
+Flask-Security manages user sessions using cookie-based tokens. The `roles_required` decorator gates each route to the appropriate user type. The patient self-registration endpoint creates only `patient`-role users; doctor creation is exclusively an admin operation.
 
 ### 5.2 Appointment Booking and Serial Slot Assignment
 
