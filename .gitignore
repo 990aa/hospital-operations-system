@@ -69,3 +69,4 @@ celerybeat-schedule-wal
 exports/
 node_modules/
 vendor/
+!statement.txt
