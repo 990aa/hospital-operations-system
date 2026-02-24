@@ -12,58 +12,28 @@
 ## Table of Contents
 
 1. [Abstract](#1-abstract)
-2. [Introduction](#2-introduction)
-3. [Background and Literature Review](#3-background-and-literature-review)
-4. [Problem Statement](#4-problem-statement)
-5. [System Design and Architecture](#5-system-design-and-architecture)
-6. [Database Design](#6-database-design)
-7. [Implementation](#7-implementation)
-8. [Background Jobs and Asynchronous Processing](#8-background-jobs-and-asynchronous-processing)
-9. [Security and Validation](#9-security-and-validation)
-10. [Caching and Performance Optimisation](#10-caching-and-performance-optimisation)
-11. [User Interface Design](#11-user-interface-design)
-12. [Challenges and Solutions](#12-challenges-and-solutions)
-13. [Development Methodology](#13-development-methodology)
-14. [Conclusion](#14-conclusion)
-15. [References](#15-references)
+2. [Problem Statement](#2-problem-statement)
+3. [System Design and Architecture](#3-system-design-and-architecture)
+4. [Database Design](#4-database-design)
+5. [Implementation](#5-implementation)
+6. [Background Jobs and Asynchronous Processing](#6-background-jobs-and-asynchronous-processing)
+7. [Security and Validation](#7-security-and-validation)
+8. [Caching and Performance Optimisation](#8-caching-and-performance-optimisation)
+9. [User Interface Design](#9-user-interface-design)
+10. [Challenges and Solutions](#10-challenges-and-solutions)
+11. [Development Methodology](#11-development-methodology)
+12. [Conclusion](#12-conclusion)
+13. [References](#13-references)
 
 ---
 
 ## 1. Abstract
 
-This report describes the design and implementation of a Hospital Management System, a full-stack web application that digitalises and streamlines core hospital operations. The system manages patients, doctors, appointments, treatments, and payments through a unified platform that enforces role-based access control. Three distinct user roles are provided: administrators who configure and oversee the entire system, doctors who manage their schedules and patient treatment records, and patients who self-register, book appointments, and view their medical history. The backend is implemented in Python using the Flask with an SQLite relational database, Redis for caching, and Celery for asynchronous background job execution. The frontend is built with Vue.js 3. The system includes scheduled jobs for daily patient appointment reminders and monthly doctor activity reports delivered via email, as well as a user-triggered CSV export of treatment history. The resulting application is modular, maintainable, and demonstrates practical application of core software engineering principles including RESTful API design, role-based access control, event-driven background processing, and optimistic concurrency control. The system has a comprehensive automated test suite of 83 passing tests.
+This report describes the design and implementation of a Hospital Management System, a full-stack web application that digitalises and streamlines core hospital operations. The system manages patients, doctors, appointments, treatments, and payments through a unified platform that enforces role-based access control. Three distinct user roles are provided: administrators who configure and oversee the entire system, doctors who manage their schedules and patient treatment records, and patients who self-register, book appointments, and view their medical history. The backend is implemented in Python using the Flask with an SQLite relational database, Redis for caching, and Celery for asynchronous background job execution. The frontend is built with Vue.js 3. The system includes scheduled jobs for daily patient appointment reminders and monthly doctor activity reports delivered via email, as well as a user-triggered CSV export of treatment history. The resulting application is modular, maintainable, and demonstrates practical application of core software engineering principles including RESTful API design, role-based access control, event-driven background processing, and optimistic concurrency control.
 
 ---
 
-## 2. Introduction
-
-Healthcare organisations globally are under pressure to operate with greater efficiency, accuracy, and transparency. Traditional paper-based or fragmented digital systems struggle to keep pace with the volume of patient interactions, scheduling demands, and regulatory requirements of modern hospitals. A well-designed Hospital Management System provides a centralised platform where administrative staff, clinical practitioners, and patients can coordinate through a unified system.
-
-This project implements such a system as a web application. The primary objectives are:
-
-- To enable administrators to manage doctors, patients, departments, and appointment records with full create, read, update, and delete capabilities.
-- To allow doctors to view their appointment schedules, complete consultations with diagnosis and prescription records, update past treatment histories, and manage their weekly availability.
-- To enable patients to self-register, browse doctors by department, book appointments within a doctor's available time slots, pay before consultation, view their full treatment history, and export records.
-- To automate routine communications through scheduled background jobs.
-- To implement caching strategies that improve responsiveness under concurrent usage.
-
-The system follows a RESTful API architecture where the backend exposes well-defined endpoints and the frontend consumes them through HTTP requests. This separation of concerns ensures that each layer can evolve independently and that the system is testable at each level.
-
----
-
-## 3. Background and Literature Review
-
-### 3.4 Asynchronous Task Processing
-
-Background job frameworks such as Celery allow compute-intensive or time-sensitive operations to be decoupled from the HTTP request-response cycle. Celery uses a message broker (Redis in this project) to queue tasks and one or more worker processes to consume and execute them. This pattern is essential for operations such as sending emails, generating reports, and processing exports without blocking the web server.
-
-### 3.5 Single-Page Application Design
-
-Vue.js 3 is a progressive JavaScript framework for building user interfaces. Unlike traditional multi-page applications, a single-page application (SPA) loads once and dynamically updates the DOM as the user navigates. This provides a more responsive experience and reduces unnecessary server round-trips for page rendering.
-
----
-
-## 4. Problem Statement
+## 2. Problem Statement
 
 Hospitals require coordinated management of multiple entities — staff, patients, appointments, and records — often with competing demands. The specific problems this system addresses are:
 
@@ -79,19 +49,9 @@ Hospitals require coordinated management of multiple entities — staff, patient
 
 ---
 
-## 5. System Design and Architecture
+## 5. System Design
 
-### 5.1 Architectural Overview
-
-The system follows a three-tier architecture:
-
-1. **Presentation Tier** — Vue.js 3 SPA served as a static HTML/JS file.
-2. **Application Tier** — Flask RESTful API handling business logic and data access.
-3. **Data Tier** — SQLite relational database for persistent storage; Redis for caching and as the Celery message broker.
-
-All HTTP communication between the presentation and application tiers uses JSON payloads. All API routes are prefixed with `/api` to distinguish them from the static frontend document.
-
-### 5.2 Technology Stack
+### 5.1 Technology Stack
 
 | Component | Technology | Rationale |
 |---|---|---|
@@ -106,21 +66,6 @@ All HTTP communication between the presentation and application tiers uses JSON 
 | Frontend | Vue.js 3 (CDN) | Reactive components, minimal build tooling |
 | CSS | Bootstrap 5 | Responsive grid, accessible components |
 | Charts | Plotly.js | Interactive dashboard visualisations |
-
-### 5.3 Application Factory Pattern
-
-The Flask application factory pattern is used via a `create_app(test_config=None)` function. This function encapsulates all extension initialisation, blueprint registration, and configuration loading. The factory pattern enables isolated test instances with overridden configurations — such as an in-memory SQLite database and synchronous Celery execution — without modifying production code.
-
-### 5.4 Blueprint Structure
-
-Routes are organised into four Flask Blueprints, all registered under the `/api` prefix:
-
-- **auth_bp** — Login, logout, patient self-registration.
-- **admin_bp** — Full system management: doctors, patients, departments, appointments, payments, statistics.
-- **doctor_bp** — Doctor-scoped operations: appointments, treatment records, patient history, availability, PDF reports, earnings.
-- **patient_bp** — Patient-scoped operations: doctor browsing, appointment booking, payments, CSV export, profile management.
-
-This modular structure ensures each domain's routes are cohesive, independently testable, and maintainable.
 
 ---
 
@@ -146,7 +91,7 @@ The database comprises eight core entities:
 
 **Structured Availability Storage:** Doctor availability is stored as three structured columns — `availability_days` (comma-separated weekday abbreviations), `availability_start` and `availability_end` (HH:MM strings), and `slot_minutes` (integer duration). This enables the backend to programmatically generate all valid time slots and compare them against existing bookings without complex date arithmetic.
 
-**Fixed Consultation Fee per Doctor:** The `Doctor` model includes an `appointment_cost` column (float, default ₹500) set by the administrator. This value is the single source of truth for each appointment's payment amount; the patient cannot override it during the payment step, ensuring billing consistency.
+**Fixed Consultation Fee per Doctor:** The `Doctor` model includes an `appointment_cost` column set by the administrator. This value is the single source of truth for each appointment's payment amount; the patient cannot override it during the payment step, ensuring billing consistency.
 
 **Appointment Uniqueness Constraint:** A database-level unique index on `(doctor_id, date, time)` prevents race conditions when multiple patients attempt to book the same slot simultaneously, providing a final guarantee beyond the application-level retry logic.
 
@@ -195,13 +140,11 @@ This approach is fair (first-come-first-served, earliest slot first) and safe un
 
 ### 7.3 Treatment and Patient History
 
-When a doctor marks an appointment as completed, they record a diagnosis, prescription, and optional notes. This creates a `Treatment` record. Simultaneously, a short summary is appended to the patient's cumulative `medical_history` text field for a quick plain-text log. Doctors can subsequently edit any treatment record they originally created, either through the appointment details modal or through the "My Patients" tab. Patients cannot manually edit their medical history; it is managed exclusively by the clinical workflow to maintain data integrity.
+When a doctor marks an appointment as completed, they record a diagnosis, prescription, and optional notes. This creates a `Treatment` record. Simultaneously, a short summary is appended to the patient's cumulative `medical_history` text field for a quick plain-text log. Doctors can subsequently edit any treatment record they originally created, either through the appointment details modal or through the "My Patients" tab.
 
 ### 7.4 Payment Portal
 
-The payment portal simulates an actual payment gateway to demonstrate the integration architecture without connecting to a live payment provider. The consultation fee for each appointment is fixed by the administator at the doctor level via the `appointment_cost` field. When a patient initiates payment, the amount is read directly from the doctor's `appointment_cost` and displayed as read-only in the interface — the patient cannot alter it. All monetary values are displayed in Indian Rupees (₹). Only credit card and debit card are accepted as payment methods; insurance is not supported. A `Payment` record is created with `status="completed"`, the payment method, and only the last four digits of the provided card number. A randomly generated transaction ID serves as an audit reference.
-
-When a patient cancels a paid appointment, the system automatically creates a corresponding refund `Payment` record with a negative amount and `status="refunded"`. The constraint that payment must precede consultation completion is enforced at the backend route level, ensuring the financial workflow is correctly ordered.
+The payment portal simulates an actual payment gateway to demonstrate the integration architecture without connecting to a live payment provider. The consultation fee for each appointment is fixed by the administator at the doctor level. When a patient initiates payment, the amount is read directly from the doctor's `appointment_cost` and displayed. When a patient cancels a paid appointment, the system automatically creates a corresponding refund `Payment` record with a negative amount and `status="refunded"`.
 
 ### 7.5 Doctor Availability Management
 
@@ -253,14 +196,6 @@ All API routes beyond login and the public doctor search require a valid session
 
 Role-based access control ensures that patients access only their own data; doctors can only view and complete their own appointments and edit only their own treatment records; and administrators have elevated access to all entities but are still constrained to the defined operations.
 
-### 9.3 Input Validation
-
-Custom decorator-based validators (`validate_required_fields`, `validate_string_length`, `validate_email`, `validate_password_strength`) are applied to authentication endpoints. These validators run before the route function and return structured 400 error responses for invalid input, preventing malformed data from reaching the database layer.
-
-### 9.4 Error Handling
-
-A centralised exception handler logs full tracebacks to the server terminal while returning generic "Internal server error" messages to the client. Frontend errors are forwarded to a backend logging endpoint and written to the terminal, ensuring that no implementation details are exposed in the user interface.
-
 ---
 
 ## 10. Caching and Performance Optimisation
@@ -280,7 +215,7 @@ Cache invalidation is triggered immediately by write operations affecting cached
 
 ### 11.1 Design Principles
 
-The interface uses a professional medical aesthetic. The colour palette employs medical green for primary actions, blue for informational elements, and red for alerts and destructive actions. All design uses flat colours without gradients or decorative imagery. Responsive layout is provided by Bootstrap 5.
+The interface uses a professional medical aesthetic. The colour palette employs medical green for primary actions, blue for informational elements, and red for alerts and destructive actions. Responsive layout is provided by Bootstrap 5.
 
 ### 11.2 Single-Page Application
 
@@ -290,10 +225,6 @@ The Vue.js frontend is served as a single HTML document. Application state is ma
 
 The **Admin Dashboard** provides tabs for statistics, doctor management (including setting consultation fees), patient management, appointments, and payments. The **Doctor Dashboard** provides tabs for appointments (colour-coded by urgency, with upcoming future appointments highlighted in light green for quick identification), a patients list with history viewer, reports, payments, availability configuration, and a read-only profile. The **Patient Dashboard** provides tabs for booking (doctor profile cards with department filter and name search), appointments (with treatment detail, upcoming appointments highlighted in light green), payments, and profile management (notification preferences as Email/SMS checkboxes; medical history displayed as read-only).
 
-### 11.4 Responsive Feedback
-
-Success messages display as dismissible banners that disappear after three seconds. Error conditions are never displayed in the interface — all errors are forwarded to the server terminal log. This protects users from technical details while remaining fully diagnostic for developers.
-
 ---
 
 ## 12. Challenges and Solutions
@@ -302,7 +233,7 @@ Success messages display as dismissible banners that disappear after three secon
 
 **Challenge:** Multiple patients attempting to book the last available slot simultaneously could each read the slot as available and commit conflicting appointments.
 
-**Solution:** A unique database index on `(doctor_id, date, time)` raises an `IntegrityError` on the second commit. The booking function catches this, rolls back, and retries up to three times. This optimistic concurrency approach is efficient in the common case while safe in the edge case.
+**Solution:** A unique database index on `(doctor_id, date, time)` raises an `IntegrityError` on the second commit. The booking function catches this, rolls back, and retries up to three times. This concurrency approach is efficient in the common case while safe in the edge case.
 
 ### 12.2 Date Serialisation Inconsistency
 
@@ -328,7 +259,7 @@ Success messages display as dismissible banners that disappear after three secon
 
 ### 13.1 Overview
 
-The project was developed iteratively in a single-developer environment over the course of the IIT Application Development module. The methodology followed a lightweight feature-by-feature approach: each major capability (authentication, doctor management, appointment booking, payments, exports, notifications) was designed, implemented, and tested independently before moving to the next.
+The project was developed in a single-developer environment. The methodology followed a lightweight feature-by-feature approach: each major capability (authentication, doctor management, appointment booking, payments, exports, notifications) was designed, implemented, and tested independently before moving to the next.
 
 ### 13.2 Design Reference Process
 
@@ -363,8 +294,6 @@ All implementation decisions, architecture choices, algorithmic logic, and writt
 ## 14. Conclusion
 
 The Hospital Management System successfully implements a comprehensive digital healthcare management platform. It provides role-appropriate interfaces for administrators, doctors, and patients; enforces data integrity through database constraints and input validation; automates routine communications through scheduled background tasks; and demonstrates practical application of caching and asynchronous processing patterns.
-
----
 
 ---
 
