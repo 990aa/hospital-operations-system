@@ -4,7 +4,7 @@
 
 **Student Name:** Abdul Ahad  
 **Student ID:** 24f200293  
-**Course:** IIT Application Development  
+**Course:** Modern Application Development 2 Project  
 **Date:** February 2026  
 
 ---
