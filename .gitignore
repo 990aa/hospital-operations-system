@@ -1,7 +1,10 @@
+# PYTHON BYTECODE AND CACHES
 __pycache__/
 *.py[codz]
 *$py.class
 .Python
+
+# BUILD AND DISTRIBUTION
 build/
 develop-eggs/
 dist/
@@ -14,13 +17,18 @@ var/
 wheels/
 share/python-wheels/
 *.egg-info/
-.installed.cfg
 *.egg
 MANIFEST
 *.manifest
 *.spec
+.installed.cfg
+
+# PACKAGING AND LOGS
 pip-log.txt
 pip-delete-this-directory.txt
+*.log
+
+# COVERAGE AND TESTING
 htmlcov/
 .tox/
 .nox/
@@ -34,24 +42,39 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 cover/
+
+# TRANSLATIONS
 *.mo
 *.pot
-*.log
+
+# DJANGO / FLASK / WEB
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
 instance/
 .webassets-cache
 .scrapy
+
+# DOCUMENTATION
 docs/_build/
+
+# JUPYTER / IPYTHON
 profile_default/
 ipython_config.py
+
+# PDM / UV / PYTHON TOOLS
 .pdm-python
 .pdm-build/
 __pypackages__/
+.pypirc
 
+# CELERY
 celerybeat-schedule
 celerybeat.pid
+celerybeat-schedule-shm
+celerybeat-schedule-wal
+
+# ENVIRONMENTS
 .env
 .envrc
 .venv
@@ -60,14 +83,25 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+
+# IDE / EDITOR
 .vscode/
 .ruff_cache/
-.pypirc
-celerybeat-schedule-shm
-celerybeat-schedule-wal
-*.txt
-exports/
+
+# NODE AND VENDOR
 node_modules/
 vendor/
+
+# MISCELLANEOUS
+exports/
+*.txt
+
+# OS AND EDITOR SPECIFIC
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# EXCEPTIONS
 !statement.txt
 !requirements.txt
