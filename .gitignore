@@ -70,3 +70,4 @@ exports/
 node_modules/
 vendor/
 !statement.txt
+!requirements.txt
