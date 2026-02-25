@@ -2,22 +2,23 @@
 Celery Tasks for Background Jobs.
 
 This module contains all the background tasks for the Hospital Management System:
-- Daily appointment reminders for patients (email or SMS)
+- Daily appointment reminders for patients (email)
 - Monthly activity reports for doctors (email)
 - Async CSV export for patient treatment history
 
 All tasks are designed to be idempotent and handle errors gracefully.
 Google Chat webhook integration has been intentionally excluded.
+SMS support has been removed; all notifications are sent via email only.
+
+Email delivery uses Flask-Mail backed by Gmail SMTP with credentials
+loaded from a .env file via python-dotenv.
 
 Author: Abdul Ahad
 """
 
 import os
 import csv
-import smtplib
 from datetime import datetime, timedelta
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 
 from celery import shared_task
 from celery.exceptions import MaxRetriesExceededError
@@ -34,10 +35,7 @@ def send_daily_reminders(self):
     This task runs every morning at 8:00 AM and sends reminders
     to all patients who have appointments scheduled for today.
 
-    Reminders are sent via the patient's preferred notification method:
-    - Email (default)
-    - SMS (if phone number provided)
-    - Google Chat webhook (if configured)
+    Reminders are sent via email to the patient's registered email address.
 
     Args:
         self: The task instance (provided by bind=True)
@@ -64,18 +62,12 @@ def send_daily_reminders(self):
     results = {
         "total": len(appointments),
         "emails_sent": 0,
-        "sms_sent": 0,
         "failed": 0,
     }
 
     for appointment in appointments:
         patient = appointment.patient
         doctor = appointment.doctor
-
-        # Get notification preference (default to email)
-        pref = patient.notification_pref or "email"
-        # Preference is now a comma-separated string of channels, e.g. 'email', 'sms', 'email,sms'.
-        pref_channels = {p.strip().lower() for p in pref.split(",") if p.strip()}
 
         # Prepare reminder message
         subject = "Hospital Appointment Reminder"
@@ -103,21 +95,10 @@ Hospital Management Team
 """
 
         try:
-            # Send via all preferred channels (email and/or sms).
-            notification_sent = False
-            if "email" in pref_channels and patient.user.email:
+            # Send email notification to patient.
+            if patient.user.email:
                 send_email(patient.user.email, subject, message)
                 results["emails_sent"] += 1
-                notification_sent = True
-            if "sms" in pref_channels and patient.user.phone:
-                send_sms(patient.user.phone, message)
-                results["sms_sent"] += 1
-                notification_sent = True
-            if not notification_sent:
-                # Fallback: send email if contact exists
-                if patient.user.email:
-                    send_email(patient.user.email, subject, message)
-                    results["emails_sent"] += 1
 
         except Exception as e:
             # Log error but continue with other appointments
@@ -476,7 +457,11 @@ def build_monthly_report_html(doctor, appointments, month_name):
 
 def send_email(to_email, subject, message, is_html=False):
     """
-    Send an email using SMTP.
+    Send an email using Flask-Mail.
+
+    Flask-Mail is configured via the .env file credentials loaded
+    in app.py.  When MAIL_USERNAME is not set (e.g. in tests),
+    the email is logged to the console instead.
 
     Args:
         to_email: Recipient email address
@@ -487,70 +472,25 @@ def send_email(to_email, subject, message, is_html=False):
     Raises:
         Exception: If email sending fails
     """
-    # Get SMTP settings from environment
-    smtp_server = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
-    smtp_port = int(os.environ.get("SMTP_PORT", "587"))
-    smtp_username = os.environ.get("SMTP_USERNAME", "")
-    smtp_password = os.environ.get("SMTP_PASSWORD", "")
-    from_email = os.environ.get("FROM_EMAIL", "hospital@example.com")
+    from flask_mail import Message as MailMessage
+    from app import mail
 
-    # Create message
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"] = from_email
-    msg["To"] = to_email
+    username = os.environ.get("SMTP_USERNAME", "")
+    if username:
+        # Build the Flask-Mail message
+        msg = MailMessage(
+            subject=subject,
+            recipients=[to_email],
+        )
+        if is_html:
+            msg.html = message
+        else:
+            msg.body = message
 
-    # Attach content
-    if is_html:
-        msg.attach(MIMEText(message, "html"))
+        mail.send(msg)
     else:
-        msg.attach(MIMEText(message, "plain"))
-
-    # Send email
-    if smtp_username and smtp_password:
-        # Use SMTP authentication
-        with smtplib.SMTP(smtp_server, smtp_port) as server:
-            server.starttls()
-            server.login(smtp_username, smtp_password)
-            server.sendmail(from_email, to_email, msg.as_string())
-    else:
-        # For development: just log the email
+        # For development/tests: just log the email
         print(f"[EMAIL] To: {to_email}\nSubject: {subject}\n\n{message}\n---")
 
 
-def send_sms(phone_number, message):
-    """
-    Send an SMS message.
 
-    This is a placeholder implementation. In production, you would use
-    an SMS gateway service like Twilio, AWS SNS, or similar.
-
-    Args:
-        phone_number: Recipient phone number
-        message: SMS content
-
-    Raises:
-        Exception: If SMS sending fails
-    """
-    # SMS gateway configuration
-    sms_provider = os.environ.get("SMS_PROVIDER", "none")
-
-    if sms_provider == "twilio":
-        # Implement Twilio integration
-        try:
-            from twilio.rest import Client  # type: ignore[import-untyped]  # optional dep
-        except ImportError:
-            print("[SMS] twilio not installed – falling back to log")
-            print(f"[SMS] To: {phone_number}\nMessage: {message}\n---")
-            return
-
-        account_sid = os.environ.get("TWILIO_ACCOUNT_SID")
-        auth_token = os.environ.get("TWILIO_AUTH_TOKEN")
-        from_number = os.environ.get("TWILIO_FROM_NUMBER")
-
-        if account_sid and auth_token:
-            client = Client(account_sid, auth_token)
-            client.messages.create(body=message, from_=from_number, to=phone_number)
-    else:
-        # For development: just log the SMS
-        print(f"[SMS] To: {phone_number}\nMessage: {message}\n---")

@@ -204,8 +204,7 @@ createApp({
                 email: '',
                 phone: '',
                 history: '',
-                notif_email: true,
-                notif_sms: false
+                notif_email: true
             },
             weekdayOptions: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
         };
@@ -745,7 +744,6 @@ createApp({
             this.profileForm.email = patient.email || '';
             this.profileForm.phone = patient.phone || '';
             this.profileForm.history = patient.medical_history || '';
-            this.profileForm.notification_pref = patient.notification_pref || 'email';
         },
         async updatePatient() {
             if (!this.editingPatientId) {
@@ -756,8 +754,7 @@ createApp({
                     name: this.profileForm.name,
                     email: this.profileForm.email,
                     phone: this.profileForm.phone,
-                    medical_history: this.profileForm.history,
-                    notification_pref: this.profileForm.notification_pref
+                    medical_history: this.profileForm.history
                 });
                 this.editingPatientId = null;
                 await this.loadPatients();
@@ -1168,9 +1165,7 @@ createApp({
                 const profile = this.hasRole('doctor') ? await apiCall('/doctor/profile', 'GET') : await apiCall('/profile', 'GET');
                 this.syncProfileForm(profile);
                 this.profileForm.history = profile.medical_history || '';
-                const prefs = (profile.notification_pref || 'email').split(',').map(p => p.trim());
-                this.profileForm.notif_email = prefs.includes('email');
-                this.profileForm.notif_sms = prefs.includes('sms');
+                this.profileForm.notif_email = true;
             } catch (error) {
                 await this.logError(error, 'loadProfile');
             }
@@ -1181,10 +1176,7 @@ createApp({
                 return;
             }
             try {
-                const notifParts = [];
-                if (this.profileForm.notif_email) notifParts.push('email');
-                if (this.profileForm.notif_sms) notifParts.push('sms');
-                const payload = { ...this.profileForm, notification_pref: notifParts.join(',') || 'email' };
+                const payload = { ...this.profileForm, notification_pref: 'email' };
                 await apiCall('/profile', 'POST', payload);
                 const user = await apiCall('/current-user', 'GET');
                 this.currentUser = user;

@@ -790,7 +790,6 @@ def update_profile():
         email: Email address
         phone: Phone number
         history: Medical history (patients only)
-        notification_pref: Notification preference (email, sms, chat, none)
 
     Returns:
         Updated profile or success message
@@ -833,19 +832,8 @@ def update_profile():
         if patient:
             # Medical history is auto-updated by doctors after each consultation.
             # Patients cannot directly edit their own medical history.
-            allowed_prefs = {"email", "sms"}
-            if "notification_pref" in data:
-                raw_pref = data["notification_pref"] or ""
-                # Accept comma-separated string of allowed values only.
-                parts = [p.strip().lower() for p in raw_pref.split(",") if p.strip()]
-                invalid = [p for p in parts if p not in allowed_prefs]
-                if invalid:
-                    return jsonify(
-                        {
-                            "message": f"Invalid notification preference: {invalid}. Use email or sms."
-                        }
-                    ), 400
-                patient.notification_pref = ",".join(parts) if parts else "email"
+            # Notification preference is always email (SMS has been removed).
+            pass
 
     db.session.commit()
 

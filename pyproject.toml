@@ -9,6 +9,8 @@ dependencies = [
     "flask-sqlalchemy",
     "flask-security-too",
     "flask-caching",
+    "flask-mail",
+    "python-dotenv",
     "bcrypt",
     "werkzeug",
     "email_validator",

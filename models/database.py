@@ -43,7 +43,7 @@ class User(db.Model, UserMixin):  # type: ignore[misc]
         id: Primary key for the user
         username: Unique username for login
         email: User's email address for notifications
-        phone: User's phone number for SMS notifications
+        phone: User's phone number
         password: Hashed password for authentication
         active: Whether the user account is active
         fs_uniquifier: Unique identifier for Flask-Security
@@ -59,7 +59,7 @@ class User(db.Model, UserMixin):  # type: ignore[misc]
     email = db.Column(db.String(255), unique=True, nullable=True)
     phone = db.Column(
         db.String(20), nullable=True
-    )  # Phone number for SMS notifications
+    )  # Phone number for contact
     password = db.Column(db.String(255), nullable=False)
     active = db.Column(db.Boolean())
     fs_uniquifier = db.Column(db.String(255), unique=True, nullable=False)
@@ -191,13 +191,12 @@ class Patient(db.Model):  # type: ignore[misc]
     Patient details linked to a User.
 
     This model stores additional information specific to patients including
-    their medical history and notification preferences.
+    their medical history.
 
     Attributes:
         id: Primary key for the patient
         user_id: Foreign key to User model
         medical_history: Text field for patient's medical history
-        notification_pref: Preferred notification method ('email', 'sms', 'chat', 'none')
         user: Relationship to User model for accessing user details
         appointments: One-to-many relationship with Appointment model
     """
@@ -206,9 +205,7 @@ class Patient(db.Model):  # type: ignore[misc]
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
     medical_history = db.Column(db.Text, default="")
-    # Notification preference: comma-separated list of channels.
-    # Allowed values: any combination of 'email' and 'sms', e.g. 'email', 'sms', 'email,sms'.
-    # 'chat' and 'none' are no longer supported.
+    # Notification preference is always email (SMS has been removed).
     notification_pref = db.Column(db.String(50), default="email")
 
     def to_dict(self):

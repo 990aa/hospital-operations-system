@@ -113,6 +113,55 @@ def test_register_duplicate_username(test_client):
     assert "already exists" in response.get_json()["message"]
 
 
+def test_register_without_email(test_client):
+    """
+    Test registration without email is rejected.
+
+    Verifies:
+    - Email is mandatory for patient registration
+    """
+    response = test_client.post(
+        "/api/register",
+        json={
+            "username": "noemail",
+            "password": "password123",
+            "name": "No Email Patient",
+        },
+    )
+    assert response.status_code == 400
+
+
+def test_register_duplicate_email(test_client):
+    """
+    Test registration with duplicate email is rejected.
+
+    Verifies:
+    - Email uniqueness is enforced during registration
+    """
+    # First registration
+    test_client.post(
+        "/api/register",
+        json={
+            "username": "emailuser1",
+            "password": "password123",
+            "name": "Email User One",
+            "email": "duplicate@test.com",
+        },
+    )
+
+    # Second registration with same email should fail
+    response = test_client.post(
+        "/api/register",
+        json={
+            "username": "emailuser2",
+            "password": "password456",
+            "name": "Email User Two",
+            "email": "duplicate@test.com",
+        },
+    )
+    assert response.status_code == 400
+
+
 def test_current_user_endpoint(test_client, admin_token):
     """
     Test current user endpoint.

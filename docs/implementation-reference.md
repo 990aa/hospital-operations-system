@@ -204,7 +204,7 @@ Profile extension for patient users:
 - `id`, `user_id` (FK → User)
 - `date_of_birth`, `gender`, `address`, `blood_group`, `emergency_contact`
 - `medical_history` — text blob accumulating short summaries appended each time a treatment is completed (read-only to patients; managed by clinical workflow)
-- `notification_pref` — comma-separated channel string: `"email"`, `"sms"`, or `"email,sms"`; patients choose via checkboxes in profile settings
+- `notification_pref` — always `"email"`; all notifications are sent via email only (SMS has been removed)
 - Relationships: `user`, `appointments`, `export_jobs`
 
 ### `Appointment` Model
@@ -741,13 +741,13 @@ celery.conf.beat_schedule = {
 ### `send_appointment_reminders()`
 
 - Scheduled: daily at 8:00 AM via Celery Beat.
-- Logic: Queries `Appointment.query.filter_by(date=today, status="Booked")`. For each, checks there is a completed payment. Sends an email to the patient with appointment time, doctor name.
-- Uses: `flask_mail.Message` sent via `mail.send()`.
+- Logic: Queries `Appointment.query.filter_by(date=today, status="Booked")`. For each, sends an email to the patient with appointment time, doctor name.
+- Uses: `Flask-Mail` with Gmail SMTP configured via `.env` file.
 
 ### `send_monthly_doctor_reports()`
 
 - Scheduled: 1st of each month at 6:00 AM.
-- Logic: Iterates all doctors with `notification_pref=True`. For each, queries appointments in the previous month, computes counts, formats an HTML email with statistics and a list of treated patients. Sends via Flask-Mail.
+- Logic: Iterates all doctors with `email_notifications=True`. For each, queries appointments in the previous month, computes counts, formats an HTML email with statistics and a list of treated patients. Sends via Flask-Mail.
 
 ### `export_patient_treatments(job_id, patient_id)`
 
@@ -931,8 +931,7 @@ All reactive state is declared in `data()`. Key groups:
 - `myAppointments` — patient's own appointments
 - `selectedAppointment` — appointment being acted on (cancel, pay, view treatment)
 - `paymentForm` — payment form state; `amount` is auto-set from `appointment.appointment_cost` and is read-only
-- `profileForm.notif_email` — boolean checkbox for email notifications
-- `profileForm.notif_sms` — boolean checkbox for SMS notifications
+- `profileForm.notif_email` — always true; all notifications go via email (SMS removed)
 
 ### UI State
 - `successMessage`, `isLoading`, various modal/dropdown toggles
@@ -1011,7 +1010,7 @@ The `index.html` template is divided into role-scoped regions controlled by `v-i
 - Nav tabs: Book Appointment, My Appointments, Payments, Profile.
 - Book tab: Department filter buttons, text search input for doctor name, then scrollable grid of doctor profile cards (name, dept, availability, slot, fee ₹, bio). Clicking a card selects that doctor. Below the cards sits the date picker and booking confirmation.
 - My Appointments tab: appointment rows with treatment detail accordion; upcoming (Booked + future date) rows highlighted in light green. Cancel and Pay buttons as appropriate.
-- Profile tab: Email/SMS checkboxes for notification preferences; medical history displayed as read-only text (not editable by patient).
+- Profile tab: Email notification preference is always enabled (read-only); medical history displayed as read-only text (not editable by patient).
 
 ---
 

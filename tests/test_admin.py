@@ -434,7 +434,7 @@ def test_admin_update_patient(admin_token):
             "name": "Patient Updated",
             "phone": "7771112222",
             "medical_history": "Updated by admin",
-            "notification_pref": "sms",
+            "notification_pref": "email",
         },
     )
     assert update.status_code == 200

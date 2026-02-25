@@ -6,20 +6,29 @@ This is the main Flask application that initializes all components:
 - SQLAlchemy database
 - Flask-Security for authentication
 - Flask-Caching with Redis
+- Flask-Mail for email notifications
 - Celery for background tasks
 
 Author: Abdul Ahad
 """
 
+import os
 import logging
 import traceback
+from dotenv import load_dotenv
 from sqlalchemy import inspect
 from werkzeug.exceptions import HTTPException
 
 from flask import Flask, render_template, jsonify, request
+from flask_mail import Mail
 from models.database import db, User, Role, Department
 from flask_security import Security, SQLAlchemyUserDatastore
 from flask_security.utils import hash_password
+
+# Load environment variables from .env file in project root.
+# This keeps sensitive credentials (SMTP password) out of the codebase
+# and avoids polluting the system environment on Windows.
+load_dotenv()
 
 # Shared extension singleton (Cache) initialised inside create_app()
 from backend.extensions import cache
@@ -37,6 +46,9 @@ from backend.routes.patient_routes import patient_bp
 
 # Import Celery configuration
 from backend.celery_config import celery
+
+# Flask-Mail singleton – initialised with app inside create_app()
+mail = Mail()
 
 
 class HospitalApp(Flask):
@@ -105,6 +117,21 @@ def create_app(test_config=None):
     # route modules can import it directly with a static type instead of going
     # through the dynamic ``current_app.cache`` attribute.
     cache.init_app(app)
+
+    # Flask-Mail Configuration
+    # Credentials are loaded from the .env file via python-dotenv.
+    # Uses Gmail SMTP with an App Password for secure demo delivery.
+    app.config.setdefault("MAIL_SERVER", "smtp.gmail.com")
+    app.config.setdefault("MAIL_PORT", 587)
+    app.config.setdefault("MAIL_USE_TLS", True)
+    app.config.setdefault("MAIL_USERNAME", os.environ.get("SMTP_USERNAME", ""))
+    app.config.setdefault("MAIL_PASSWORD", os.environ.get("SMTP_PASSWORD", ""))
+    app.config.setdefault(
+        "MAIL_DEFAULT_SENDER", os.environ.get("FROM_EMAIL", "hospital@example.com")
+    )
+
+    # Initialize Flask-Mail with app
+    mail.init_app(app)
 
     # Initialize Extensions
     # Initialize SQLAlchemy

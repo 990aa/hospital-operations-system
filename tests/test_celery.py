@@ -5,7 +5,7 @@ Tests for background job functionality:
 - Daily reminders
 - Monthly reports
 - CSV export
-- Email/SMS notifications
+- Email notifications
 
 Note: These tests mock the Celery tasks since running a full Celery worker
 requires Redis to be running.

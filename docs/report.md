@@ -71,7 +71,7 @@ The database comprises eight core entities:
 
 **Payment as Audit Ledger:** Payment records use positive amounts for completed transactions and negative amounts for refunds. This approach allows net figures to be computed with simple arithmetic.
 
-**Notification Preference as Comma-Separated Channels:** The `Patient` model's `notification_pref` column stores a comma-separated list of opted-in channels. This replaces the single-value enum from earlier versions, allowing patients to opt into multiple channels simultaneously.
+**Notification Preference:** The `Patient` model's `notification_pref` column is always set to `"email"`. All notifications are delivered via email only.
 
 ### 4.3 Entity Relationships
 
@@ -120,7 +120,7 @@ Admin has system oversight including creating, editing, and deleting doctors and
 
 ### 5.7 Patient Capabilities
 
-Patients can browse doctors as interactive profile cards, each showing the doctor's name, department, availability, slot duration, consultation fee, and bio. Cards can be filtered by department selection or searched by name, allowing patients to quickly find the appropriate specialist. After consultation, they can view their full treatment history including diagnosis, prescription, and doctor's notes in a read-only format; history is updated automatically by the system. Patients can also export their complete treatment record as a CSV file. Notification preferences are configured via Email and SMS checkboxes in the profile settings.
+Patients can browse doctors as interactive profile cards, each showing the doctor's name, department, availability, slot duration, consultation fee, and bio. Cards can be filtered by department selection or searched by name, allowing patients to quickly find the appropriate specialist. After consultation, they can view their full treatment history including diagnosis, prescription, and doctor's notes in a read-only format; history is updated automatically by the system. Patients can also export their complete treatment record as a CSV file. Email is mandatory at registration; all notifications are delivered via email.
 
 ## 6. Background Jobs and Asynchronous Processing
 
@@ -130,7 +130,7 @@ Celery manages all background task execution. Redis serves as both the message b
 
 ### 6.2 Daily Appointment Reminders
 
-A Celery Beat periodic task runs everyday at 8:00 AM. It queries all appointments scheduled for the current day with status "Booked" and a corresponding completed payment. For each qualifying appointment, a reminder is sent to the patient detailing the appointment time and doctor. The notification respects each patient's `notification_pref` setting, which stores a comma-separated list of opted-in channels. If both `email` and `sms` are listed, the patient receives reminders through both channels simultaneously.
+A Celery Beat periodic task runs everyday at 8:00 AM. It queries all appointments scheduled for the current day with status "Booked". For each qualifying appointment, a reminder email is sent to the patient detailing the appointment time and doctor.
 
 ### 6.3 Monthly Doctor Activity Report
 
@@ -165,7 +165,7 @@ The application uses Redis-backed caching via Flask-Caching to reduce database q
 
 ## 9. User Interface Design
 
-The Admin Dashboard provides tabs for statistics, doctor management (including setting consultation fees), patient management, appointments, and payments. The Doctor Dashboard provides tabs for appointments (colour-coded by urgency, with upcoming future appointments highlighted in light green for quick identification), a patients list with history viewer, reports, payments, availability configuration, and a read-only profile. The Patient Dashboard provides tabs for booking (doctor profile cards with department filter and name search), appointments (with treatment detail, upcoming appointments highlighted in light green), payments, and profile management (notification preferences as Email/SMS checkboxes).
+The Admin Dashboard provides tabs for statistics, doctor management (including setting consultation fees), patient management, appointments, and payments. The Doctor Dashboard provides tabs for appointments (colour-coded by urgency, with upcoming future appointments highlighted in light green for quick identification), a patients list with history viewer, reports, payments, availability configuration, and a read-only profile. The Patient Dashboard provides tabs for booking (doctor profile cards with department filter and name search), appointments (with treatment detail, upcoming appointments highlighted in light green), payments, and profile management (email is the sole notification channel).
 
 ## 10. Development Methodology
 

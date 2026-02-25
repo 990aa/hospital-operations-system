@@ -70,13 +70,13 @@ def logout():
 
 
 @auth_bp.route("/register", methods=["POST"])
-@validate_required_fields("username", "password", "name")
+@validate_required_fields("username", "password", "name", "email")
 @validate_string_length("username", min_length=3, max_length=50)
 @validate_string_length("name", min_length=2, max_length=100)
 @validate_password_strength
 @validate_email
 def register():
-    """Register a new patient."""
+    """Register a new patient. Email is mandatory for notifications."""
     data = request.json
 
     # Sanitize inputs
@@ -85,6 +85,14 @@ def register():
 
     if User.query.filter_by(username=username).first():
         return jsonify({"message": "Username already exists"}), 400
+
+    # Email is mandatory for patients (all notifications go via email).
+    email = sanitize_string(data.get("email", ""), max_length=255)
+    if not email:
+        return jsonify({"message": "Email is required for patient registration"}), 400
+
+    if User.query.filter_by(email=email).first():
+        return jsonify({"message": "Email already in use"}), 400
 
     # Create User
     # Flask Security User creation usually involves user_datastore.create_user if managing roles properly.
@@ -98,7 +106,7 @@ def register():
         username=username,
         password=hash_password(data["password"]),
         name=name,
-        email=sanitize_string(data.get("email", ""), max_length=255) or None,
+        email=email,
         active=True,
     )
     user_datastore.add_role_to_user(new_user, "patient")

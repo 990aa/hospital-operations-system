@@ -311,8 +311,9 @@
                                 <input type="text" v-model="authForm.username" class="form-control" required>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label">Email (Optional)</label>
-                                <input type="email" v-model="authForm.email" class="form-control">
+                                <label class="form-label">Email <span class="text-danger">*</span></label>
+                                <input type="email" v-model="authForm.email" class="form-control" required>
+                                <small class="text-muted">Required — all notifications are sent via email.</small>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Password</label>
@@ -1441,12 +1442,8 @@
                             <div class="mb-2">
                                 <label class="form-label d-block">Notification Preference</label>
                                 <div class="form-check form-check-inline">
-                                    <input class="form-check-input" type="checkbox" id="notifEmail" v-model="profileForm.notif_email">
-                                    <label class="form-check-label" for="notifEmail">Email</label>
-                                </div>
-                                <div class="form-check form-check-inline">
-                                    <input class="form-check-input" type="checkbox" id="notifSms" v-model="profileForm.notif_sms">
-                                    <label class="form-check-label" for="notifSms">SMS</label>
+                                    <input class="form-check-input" type="checkbox" id="notifEmail" v-model="profileForm.notif_email" disabled>
+                                    <label class="form-check-label" for="notifEmail">Email (all notifications sent via email)</label>
                                 </div>
                             </div>
                             <button type="submit" class="btn btn-hospital-primary">Save Profile</button>

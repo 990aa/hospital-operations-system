@@ -12,7 +12,7 @@ A professional, production-grade Hospital Management System with role-based acce
 - **Doctor Card Profiles**: Patient booking shows browsable doctor profile cards with department filter and name search
 - **PDF Reports**: Generate professional monthly activity reports for doctors
 - **Payment Portal**: Fixed-fee payment system in Indian Rupees (₹); credit card and debit card only
-- **Background Jobs**: Automated email/SMS reminders and monthly reports via Celery
+- **Background Jobs**: Automated email reminders and monthly reports via Celery
 - **Upcoming Appointment Highlighting**: All dashboards (admin, doctor, patient) highlight upcoming appointments in green for easy visual differentiation
 
 ### Technical Features
@@ -131,7 +131,7 @@ The system uses 10 tables:
 3. **ROLES_USERS** - Many-to-many relationship for user roles
 4. **DEPARTMENT** - Medical departments (Cardiology, Neurology, etc.)
 5. **DOCTOR** - Doctor profiles linked to users, includes `appointment_cost` (fixed consultation fee in ₹)
-6. **PATIENT** - Patient profiles; `notification_pref` stores comma-separated channels: `email`, `sms`, or `email,sms`
+6. **PATIENT** - Patient profiles; email is mandatory for all notifications
 7. **APPOINTMENT** - Appointment records
 8. **TREATMENT** - Treatment records for completed appointments
 9. **EXPORT_JOB** - Background CSV export jobs
@@ -154,8 +154,9 @@ See `er_diagram.png` for visual representation.
 - Patients **cannot manually edit** their medical history.
 
 ### Notification Preferences
-- Patients can choose to receive reminders via **Email**, **SMS**, or **both**.
-- Selected via checkboxes in the profile settings.
+- All notifications (appointment reminders, export completions, monthly reports) are sent via **email only**.
+- Email is mandatory for patient registration.
+- SMS support has been removed.
 
 ### Booking Flow (Patient)
 1. Go to **Book Appointment** tab.

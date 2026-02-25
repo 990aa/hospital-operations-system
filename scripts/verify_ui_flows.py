@@ -231,7 +231,7 @@ try:
             "name": "Profile Updated",
             "phone": "7778889999",
             "history": "Updated history",
-            "notification_pref": "sms",
+            "notification_pref": "email",
         },
         timeout=15,
     )
