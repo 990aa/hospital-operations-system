@@ -36,6 +36,7 @@ from backend.extensions import cache
 # Ensure all front-end vendor assets are present before serving requests.
 # Downloads only on first run (or when files are missing); no-op thereafter.
 from backend.ensure_vendors import ensure_vendors
+
 ensure_vendors()
 
 # Import route blueprints

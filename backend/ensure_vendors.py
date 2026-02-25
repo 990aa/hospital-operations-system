@@ -39,8 +39,8 @@ logger = logging.getLogger(__name__)
 # Configuration – vendor root relative to this file's package root
 # ---------------------------------------------------------------------------
 
-_HERE = Path(__file__).resolve().parent          # backend/
-_REPO = _HERE.parent                             # project root
+_HERE = Path(__file__).resolve().parent  # backend/
+_REPO = _HERE.parent  # project root
 _VENDOR = _REPO / "frontend" / "static" / "vendor"
 
 _BOOTSTRAP_VERSION = "5.3.3"

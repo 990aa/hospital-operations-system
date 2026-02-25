@@ -57,9 +57,7 @@ class User(db.Model, UserMixin):  # type: ignore[misc]
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(255), unique=True, nullable=False)
     email = db.Column(db.String(255), unique=True, nullable=True)
-    phone = db.Column(
-        db.String(20), nullable=True
-    )  # Phone number for contact
+    phone = db.Column(db.String(20), nullable=True)  # Phone number for contact
     password = db.Column(db.String(255), nullable=False)
     active = db.Column(db.Boolean())
     fs_uniquifier = db.Column(db.String(255), unique=True, nullable=False)

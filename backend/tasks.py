@@ -491,6 +491,3 @@ def send_email(to_email, subject, message, is_html=False):
     else:
         # For development/tests: just log the email
         print(f"[EMAIL] To: {to_email}\nSubject: {subject}\n\n{message}\n---")
-
-
-
