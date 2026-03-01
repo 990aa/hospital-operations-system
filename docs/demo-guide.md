@@ -1,24 +1,16 @@
 # Hospital Management System — Live Demo Guide
 
-A step-by-step walkthrough for demonstrating every feature, edge case, and vulnerability of the system. All instructions are **Windows-only**.
-
 **Pre-requisites:**
 
-- **Docker Desktop** for Windows (for Redis).
 - The `.env` file at the project root is already configured:
   ```
   SMTP_USERNAME=hms238537@gmail.com
   SMTP_PASSWORD=ugkn nhym khpw wzet
   FROM_EMAIL=hms238537@gmail.com
   ```
-
-> **Gmail Alias Trick:** Gmail ignores everything after a `+` sign. So `hms238537+drwilson@gmail.com` still delivers to `hms238537@gmail.com`. We use this to give each demo user a unique email while receiving everything in one inbox.
-
 ---
 
 ## Start the System
-
-Open **four separate PowerShell terminals** and run these commands:
 
 1. **Redis (Docker):**
    ```powershell
