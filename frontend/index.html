@@ -396,40 +396,26 @@
                     </button>
 
                     <div class="card mb-3">
-                        <div class="card-body">
-                            <div class="row g-2 align-items-end">
-                                <div class="col-md-4">
-                                    <label class="form-label">Search by name</label>
-                                    <input v-model="doctorSearch" @input="loadDoctors" class="form-control" placeholder="Doctor name or username">
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">Filter by department</label>
-                                    <select v-model="doctorDepartmentFilter" @change="loadDoctors" class="form-select">
-                                        <option value="">All Departments</option>
-                                        <option v-for="dept in departments" :key="dept.id" :value="dept.id">{{ dept.name }}</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="card mb-3">
                         <div class="card-header">Department Management</div>
                         <div class="card-body">
                             <div class="row g-2 mb-3">
-                                <div class="col-md-8">
-                                    <input v-model="newDepartmentName" class="form-control" placeholder="Create new department">
+                                <div class="col-md-5">
+                                    <input v-model="newDepartmentName" class="form-control" placeholder="Department name">
                                 </div>
-                                <div class="col-md-4">
-                                    <button type="button" @click="createDepartment" class="btn btn-hospital-secondary w-100">Save Department</button>
+                                <div class="col-md-5">
+                                    <input v-model="newDepartmentDescription" class="form-control" placeholder="Department description">
+                                </div>
+                                <div class="col-md-2">
+                                    <button type="button" @click="createDepartment" class="btn btn-hospital-secondary w-100">Save</button>
                                 </div>
                             </div>
                             <table class="table table-sm mb-0">
-                                <thead><tr><th>ID</th><th>Name</th><th>Action</th></tr></thead>
+                                <thead><tr><th>ID</th><th>Name</th><th>Description</th><th>Action</th></tr></thead>
                                 <tbody>
                                     <tr v-for="dept in departments" :key="dept.id">
                                         <td>{{ dept.id }}</td>
                                         <td>{{ dept.name }}</td>
+                                        <td>{{ dept.description || 'N/A' }}</td>
                                         <td><button @click="deleteDepartment(dept.id)" class="btn btn-sm btn-hospital-danger">Delete</button></td>
                                     </tr>
                                 </tbody>
@@ -514,6 +500,19 @@
                     <!-- Doctors List Table -->
                     <div class="card">
                         <div class="card-body">
+                            <div class="row g-2 align-items-end mb-3">
+                                <div class="col-md-4">
+                                    <label class="form-label">Search by name</label>
+                                    <input v-model="doctorSearch" @input="loadDoctors" class="form-control" placeholder="Doctor name or username">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Filter by department</label>
+                                    <select v-model="doctorDepartmentFilter" @change="loadDoctors" class="form-select">
+                                        <option value="">All Departments</option>
+                                        <option v-for="dept in departments" :key="dept.id" :value="dept.id">{{ dept.name }}</option>
+                                    </select>
+                                </div>
+                            </div>
                             <table class="table table-hover">
                                 <thead>
                                     <tr>
@@ -869,6 +868,8 @@
                                             <button @click="showAppointmentDetails(apt)" class="btn btn-sm btn-hospital-secondary me-1">Details</button>
                                             <!-- Complete button only for Booked appointments -->
                                             <button v-if="apt.status === 'Booked'" @click="showCompleteAppointment(apt)" class="btn btn-sm btn-hospital-primary me-1">Complete</button>
+                                            <!-- Reschedule button for upcoming appointments -->
+                                            <button v-if="apt.status === 'Booked' && isUpcomingAppointment(apt)" @click="showRescheduleForm(apt)" class="btn btn-sm btn-outline-primary me-1">Reschedule</button>
                                             <!-- Cancel button allows doctor to cancel a Booked appointment -->
                                             <button v-if="apt.status === 'Booked'" @click="cancelAppointment(apt.id)" class="btn btn-sm btn-hospital-danger">Cancel</button>
                                         </td>
@@ -896,8 +897,13 @@
                                     <textarea v-model="treatmentForm.notes" class="form-control" rows="2"></textarea>
                                 </div>
                                 <div class="mb-3">
-                                    <label class="form-label">Next Visit Date (optional)</label>
-                                    <input type="date" v-model="treatmentForm.next_visit_date" class="form-control">
+                                    <label class="form-label">Next Visit Date (optional — only available days shown)</label>
+                                    <select v-model="treatmentForm.next_visit_date" class="form-select">
+                                        <option value="">No follow-up</option>
+                                        <option v-for="day in doctorAvailableDates" :key="day.date" :value="day.date">
+                                            {{ day.date }} ({{ day.day }}) — {{ day.remaining_slots }} slot(s)
+                                        </option>
+                                    </select>
                                 </div>
                                 <button type="submit" class="btn btn-hospital-primary">Save & Complete</button>
                                 <button type="button" @click="selectedAppointment = null" class="btn btn-hospital-secondary ms-2">Cancel</button>
@@ -930,6 +936,29 @@
                     <div class="row">
                         <div class="col-md-6"><div id="doctorAppointmentsChart" class="chart-small"></div></div>
                         <div class="col-md-6"><div id="doctorEarningsChart" class="chart-small"></div></div>
+                    </div>
+
+                    <!-- Reschedule Appointment Form -->
+                    <div v-if="rescheduleAppointment" class="card mt-3">
+                        <div class="card-header">Reschedule Appointment — {{ rescheduleAppointment.patient_name }}</div>
+                        <div class="card-body">
+                            <form @submit.prevent="submitReschedule">
+                                <div class="mb-3">
+                                    <label class="form-label">Current Date: {{ rescheduleAppointment.date }} {{ rescheduleAppointment.time }}</label>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">New Date (only available days shown)</label>
+                                    <select v-model="rescheduleForm.new_date" class="form-select" required>
+                                        <option value="">Select a date</option>
+                                        <option v-for="day in doctorAvailableDates" :key="day.date" :value="day.date">
+                                            {{ day.date }} ({{ day.day }}) — {{ day.remaining_slots }} slot(s)
+                                        </option>
+                                    </select>
+                                </div>
+                                <button type="submit" class="btn btn-hospital-primary">Reschedule</button>
+                                <button type="button" @click="rescheduleAppointment = null" class="btn btn-hospital-secondary ms-2">Cancel</button>
+                            </form>
+                        </div>
                     </div>
                 </div>
 
@@ -1192,6 +1221,9 @@
                         <a class="nav-link" :class="{active: patientTab === 'payments'}" href="#" @click.prevent="patientTab = 'payments'; loadPayments()">Payments</a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" :class="{active: patientTab === 'history'}" href="#" @click.prevent="patientTab = 'history'; loadPatientAppointments()">Medical History</a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" :class="{active: patientTab === 'profile'}" href="#" @click.prevent="patientTab = 'profile'; loadProfile()">Profile</a>
                     </li>
                 </ul>
@@ -1215,7 +1247,8 @@
                                     <button type="button"
                                         v-for="dept in bookingDepartments" :key="dept.id"
                                         :class="['btn btn-sm', String(bookingDeptFilter) === String(dept.id) ? 'btn-hospital-primary' : 'btn-outline-secondary']"
-                                        @click="bookingDeptFilter = dept.id; filterBookingDoctors()">
+                                        @click="bookingDeptFilter = dept.id; filterBookingDoctors()"
+                                        :title="dept.description || ''">
                                         {{ dept.name }}
                                     </button>
                                 </div>
@@ -1425,6 +1458,51 @@
                     </div>
                 </div>
 
+                <!-- Medical History Tab -->
+                <div v-if="patientTab === 'history'">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span>Medical History &amp; Treatment Details</span>
+                            <button @click="triggerExport" class="btn btn-sm btn-hospital-primary" :disabled="exportInProgress">
+                                <i class="bi bi-download me-1"></i>{{ exportInProgress ? 'Exporting...' : 'Export as CSV' }}
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <div v-if="exportMessage" class="alert alert-info alert-dismissible mb-3" role="alert">
+                                {{ exportMessage }}
+                                <button type="button" class="btn-close" @click="exportMessage = ''"></button>
+                            </div>
+                            <p v-if="!patientAppointments.length" class="text-muted">No appointments found.</p>
+                            <div v-for="apt in patientAppointments" :key="apt.id" class="card mb-2">
+                                <div class="card-body p-3">
+                                    <div class="row">
+                                        <div class="col-md-3">
+                                            <strong>Date:</strong> {{ apt.date }}<br>
+                                            <strong>Time:</strong> {{ apt.time }}
+                                        </div>
+                                        <div class="col-md-3">
+                                            <strong>Doctor:</strong> {{ apt.doctor_name }}<br>
+                                            <strong>Department:</strong> {{ apt.department }}
+                                        </div>
+                                        <div class="col-md-2">
+                                            <strong>Status:</strong> <span :class="'badge badge-' + apt.status.toLowerCase()">{{ apt.status }}</span><br>
+                                            <strong>Type:</strong> {{ apt.is_follow_up ? 'Follow-up' : 'Consultation' }}
+                                        </div>
+                                        <div class="col-md-4" v-if="apt.treatment">
+                                            <strong>Diagnosis:</strong> {{ apt.treatment.diagnosis }}<br>
+                                            <strong>Prescription:</strong> {{ apt.treatment.prescription }}<br>
+                                            <strong>Notes:</strong> {{ apt.treatment.notes || 'N/A' }}
+                                        </div>
+                                        <div class="col-md-4" v-else>
+                                            <span class="text-muted">No treatment details available yet.</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div v-if="patientTab === 'profile'" class="card">
                     <div class="card-header">Edit Profile</div>
                     <div class="card-body">
@@ -1440,11 +1518,7 @@
                                 <div class="form-control" style="min-height:80px;white-space:pre-wrap;background:#f8f9fa;color:#424242;">{{ profileForm.history || 'No medical history recorded yet.' }}</div>
                             </div>
                             <div class="mb-2">
-                                <label class="form-label d-block">Notification Preference</label>
-                                <div class="form-check form-check-inline">
-                                    <input class="form-check-input" type="checkbox" id="notifEmail" v-model="profileForm.notif_email" disabled>
-                                    <label class="form-check-label" for="notifEmail">Email (all notifications sent via email)</label>
-                                </div>
+                                <small class="text-muted"><i class="bi bi-envelope-fill me-1"></i>All notifications will be sent via email.</small>
                             </div>
                             <button type="submit" class="btn btn-hospital-primary">Save Profile</button>
                         </form>

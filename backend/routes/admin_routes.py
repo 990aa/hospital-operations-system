@@ -338,10 +338,10 @@ def manage_departments():
         if existing:
             return jsonify(
                 {
-                    "message": "Department already exists",
+                    "message": "A department with this name already exists",
                     "department": existing.to_dict(),
                 }
-            ), 200
+            ), 409
 
         department = Department(name=name, description=description)
         db.session.add(department)

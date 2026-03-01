@@ -384,6 +384,80 @@ def update_treatment(id):
     )
 
 
+@doctor_bp.route("/doctor/appointments/<int:id>/reschedule", methods=["POST"])
+@roles_required("doctor")
+def reschedule_appointment(id):
+    """Reschedule an upcoming appointment to a new date.
+
+    Only the doctor assigned to the appointment can reschedule.
+    The new date must be within the next 7 days and on a day
+    the doctor is available.
+
+    Request Body:
+        new_date: Target date in YYYY-MM-DD format
+
+    Returns:
+        Success message with new appointment details.
+    """
+    appointment = Appointment.query.get_or_404(id)
+    doctor = Doctor.query.filter_by(user_id=current_user.id).first()
+    if not doctor:
+        return jsonify({"message": "Doctor profile not found"}), 404
+    if appointment.doctor_id != doctor.id:
+        return jsonify({"message": "Unauthorized – not your appointment"}), 403
+    if appointment.status != "Booked":
+        return jsonify({"message": "Only booked appointments can be rescheduled"}), 400
+
+    data = request.json or {}
+    new_date_str = data.get("new_date")
+    if not new_date_str:
+        return jsonify({"message": "new_date is required"}), 400
+
+    try:
+        new_date = datetime.strptime(new_date_str, "%Y-%m-%d").date()
+    except ValueError:
+        return jsonify({"message": "Invalid date format. Use YYYY-MM-DD"}), 400
+
+    today = datetime.now().date()
+    if new_date < today:
+        return jsonify({"message": "Cannot reschedule to a past date"}), 400
+    if new_date > today + timedelta(days=6):
+        return jsonify({"message": "Can only reschedule within the next 7 days"}), 400
+
+    # Cancel the old appointment and create a new one at the first available slot
+    appointment.status = "Cancelled"
+    db.session.flush()
+
+    new_app, assigned_time = _create_serial_appointment(
+        doctor=doctor,
+        patient_id=appointment.patient_id,
+        date_str=new_date_str,
+        is_follow_up=appointment.is_follow_up,
+        follow_up_source_appointment_id=appointment.follow_up_source_appointment_id,
+    )
+    if not new_app:
+        # Rollback cancellation
+        appointment.status = "Booked"
+        db.session.commit()
+        return jsonify({"message": "No available slots on the selected date"}), 409
+
+    db.session.commit()
+
+    # Invalidate caches
+    cache.delete("admin_stats")
+    cache.delete(f"doctor_appointments_{doctor.id}")
+    for suffix in [None, "Booked", "Completed", "Cancelled"]:
+        cache.delete(f"patient_appointments_{appointment.patient_id}_{suffix}")
+
+    return jsonify({
+        "message": "Appointment rescheduled successfully",
+        "old_appointment_id": appointment.id,
+        "new_appointment_id": new_app.id,
+        "new_date": new_date_str,
+        "new_time": assigned_time,
+    })
+
+
 # Patient History Routes
 
 

@@ -140,6 +140,10 @@ def send_monthly_reports(self):
     prev_month_start = first_day_of_previous.strftime("%Y-%m-%d")
     prev_month_end = last_day_of_previous.strftime("%Y-%m-%d")
     prev_month_name = first_day_of_previous.strftime("%B %Y")
+    # prev_month_start = "2020-01-01"
+    # prev_month_end = "2030-12-31"
+    # prev_month_name = "LIVE DEMO REPORT"
+
 
     # Get all doctors
     doctors = Doctor.query.all()
@@ -324,7 +328,7 @@ def export_patient_treatments(self, patient_id, export_job_id):
         export_job.completed_at = datetime.now()
         db.session.commit()
 
-        # Send notification to patient
+        # Send notification to patient with CSV attached
         if patient.user.email:
             subject = "Treatment History Export Complete"
             message = f"""
@@ -336,15 +340,21 @@ Export Details:
 - Total Records: {len(appointments)}
 - Export Date: {datetime.now().strftime("%Y-%m-%d %H:%M")}
 
-You can download your file from the dashboard.
+The CSV file is attached to this email. You can also download it from the dashboard.
 
 Best regards,
 Hospital Management Team
 """
             try:
-                send_email(patient.user.email, subject, message)
+                send_email_with_attachment(
+                    patient.user.email, subject, message, file_path
+                )
             except Exception as e:
-                current_app.logger.error(f"Failed to send export notification: {e}")
+                # Fallback: send without attachment
+                try:
+                    send_email(patient.user.email, subject, message)
+                except Exception as e2:
+                    current_app.logger.error(f"Failed to send export notification: {e2}")
 
         return {
             "success": True,
@@ -408,7 +418,7 @@ def build_monthly_report_html(doctor, appointments, month_name):
     </head>
     <body>
         <h1>Monthly Activity Report - {month_name}</h1>
-        <p>Dear Dr. {doctor.user.name},</p>
+        <p>Dear {doctor.user.name},</p>
 
         <div class="summary">
             <h2>Summary</h2>
@@ -491,3 +501,32 @@ def send_email(to_email, subject, message, is_html=False):
     else:
         # For development/tests: just log the email
         print(f"[EMAIL] To: {to_email}\nSubject: {subject}\n\n{message}\n---")
+
+
+def send_email_with_attachment(to_email, subject, message, file_path):
+    """Send an email with a file attachment using Flask-Mail.
+
+    Falls back to console logging when SMTP is not configured.
+
+    Args:
+        to_email: Recipient email address
+        subject: Email subject
+        message: Email body (plain text)
+        file_path: Absolute path to the file to attach
+    """
+    from flask_mail import Message as MailMessage
+    from app import mail
+
+    username = os.environ.get("SMTP_USERNAME", "")
+    if username:
+        msg = MailMessage(
+            subject=subject,
+            recipients=[to_email],
+            body=message,
+        )
+        with open(file_path, "rb") as fp:
+            filename = os.path.basename(file_path)
+            msg.attach(filename, "text/csv", fp.read())
+        mail.send(msg)
+    else:
+        print(f"[EMAIL+ATTACHMENT] To: {to_email}\nSubject: {subject}\nAttachment: {file_path}\n\n{message}\n---")

@@ -101,7 +101,7 @@ Patients can book as well as cancel appointments with doctors.
 
 
 Backend Jobs
-a. Scheduled Job - Daily reminders - The application should send daily reminders to users on SMS or mail
+a. Scheduled Job - Daily reminders - The application should send daily reminders to users on mail
 Check if a patient has a visit scheduled to the hospital on a particular day
 If yes, then send the alert asking them to visit the hospital at the scheduled time
 The reminder can be sent in the morning every day. (choose the time)

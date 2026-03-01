@@ -179,7 +179,7 @@ Inherits from `fsqla.FsRoleMixin`. Contains `id`, `name`, `description`. Three r
 
 ### `Department` Model
 
-Simple model: `id`, `name` (unique), `description`. Used to categorise doctors into specialisations.
+Simple model: `id`, `name` (unique), `description` (optional text). Used to categorise doctors into specialisations. The admin creation form now accepts a description field, and the department table and booking buttons display it as well.
 
 ### `Doctor` Model
 
@@ -204,7 +204,7 @@ Profile extension for patient users:
 - `id`, `user_id` (FK → User)
 - `date_of_birth`, `gender`, `address`, `blood_group`, `emergency_contact`
 - `medical_history` — text blob accumulating short summaries appended each time a treatment is completed (read-only to patients; managed by clinical workflow)
-- `notification_pref` — always `"email"`; all notifications are sent via email only (SMS has been removed)
+- `notification_pref` — always `"email"`; all notifications are sent via email only (SMS has been removed). The patient profile form no longer shows a notification preference selector — a static text "All notifications sent via email" is displayed instead.
 - Relationships: `user`, `appointments`, `export_jobs`
 
 ### `Appointment` Model
@@ -375,6 +375,10 @@ Returns aggregate counts for the admin dashboard. Queries:
 
 Lists all doctors with their user info, department name, and appointment counts. Joins `Doctor`, `User`, `Department` tables. Cache key: `"all_doctors"` with 60-second TTL.
 
+### `POST /api/admin/departments`
+
+Creates a new department. Accepts `name` (required) and `description` (optional). If a department with the same name already exists, returns **409 Conflict** with `{"error": "A department with this name already exists"}`. Previously this returned 200 with a message field, which the frontend did not surface as an error.
+
 ### `POST /api/admin/doctors`
 
 Creates a new doctor. Steps:
@@ -481,6 +485,18 @@ Computes monthly statistics for the doctor: appointments in that period broken d
 ### `GET /api/doctor/patient-history-pdf/<patient_id>`
 
 Generates a PDF using ReportLab containing the patient's full treatment history with this doctor. Returns as a binary download stream with `application/pdf` content type.
+
+### `POST /api/doctor/appointments/<id>/reschedule`
+
+Allows a doctor to reschedule an upcoming (Booked) appointment to a new date. Steps:
+1. Validates the appointment belongs to this doctor and is currently "Booked".
+2. Validates the new date is within the next 7 days and falls on one of the doctor's availability days.
+3. Cancels the original appointment (sets `status = "Cancelled"`).
+4. Creates a new appointment on the new date using `_create_serial_appointment()` (serial slot assignment).
+5. Copies over notes and follow-up metadata from the original.
+6. If the original had a completed payment, creates a new payment record for the new appointment.
+7. Invalidates relevant caches.
+8. Returns the new appointment details.
 
 ### `GET /api/doctor/payments`
 
@@ -680,6 +696,8 @@ celery.conf.update(
 
 The `solo` pool runs tasks synchronously in the worker process with concurrency 1. It is functionally identical for development; POSIX servers use `prefork` with full concurrency.
 
+> **sys.path fix:** The celery worker process runs in its own interpreter and may not have the project root on `sys.path`, causing `ModuleNotFoundError: No module named 'models'`. To fix this, `celery_config.py` now inserts the project root directory at the front of `sys.path` before any application imports.
+
 ### Configuration (`backend/celery_config.py`)
 
 ```python
@@ -757,8 +775,12 @@ celery.conf.beat_schedule = {
   2. Queries all completed appointments for the patient with linked Treatment records.
   3. Writes a CSV to `exports/patient_{id}_treatments_{timestamp}.csv`.
   4. Updates `ExportJob.status = "completed"`, `ExportJob.file_path = <path>`.
-  5. Sends a notification email to the patient.
+  5. Sends a notification email **with the CSV file attached** using `send_email_with_attachment()`. Falls back to a plain `send_email()` (without attachment) if the attachment send fails.
 - Error handling: if any exception occurs, sets `ExportJob.status = "failed"`.
+
+### `send_email_with_attachment(to_email, subject, message, file_path)`
+
+Sends an email with a file attachment using Flask-Mail. If `SMTP_USERNAME` is not configured, falls back to console logging. Uses `Message.attach()` to include the file with `text/csv` MIME type.
 
 ---
 
@@ -998,19 +1020,20 @@ The `index.html` template is divided into role-scoped regions controlled by `v-i
 ### Admin Dashboard (`v-if="activeRole === 'admin'"`)
 - Nav tabs: Stats, Doctors, Patients, Appointments, Payments.
 - Stats tab: Plotly bar chart for monthly appointments + summary cards.
-- Doctors tab: table with Edit / Delete / Patients buttons. "Doctor's Patients" panel (`v-if="adminViewDoctorPatients"`) below the table.
+- Doctors tab: Doctor search bar placed **directly above the doctors table** (moved from above the department management section). Table with Edit / Delete / Patients buttons. "Doctor's Patients" panel (`v-if="adminViewDoctorPatients"`) below the table. Department creation form now includes a **description** text input, and the department table displays a Description column.
 - Patients tab: table with Edit / Delete buttons.
 
 ### Doctor Dashboard (`v-if="activeRole === 'doctor'"`)
 - Nav tabs: Appointments, My Patients, Reports, Payments, Availability, Profile.
-- Appointments tab: table with colour-coded rows (green for `isUpcomingAppointment`), sort is pre-applied in JS; Cancel button for Booked appointments.
+- Appointments tab: table with colour-coded rows (green for `isUpcomingAppointment`), sort is pre-applied in JS; Cancel button for Booked appointments. **Reschedule** button on upcoming appointments opens a form with a date dropdown (next 7 days of doctor's available days) to move the appointment.
 - My Patients tab: searchable patient list, patient history viewer with inline treatment editor.
 
 ### Patient Dashboard (`v-if="activeRole === 'patient'"`)
 - Nav tabs: Book Appointment, My Appointments, Payments, Profile.
-- Book tab: Department filter buttons, text search input for doctor name, then scrollable grid of doctor profile cards (name, dept, availability, slot, fee ₹, bio). Clicking a card selects that doctor. Below the cards sits the date picker and booking confirmation.
+- Book tab: Department filter buttons (each button shows `description` as a tooltip), text search input for doctor name, then scrollable grid of doctor profile cards (name, dept, availability, slot, fee ₹, bio). Clicking a card selects that doctor. Below the cards sits the date picker and booking confirmation.
 - My Appointments tab: appointment rows with treatment detail accordion; upcoming (Booked + future date) rows highlighted in light green. Cancel and Pay buttons as appropriate.
-- Profile tab: Email notification preference is always enabled (read-only); medical history displayed as read-only text (not editable by patient).
+- Medical History tab: Displays all completed consultations with diagnosis, prescription, and notes. Includes an **Export CSV** button that triggers an async Celery job to generate the CSV and email it to the patient as an attachment. Export progress and status messages are shown inline.
+- Profile tab: Static "All notifications sent via email" text (no editable preference); medical history displayed as read-only text (not editable by patient).
 
 ---
 
@@ -1102,3 +1125,92 @@ The `index.html` template is divided into role-scoped regions controlled by `v-i
 **Challenge:** Patient appointment caches are keyed by both `patient_id` and `status_filter`, producing four cache entries per patient. A status-changing write must invalidate all four.
 
 **Solution:** Every relevant write operation explicitly calls `cache.delete()` for all four key variants (None, Booked, Completed, Cancelled). This guarantees consistency without a more complex cache tagging system.
+
+---
+
+## 23. Recent Updates — Change Log
+
+This section documents all changes made during the latest iteration of improvements.
+
+### 23.1 Department Description Field
+
+**Files changed:** `frontend/index.html`, `frontend/static/js/app.js`, `backend/routes/admin_routes.py`
+
+- Admin department creation form now includes a **Description** text input (`newDepartmentDescription` state variable).
+- `createDepartment()` sends the `description` field in the POST body.
+- The admin department table now displays a **Description** column.
+- Patient booking department buttons show the description as a Bootstrap `title` tooltip.
+
+### 23.2 Notification Preference Removed from Patient Profile
+
+**Files changed:** `frontend/index.html`
+
+- The patient profile form no longer shows an editable notification preference dropdown.
+- Replaced with a static `<p>` element: *"All notifications sent via email"*.
+- The `notification_pref` field on the Patient model remains `"email"` (unchanged in the database).
+
+### 23.3 Medical History Tab with Export CSV
+
+**Files changed:** `frontend/index.html`, `frontend/static/js/app.js`, `backend/tasks.py`
+
+- Added a new **Medical History** tab to the patient dashboard (alongside Book, Appointments, Payments, Profile).
+- Displays all completed consultations with date, doctor name, diagnosis, prescription, and notes.
+- Includes an **Export CSV** button that calls `POST /api/export/treatments`.
+- The button is disabled while export is in progress; status messages are displayed inline.
+- `triggerExport()` initiates the async job; `pollExportJob()` polls for completion.
+- The Celery task `export_patient_treatments` now **emails the CSV as an attachment** using the new `send_email_with_attachment()` function.
+
+### 23.4 Error Messages for Duplicate Registration and Department
+
+**Files changed:** `frontend/static/js/app.js`, `backend/routes/admin_routes.py`
+
+- **Registration:** `handleAuth()` now catches non-OK responses on register and displays the server error message (e.g. "A user with this email already exists") with `alertType = 'danger'`.
+- **Department creation:** Backend now returns **409 Conflict** for duplicate department names (was 200). Frontend `createDepartment()` detects the error and displays it.
+
+### 23.5 Follow-Up Date: Dropdown Instead of Date Input
+
+**Files changed:** `frontend/index.html`, `frontend/static/js/app.js`
+
+- When a doctor completes an appointment and enables "Schedule Follow-Up", the date picker is now a **`<select>` dropdown** populated with the doctor's next 7 available dates (based on `availability_days`).
+- New state: `doctorAvailableDates` (array of date strings).
+- New method: `loadDoctorAvailableDates()` computes available dates from the doctor's `availability_days` setting.
+- `showCompleteAppointment()` now also triggers `loadDoctorAvailableDates()`.
+
+### 23.6 Celery ModuleNotFoundError Fix
+
+**Files changed:** `backend/celery_config.py`
+
+- The Celery worker runs in a separate process that may not have the project root on `sys.path`.
+- Added `sys.path.insert(0, _project_root)` at the top of `celery_config.py` where `_project_root` is computed as the parent of the `backend/` directory.
+- This resolves `ModuleNotFoundError: No module named 'models'` when Celery imports task functions.
+
+### 23.7 Doctor Search Moved Above Doctors Table
+
+**Files changed:** `frontend/index.html`
+
+- The doctor search input was previously located above the department management section in the admin dashboard.
+- Moved to appear **directly above the doctors table**, which is the intuitive location since it filters the doctor list.
+
+### 23.8 Doctor Reschedule Appointment
+
+**Files changed:** `frontend/index.html`, `frontend/static/js/app.js`, `backend/routes/doctor_routes.py`
+
+- Doctors now see a **Reschedule** button on upcoming (Booked) appointments.
+- Clicking it opens a form with a date dropdown (next 7 available days based on doctor's schedule).
+- New backend endpoint: `POST /api/doctor/appointments/<id>/reschedule`.
+  - Cancels the original appointment.
+  - Creates a new appointment on the selected date using serial slot assignment.
+  - Carries over notes, follow-up metadata, and payment records.
+  - Invalidates relevant caches.
+- New Vue state: `rescheduleAppointment`, `rescheduleForm`.
+- New Vue methods: `showRescheduleForm()`, `submitReschedule()`.
+
+### 23.9 Email CSV Attachment
+
+**Files changed:** `backend/tasks.py`
+
+- New function: `send_email_with_attachment(to_email, subject, message, file_path)`.
+  - Uses Flask-Mail's `Message.attach()` to include a file with `text/csv` MIME type.
+  - Falls back to console logging when SMTP is not configured.
+- `export_patient_treatments()` now calls this function to email the CSV to the patient.
+- Graceful fallback: if attachment send fails, falls back to plain-text notification email.

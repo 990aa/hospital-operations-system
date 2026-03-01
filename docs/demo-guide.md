@@ -5,7 +5,6 @@ A step-by-step walkthrough for demonstrating every feature, edge case, and vulne
 **Pre-requisites:**
 
 - **Docker Desktop** for Windows (for Redis).
-- **Python 3.10+** and `uv` installed.
 - The `.env` file at the project root is already configured:
   ```
   SMTP_USERNAME=hms238537@gmail.com
@@ -194,8 +193,6 @@ Click **Save Doctor**.
 - Try registering without providing an email.
 - **Expected:** Error — email is required.
 
-**Logout.**
-
 ---
 
 ## Phase 3: Conflict & Availability Edge Cases
@@ -254,11 +251,6 @@ Click **Save Doctor**.
   - **Expected:** No slots available for that day.
   - **Crucial Check:** Login as **Oliver Grant**. Go to **My Appointments**.
   - **Expected:** Oliver's existing appointment **still exists**. Existing bookings are honored; only new ones are blocked.
-
-### 3.6 Edge Case — Book a Past Date
-
-- Login as any patient. Try to book an appointment for **yesterday**.
-- **Expected:** Error or no available slots — past dates are not bookable.
 
 ### 3.7 Edge Case — Patient Cancellation
 
@@ -446,10 +438,6 @@ Click **Save Doctor**.
 - Go to **Patients**. Find **Oliver Grant**. Click **Edit**.
 - Change name or phone number. Click **Save**.
 - **Expected:** Updated values appear in the table.
-
-### 6.6 Edge Case — Admin Deletes Self
-
-- Try to figure out if admin can delete their own account (they shouldn't be able to — there is no self-delete endpoint for admin).
 
 ---
 

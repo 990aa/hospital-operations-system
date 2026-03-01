@@ -18,6 +18,12 @@ import sys
 from celery import Celery
 from celery.schedules import crontab
 
+# Ensure project root is on the Python path so that `models.database`
+# and other top-level packages can be imported by Celery workers.
+_project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
+
 
 def make_celery(app=None):
     """
@@ -83,6 +89,44 @@ def make_celery(app=None):
 # Create the Celery instance
 # This is imported by app.py and tasks.py
 celery = make_celery()
+
+# ---------------------------------------------------------------------------
+# Flask application context for the Celery worker process
+# ---------------------------------------------------------------------------
+# When the Celery worker is launched with  `-A backend.celery_config`  it
+# imports this module but never calls ``create_app()``.  The tasks in
+# ``backend.tasks`` use Flask extensions (Flask-Mail, Flask-SQLAlchemy …)
+# that require an active application context.
+#
+# We lazily create the Flask app on the first task invocation and cache it
+# for all subsequent calls. This avoids circular-import issues between
+# ``app.py`` (which imports ``celery`` from here) and this module.
+# ---------------------------------------------------------------------------
+
+_flask_app = None  # lazily populated on first task call
+
+
+def _get_flask_app():
+    """Return (and cache) a Flask application instance."""
+    global _flask_app
+    if _flask_app is None:
+        # Ensure project root is on sys.path (belt-and-suspenders check)
+        if _project_root not in sys.path:
+            sys.path.insert(0, _project_root)
+        from app import create_app
+        _flask_app = create_app()
+        celery.conf.update(_flask_app.config)
+    return _flask_app
+
+
+class _ContextTask(celery.Task):
+    """Run every Celery task inside the Flask application context."""
+    def __call__(self, *args, **kwargs):
+        with _get_flask_app().app_context():
+            return self.run(*args, **kwargs)
+
+
+celery.Task = _ContextTask
 
 
 # Beat schedule configuration for periodic tasks

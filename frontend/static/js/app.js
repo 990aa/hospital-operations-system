@@ -98,7 +98,8 @@ createApp({
             departments: [],
             departmentSearch: '',
             newDepartmentName: '',
-            doctorSearch: '',
+            newDepartmentDescription: '',
+            doctorSearch: '',,
             doctorDepartmentFilter: '',
             doctorDepartmentQuery: '',
             showDeptDropdown: false,
@@ -169,6 +170,9 @@ createApp({
             appointmentDetails: null,
             treatmentForm: { diagnosis: '', prescription: '', notes: '', next_visit_date: '' },
             treatmentEditForm: { diagnosis: '', prescription: '', notes: '' },
+            rescheduleAppointment: null,
+            rescheduleForm: { new_date: '' },
+            doctorAvailableDates: [],
             reportMonth: new Date().getMonth() + 1,
             reportYear: new Date().getFullYear(),
 
@@ -197,6 +201,10 @@ createApp({
                 card_number: ''
             },
             payments: [],
+
+            // Export state
+            exportInProgress: false,
+            exportMessage: '',
 
             // Shared profile editor state used by all roles.
             profileForm: {
@@ -416,7 +424,14 @@ createApp({
                     this.showSuccess('Registration successful. Please login.');
                 }
             } catch (error) {
-                await this.logError(error, 'handleAuth');
+                // Display meaningful error messages for registration failures
+                if (error && error.data && error.data.message) {
+                    this.alertType = 'danger';
+                    this.alertMsg = error.data.message;
+                    setTimeout(() => { this.alertMsg = ''; }, 5000);
+                } else {
+                    await this.logError(error, 'handleAuth');
+                }
             }
         },
         // Logout always clears local auth state, even if API logout fails.
@@ -594,16 +609,23 @@ createApp({
             try {
                 const response = await apiCall('/departments', 'POST', {
                     name,
-                    description: ''
+                    description: (this.newDepartmentDescription || '').trim()
                 });
                 this.newDepartmentName = '';
+                this.newDepartmentDescription = '';
                 await this.loadDepartments();
                 if (response && response.department) {
                     this.newDoctor.department_id = response.department.id;
                 }
                 this.showSuccess('Department saved.');
             } catch (error) {
-                await this.logError(error, 'createDepartment');
+                if (error && error.data && error.data.message) {
+                    this.alertType = 'danger';
+                    this.alertMsg = error.data.message;
+                    setTimeout(() => { this.alertMsg = ''; }, 5000);
+                } else {
+                    await this.logError(error, 'createDepartment');
+                }
             }
         },
         // Toggles weekday checkbox in add-doctor availability form.
@@ -980,11 +1002,6 @@ createApp({
         closeAppointmentDetails() {
             this.appointmentDetails = null;
         },
-        // Opens treatment form for selected booked appointment.
-        showCompleteAppointment(appointment) {
-            this.selectedAppointment = appointment;
-            this.treatmentForm = { diagnosis: '', prescription: '', notes: '', next_visit_date: '' };
-        },
         // Completes appointment and refreshes list.
         async completeAppointment() {
             try {
@@ -1184,6 +1201,97 @@ createApp({
             } catch (error) {
                 await this.logError(error, 'saveProfile');
             }
+        },
+
+        // --- Doctor reschedule methods ---
+        async showRescheduleForm(appointment) {
+            this.rescheduleAppointment = appointment;
+            this.rescheduleForm = { new_date: '' };
+            await this.loadDoctorAvailableDates();
+        },
+        async loadDoctorAvailableDates() {
+            try {
+                let doctorId = null;
+                if (this.hasRole('doctor') && this.doctorProfile) {
+                    doctorId = this.doctorProfile.doctor_id;
+                }
+                if (!doctorId) return;
+                const data = await apiCall(`/doctors/${doctorId}/availability`, 'GET');
+                this.doctorAvailableDates = (data.availability || []).filter(d => d.remaining_slots > 0);
+            } catch (error) {
+                await this.logError(error, 'loadDoctorAvailableDates');
+            }
+        },
+        async submitReschedule() {
+            if (!this.rescheduleAppointment || !this.rescheduleForm.new_date) return;
+            try {
+                await apiCall(`/doctor/appointments/${this.rescheduleAppointment.id}/reschedule`, 'POST', {
+                    new_date: this.rescheduleForm.new_date
+                });
+                this.rescheduleAppointment = null;
+                await this.loadDoctorAppointments();
+                this.showSuccess('Appointment rescheduled successfully.');
+            } catch (error) {
+                if (error && error.data && error.data.message) {
+                    this.alertType = 'danger';
+                    this.alertMsg = error.data.message;
+                    setTimeout(() => { this.alertMsg = ''; }, 5000);
+                } else {
+                    await this.logError(error, 'submitReschedule');
+                }
+            }
+        },
+        // Opens the complete appointment form and loads available dates for follow-up.
+        async showCompleteAppointment(appointment) {
+            this.selectedAppointment = appointment;
+            this.treatmentForm = { diagnosis: '', prescription: '', notes: '', next_visit_date: '' };
+            await this.loadDoctorAvailableDates();
+        },
+
+        // --- Patient export methods ---
+        async triggerExport() {
+            this.exportInProgress = true;
+            this.exportMessage = '';
+            try {
+                const response = await apiCall('/export/treatments', 'POST');
+                if (response && response.job_id) {
+                    this.exportMessage = 'Export started. You will receive an email with the CSV file once complete.';
+                    // Poll for completion
+                    this.pollExportJob(response.job_id);
+                }
+            } catch (error) {
+                this.exportInProgress = false;
+                if (error && error.data && error.data.message) {
+                    this.exportMessage = error.data.message;
+                } else {
+                    this.exportMessage = 'Failed to start export. Please try again.';
+                }
+                await this.logError(error, 'triggerExport');
+            }
+        },
+        async pollExportJob(jobId) {
+            const maxAttempts = 30;
+            for (let i = 0; i < maxAttempts; i++) {
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                try {
+                    const job = await apiCall(`/export/jobs/${jobId}`, 'GET');
+                    if (job.status === 'completed') {
+                        this.exportInProgress = false;
+                        this.exportMessage = 'Export complete! The CSV has been sent to your email. You can also download it below.';
+                        // Trigger download
+                        window.open(`/api/export/download/${jobId}`, '_blank');
+                        return;
+                    } else if (job.status === 'failed') {
+                        this.exportInProgress = false;
+                        this.exportMessage = 'Export failed: ' + (job.error_message || 'Unknown error');
+                        return;
+                    }
+                } catch (error) {
+                    // Keep polling
+                }
+            }
+            this.exportInProgress = false;
+            this.exportMessage = 'Export is taking longer than expected. Check back later.';
         }
     }
 }).mount('#app');
