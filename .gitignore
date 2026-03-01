@@ -105,3 +105,6 @@ Thumbs.db
 # EXCEPTIONS
 !statement.txt
 !requirements.txt
+*.yaml
+*.json
+*.xml
