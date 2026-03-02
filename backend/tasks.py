@@ -88,7 +88,7 @@ Dear {patient.user.name},
 This is a friendly reminder that you have an appointment scheduled for today:
 
     Visit Type: {visit_type}
-Doctor: Dr. {doctor.user.name}
+Doctor: {doctor.user.name}
 Department: {doctor.department.name}
 Date: {appointment.date}
 Time: {appointment.time}
@@ -150,12 +150,13 @@ def send_monthly_reports(self):
     
 
     """
-    # For demo
+    # Start demo
     from datetime import date
     today = date.today()
     prev_month_start = today.replace(day=1).strftime("%Y-%m-%d")
     prev_month_end = today.strftime("%Y-%m-%d")
     prev_month_name = today.strftime("%B %Y") + " (DEMO)"
+    # End demo
     """
 
     # Get all doctors

@@ -353,19 +353,18 @@ Click **Save Doctor**.
 1. Open `backend/tasks.py` in your editor.
 2. Find the `send_monthly_reports` function (around line 130).
 3. **Temporarily comment out** the production date range and **add** a demo override:
-   ```python
-   """
-   # prev_month_start = first_day_of_previous.strftime("%Y-%m-%d")
-   # prev_month_end = last_day_of_previous.strftime("%Y-%m-%d")
-   # prev_month_name = first_day_of_previous.strftime("%B %Y")
-   """
-   # LIVE DEMO HACK — include current month's data
-   from datetime import date
-   today = date.today()
-   prev_month_start = today.replace(day=1).strftime("%Y-%m-%d")
-   prev_month_end = today.strftime("%Y-%m-%d")
-   prev_month_name = today.strftime("%B %Y") + " (LIVE DEMO)"
-   ```
+  ```python
+  """
+  # prev_month_start = first_day_of_previous.strftime("%Y-%m-%d")
+  # prev_month_end = last_day_of_previous.strftime("%Y-%m-%d")
+  # prev_month_name = first_day_of_previous.strftime("%B %Y")
+  """
+  from datetime import date
+  today = date.today()
+  prev_month_start = today.replace(day=1).strftime("%Y-%m-%d")
+  prev_month_end = today.strftime("%Y-%m-%d")
+  prev_month_name = today.strftime("%B %Y") + " (LIVE DEMO)"
+  ```
 4. Save the file. **Restart the Celery worker** (Terminal 2) so it picks up the change:
    ```powershell
    # Press Ctrl+C in Terminal 2, then re-run:
