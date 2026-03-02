@@ -53,18 +53,6 @@ uv run celery -A backend.celery_config beat --loglevel=info
 
 ---
 
-## Configuration
-
-### Redis
-- Default: `redis://localhost:6379/0`
-- To change, update `CACHE_REDIS_URL` in `app.py`
-
-### Security Keys
-- `SECRET_KEY` in `app.py`
-- `SECURITY_PASSWORD_SALT` in `app.py`
-
----
-
 ### Stop/Restart Servers
 
 - Stop Redis:

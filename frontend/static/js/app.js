@@ -99,7 +99,7 @@ createApp({
             departmentSearch: '',
             newDepartmentName: '',
             newDepartmentDescription: '',
-            doctorSearch: '',,
+            doctorSearch: '',
             doctorDepartmentFilter: '',
             doctorDepartmentQuery: '',
             showDeptDropdown: false,
@@ -1135,6 +1135,7 @@ createApp({
                 await apiCall(`/appointments/${appointmentId}/cancel`, 'POST');
                 await this.loadPatientAppointments();
                 await this.loadPayments();
+                this.showSuccess('Appointment cancelled.');
             } catch (error) {
                 await this.logError(error, 'cancelAppointment');
             }
@@ -1230,6 +1231,7 @@ createApp({
                 });
                 this.rescheduleAppointment = null;
                 await this.loadDoctorAppointments();
+                await this.loadDoctorPayments();
                 this.showSuccess('Appointment rescheduled successfully.');
             } catch (error) {
                 if (error && error.data && error.data.message) {
@@ -1251,10 +1253,17 @@ createApp({
         // --- Patient export methods ---
         async triggerExport() {
             this.exportInProgress = true;
-            this.exportMessage = '';
+            this.exportMessage = 'Exporting... please wait.';
             try {
                 const response = await apiCall('/export/treatments', 'POST');
                 if (response && response.job_id) {
+                    // If the export was completed synchronously, skip polling
+                    if (response.status === 'completed') {
+                        this.exportInProgress = false;
+                        this.exportMessage = 'Export complete! The CSV has been sent to your email. You can also download it below.';
+                        window.open(`/api/export/download/${response.job_id}`, '_blank');
+                        return;
+                    }
                     this.exportMessage = 'Export started. You will receive an email with the CSV file once complete.';
                     // Poll for completion
                     this.pollExportJob(response.job_id);

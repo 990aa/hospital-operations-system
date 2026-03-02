@@ -179,11 +179,8 @@ def doctor_appointments():
     date_from = request.args.get("date_from")
     date_to = request.args.get("date_to")
 
-    # Try cache for common queries
-    cache_key = f"doctor_appointments_{doctor.id}_{status_filter}_{date_from}_{date_to}"
-    cached = cache.get(cache_key)
-    if cached:
-        return jsonify(cached)
+    # Skip caching for doctor appointments to ensure real-time data
+    # after mutations (complete, reschedule, cancel, etc.).
 
     # Build query
     query = Appointment.query.filter_by(doctor_id=doctor.id)
@@ -220,9 +217,6 @@ def doctor_appointments():
             latest_payment.transaction_id if latest_payment else None
         )
         results.append(d)
-
-    # Cache for 30 seconds
-    cache.set(cache_key, results, timeout=30)
 
     return jsonify(results)
 
@@ -440,6 +434,54 @@ def reschedule_appointment(id):
         appointment.status = "Booked"
         db.session.commit()
         return jsonify({"message": "No available slots on the selected date"}), 409
+
+    # --- Refund old payment & auto-pay new appointment ---
+    # When doctor reschedules, if the old appointment was already paid,
+    # refund the old payment and create a new completed payment for the
+    # rescheduled appointment so the patient doesn't have to pay again
+    # and the doctor's total earnings remain unchanged.
+    if _has_active_completed_payment(appointment.id):
+        old_payment = (
+            Payment.query.filter_by(
+                appointment_id=appointment.id, status="completed"
+            )
+            .order_by(Payment.payment_date.desc(), Payment.id.desc())
+            .first()
+        )
+        if old_payment:
+            import secrets as _secrets
+
+            # Create refund entry for the cancelled appointment
+            refund = Payment(
+                appointment_id=appointment.id,
+                patient_id=appointment.patient_id,
+                amount=-abs(old_payment.amount),
+                payment_method=old_payment.payment_method,
+                card_last4=old_payment.card_last4,
+                status="refunded",
+                transaction_id=f"RFD-{_secrets.token_hex(8).upper()}",
+                notes=(
+                    f"Auto-refund for doctor reschedule. "
+                    f"Original transaction: {old_payment.transaction_id}"
+                ),
+            )
+            db.session.add(refund)
+
+            # Create matching completed payment for the new appointment
+            new_payment = Payment(
+                appointment_id=new_app.id,
+                patient_id=appointment.patient_id,
+                amount=abs(old_payment.amount),
+                payment_method=old_payment.payment_method,
+                card_last4=old_payment.card_last4,
+                status="completed",
+                transaction_id=f"TXN-{_secrets.token_hex(8).upper()}",
+                notes=(
+                    f"Auto-payment transferred from rescheduled appointment #{appointment.id}. "
+                    f"Original transaction: {old_payment.transaction_id}"
+                ),
+            )
+            db.session.add(new_payment)
 
     db.session.commit()
 
