@@ -354,10 +354,11 @@ Click **Save Doctor**.
 2. Find the `send_monthly_reports` function (around line 130).
 3. **Temporarily comment out** the production date range and **add** a demo override:
    ```python
+   """
    # prev_month_start = first_day_of_previous.strftime("%Y-%m-%d")
    # prev_month_end = last_day_of_previous.strftime("%Y-%m-%d")
    # prev_month_name = first_day_of_previous.strftime("%B %Y")
-
+   """
    # LIVE DEMO HACK — include current month's data
    from datetime import date
    today = date.today()
