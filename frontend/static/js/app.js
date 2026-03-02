@@ -1260,7 +1260,7 @@ createApp({
                     // If the export was completed synchronously, skip polling
                     if (response.status === 'completed') {
                         this.exportInProgress = false;
-                        this.exportMessage = 'Export complete! The CSV has been sent to your email. You can also download it below.';
+                        this.exportMessage = 'Export complete! The CSV has been sent to your email.';
                         window.open(`/api/export/download/${response.job_id}`, '_blank');
                         return;
                     }
@@ -1286,7 +1286,7 @@ createApp({
                     const job = await apiCall(`/export/jobs/${jobId}`, 'GET');
                     if (job.status === 'completed') {
                         this.exportInProgress = false;
-                        this.exportMessage = 'Export complete! The CSV has been sent to your email. You can also download it below.';
+                        this.exportMessage = 'Export complete! The CSV has been sent to your email.';
                         // Trigger download
                         window.open(`/api/export/download/${jobId}`, '_blank');
                         return;

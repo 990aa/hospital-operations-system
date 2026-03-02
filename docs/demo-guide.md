@@ -340,7 +340,7 @@ Click **Save Doctor**.
   - The email body should contain the doctor name, department, date, and time.
 
 ### 5.2 Force Monthly Doctor Report
-
+ 
 *Context: Monthly reports run on the 1st of the month for the previous month. Since demo data was created today, a standard run would be empty. We temporarily widen the date range.*
 
 1. Open `backend/tasks.py` in your editor.

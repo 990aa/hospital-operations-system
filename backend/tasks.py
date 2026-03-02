@@ -136,13 +136,17 @@ def send_monthly_reports(self):
     first_day_of_current = today.replace(day=1)
     last_day_of_previous = first_day_of_current - timedelta(days=1)
     first_day_of_previous = last_day_of_previous.replace(day=1)
-
+    
+   
     prev_month_start = first_day_of_previous.strftime("%Y-%m-%d")
     prev_month_end = last_day_of_previous.strftime("%Y-%m-%d")
     prev_month_name = first_day_of_previous.strftime("%B %Y")
-    # prev_month_start = "2020-01-01"
-    # prev_month_end = "2030-12-31"
-    # prev_month_name = "LIVE DEMO REPORT"
+    """
+    prev_month_start = "2020-01-01"
+    prev_month_end = "2030-12-31"
+    prev_month_name = "LIVE DEMO REPORT"
+    """
+    
 
 
     # Get all doctors
@@ -340,7 +344,7 @@ Export Details:
 - Total Records: {len(appointments)}
 - Export Date: {datetime.now().strftime("%Y-%m-%d %H:%M")}
 
-The CSV file is attached to this email. You can also download it from the dashboard.
+The CSV file is attached to this email.
 
 Best regards,
 Hospital Management Team
