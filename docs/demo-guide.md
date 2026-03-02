@@ -320,9 +320,16 @@ Click **Save Doctor**.
 
 **Goal:** Prove background email jobs work by triggering them manually and checking the real inbox.
 
+> **Important:** Before starting this phase, delete any stale Celery Beat schedule files in the project root to prevent Beat from firing overdue periodic tasks on startup:
+> ```powershell
+> Remove-Item celerybeat-schedule* -ErrorAction SilentlyContinue
+> ```
+
 ### 5.1 Force Daily Reminders
 
-*Context: Oliver has a "Booked" appointment for today/tomorrow. We trigger the reminder now.*
+*Context: Oliver has a "Booked" appointment for tomorrow (Phase 2.2). The daily reminder task checks for appointments today and tomorrow, so Oliver should receive a reminder.*
+
+> **Tip:** If Oliver's appointment was cancelled or completed during earlier phases, book a new appointment for tomorrow before proceeding. Login as `oliver`, book any available slot for tomorrow, then return here.
 
 - Open a new PowerShell terminal. Run:
   ```powershell
@@ -341,23 +348,28 @@ Click **Save Doctor**.
 
 ### 5.2 Force Monthly Doctor Report
  
-*Context: Monthly reports run on the 1st of the month for the previous month. Since demo data was created today, a standard run would be empty. We temporarily widen the date range.*
+*Context: Monthly reports normally run on the 1st of the month for the **previous** month. Since demo data was created this month, a standard run would find no completed appointments in the previous month and send nothing. We temporarily widen the date range to include the current month.*
 
 1. Open `backend/tasks.py` in your editor.
 2. Find the `send_monthly_reports` function (around line 130).
-3. **Temporarily change:**
+3. **Temporarily comment out** the production date range and **add** a demo override:
    ```python
-   prev_month_start = first_day_of_previous.strftime("%Y-%m-%d")
-   prev_month_end = last_day_of_previous.strftime("%Y-%m-%d")
+   # prev_month_start = first_day_of_previous.strftime("%Y-%m-%d")
+   # prev_month_end = last_day_of_previous.strftime("%Y-%m-%d")
+   # prev_month_name = first_day_of_previous.strftime("%B %Y")
+
+   # LIVE DEMO HACK — include current month's data
+   from datetime import date
+   today = date.today()
+   prev_month_start = today.replace(day=1).strftime("%Y-%m-%d")
+   prev_month_end = today.strftime("%Y-%m-%d")
+   prev_month_name = today.strftime("%B %Y") + " (LIVE DEMO)"
    ```
-   **To:**
-   ```python
-   # LIVE DEMO HACK — include all dates
-   prev_month_start = "2020-01-01"
-   prev_month_end = "2030-12-31"
-   prev_month_name = "LIVE DEMO REPORT"
+4. Save the file. **Restart the Celery worker** (Terminal 2) so it picks up the change:
+   ```powershell
+   # Press Ctrl+C in Terminal 2, then re-run:
+   uv run celery -A backend.celery_config worker --loglevel=info --pool=solo
    ```
-4. Save the file. Restart the Celery worker (Terminal 2) to pick up the change.
 5. In the `flask shell` window:
    ```python
    from backend.tasks import send_monthly_reports
@@ -369,7 +381,7 @@ Click **Save Doctor**.
    - Look for an email to `hms238537+drwilson@gmail.com` with subject containing "Monthly Activity Report".
    - The report should list Oliver's treatment details.
 
-> **Important:** Revert the code change in `tasks.py` after the demo.
+> **Important:** Revert the code change in `tasks.py` after the demo (uncomment the original three lines and delete the demo hack).
 
 ### 5.3 Email Alias Demonstration
 

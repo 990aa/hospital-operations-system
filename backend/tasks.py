@@ -33,7 +33,8 @@ def send_daily_reminders(self):
     Send daily appointment reminders to patients.
 
     This task runs every morning at 8:00 AM and sends reminders
-    to all patients who have appointments scheduled for today.
+    to all patients who have appointments scheduled for today or
+    tomorrow, giving them advance notice.
 
     Reminders are sent via email to the patient's registered email address.
 
@@ -47,15 +48,20 @@ def send_daily_reminders(self):
     from flask import current_app
     from models.database import db, Appointment, Patient
 
-    # Get today's date in YYYY-MM-DD format
+    # Include both today and tomorrow so patients receive a reminder
+    # the day before their appointment as well as on the day itself.
     today = datetime.now().strftime("%Y-%m-%d")
+    tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
 
-    # Query for today's appointments with status 'Booked'
+    # Query for today's and tomorrow's appointments with status 'Booked'
     # Join with Patient to get patient details
     appointments = (
         db.session.query(Appointment)
         .join(Patient)
-        .filter(Appointment.date == today, Appointment.status == "Booked")
+        .filter(
+            Appointment.date.in_([today, tomorrow]),
+            Appointment.status == "Booked",
+        )
         .all()
     )
 
@@ -136,18 +142,10 @@ def send_monthly_reports(self):
     first_day_of_current = today.replace(day=1)
     last_day_of_previous = first_day_of_current - timedelta(days=1)
     first_day_of_previous = last_day_of_previous.replace(day=1)
-    
-   
+
     prev_month_start = first_day_of_previous.strftime("%Y-%m-%d")
     prev_month_end = last_day_of_previous.strftime("%Y-%m-%d")
     prev_month_name = first_day_of_previous.strftime("%B %Y")
-    """
-    prev_month_start = "2020-01-01"
-    prev_month_end = "2030-12-31"
-    prev_month_name = "LIVE DEMO REPORT"
-    """
-    
-
 
     # Get all doctors
     doctors = Doctor.query.all()
