@@ -143,15 +143,16 @@ def send_monthly_reports(self):
     last_day_of_previous = first_day_of_current - timedelta(days=1)
     first_day_of_previous = last_day_of_previous.replace(day=1)
 
-    # For demo 
-    from datetime import date
-    today = date.today()
 
     prev_month_start = first_day_of_previous.strftime("%Y-%m-%d")
     prev_month_end = last_day_of_previous.strftime("%Y-%m-%d")
     prev_month_name = first_day_of_previous.strftime("%B %Y")
+    
 
     """
+    # For demo
+    from datetime import date
+    today = date.today()
     prev_month_start = today.replace(day=1).strftime("%Y-%m-%d")
     prev_month_end = today.strftime("%Y-%m-%d")
     prev_month_name = today.strftime("%B %Y") + " (DEMO)"
