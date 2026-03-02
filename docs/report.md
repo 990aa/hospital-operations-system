@@ -61,7 +61,14 @@ The database comprises nine tables: **User** (shared authentication), **Role**/*
 
 ### 4.3 Entity Relationships
 
-`USER` 1:1 `DOCTOR`/`PATIENT` (profile extension) · `DEPARTMENT` 1:N `DOCTOR` · `PATIENT` 1:N `APPOINTMENT` · `DOCTOR` 1:N `APPOINTMENT` · `APPOINTMENT` 1:1 `TREATMENT` · `APPOINTMENT` 1:N `PAYMENT` (including refunds) · `PATIENT` 1:N `EXPORT_JOB` · `APPOINTMENT` self-referencing for follow-ups.
+`USER` 1:1 `DOCTOR`/`PATIENT` (profile extension) 
+`DEPARTMENT` 1:N `DOCTOR` 
+`PATIENT` 1:N `APPOINTMENT` 
+`DOCTOR` 1:N `APPOINTMENT` 
+`APPOINTMENT` 1:1 `TREATMENT` 
+`APPOINTMENT` 1:N `PAYMENT` (including refunds) 
+`PATIENT` 1:N `EXPORT_JOB` 
+`APPOINTMENT` self-referencing for follow-ups.
 
 ## 5. Implementation
 
@@ -167,3 +174,6 @@ The Hospital Management System successfully implements a comprehensive digital h
 GitHub. https://github.com/ColorlibHQ/AdminLTE
 19. Informatici/openhospital Contributors. (2024). *Open Hospital — open-source hospital management system*. GitHub. https://github.com/informatici/openhospital
 20. Bootstrap Icons Team. (2023). *Bootstrap Icons Documentation and repository*. GitHub. https://github.com/twbs/icons
+21. Informatici Senza Frontiere. (2005). Open Hospital: Free and Open Source Hospital Information System. Open Hospital Project. Retrieved from https://openhospital.org
+22. ColorlibHQ. (2025). AdminLTE - Free Bootstrap Admin Dashboard Template. GitHub Repository. Retrieved from https://github.com/ColorlibHQ/AdminLTE
+23. NHS Digital. (2024). Design system – NHS digital service manual. NHS Digital Service Manual. Retrieved from https://service-manual.nhs.uk/design-system (service-manual.nhs.uk in Bing)
