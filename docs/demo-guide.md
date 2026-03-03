@@ -359,11 +359,11 @@ Click **Save Doctor**.
   # prev_month_end = last_day_of_previous.strftime("%Y-%m-%d")
   # prev_month_name = first_day_of_previous.strftime("%B %Y")
   """
-  from datetime import date
-  today = date.today()
-  prev_month_start = today.replace(day=1).strftime("%Y-%m-%d")
+  # Start demo – widen range to cover previous month + current month
+  prev_month_start = first_day_of_previous.strftime("%Y-%m-%d")
   prev_month_end = today.strftime("%Y-%m-%d")
-  prev_month_name = today.strftime("%B %Y") + " (LIVE DEMO)"
+  prev_month_name = today.strftime("%B %Y") + " (DEMO)"
+  # End demo
   ```
 4. Save the file. **Restart the Celery worker** (Terminal 2) so it picks up the change:
    ```powershell
