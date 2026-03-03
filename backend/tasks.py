@@ -325,12 +325,12 @@ def export_patient_treatments(self, patient_id, export_job_id):
                         "follow_up_source_appointment_id": getattr(
                             appointment, "follow_up_source_appointment_id", None
                         ),
-                        "payment_status": latest_payment.status
-                        if latest_payment
-                        else "unpaid",
-                        "payment_amount": latest_payment.amount
-                        if latest_payment
-                        else "N/A",
+                        "payment_status": (
+                            latest_payment.status if latest_payment else "unpaid"
+                        ),
+                        "payment_amount": (
+                            latest_payment.amount if latest_payment else "N/A"
+                        ),
                     }
                 )
 

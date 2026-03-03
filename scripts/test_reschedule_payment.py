@@ -93,9 +93,9 @@ print(f"  New apt payments: {[(p['status'], p['amount']) for p in new_payments]}
 old_net = sum(p["amount"] for p in old_payments)
 new_net = sum(p["amount"] for p in new_payments)
 print(f"  Old net: {old_net}, New net: {new_net}")
-assert old_net == 0 or abs(old_net) < 0.01, (
-    f"Old appointment net should be ~0 (paid + refund), got {old_net}"
-)
+assert (
+    old_net == 0 or abs(old_net) < 0.01
+), f"Old appointment net should be ~0 (paid + refund), got {old_net}"
 assert new_net > 0, f"New appointment should have positive payment, got {new_net}"
 
 print("\n=== RESCHEDULE PAYMENT TEST PASSED ===")

@@ -37,12 +37,15 @@ def login():
         # Check the role hint passed from the frontend (optional field, harmless if absent)
         role_hint = (data.get("role") or "").lower()
         if role_hint == "patient":
-            return jsonify(
-                {
-                    "message": "No account found. Please register first.",
-                    "not_registered": True,
-                }
-            ), 401
+            return (
+                jsonify(
+                    {
+                        "message": "No account found. Please register first.",
+                        "not_registered": True,
+                    }
+                ),
+                401,
+            )
         return jsonify({"message": "Invalid credentials"}), 401
 
     if user and verify_password(password, user.password):

@@ -261,9 +261,10 @@ def complete_appointment(id):
         return jsonify({"message": "Cannot complete cancelled appointment"}), 400
 
     if not _has_active_completed_payment(appointment.id):
-        return jsonify(
-            {"message": "Payment required before consultation completion"}
-        ), 400
+        return (
+            jsonify({"message": "Payment required before consultation completion"}),
+            400,
+        )
 
     # Optional doctor-scheduled follow-up date. Uses the same booking policy
     # as patient booking: date format validation + within upcoming 7 days.
@@ -275,9 +276,14 @@ def complete_appointment(id):
             if follow_up_dt < datetime.now().date():
                 return jsonify({"message": "Follow-up date cannot be in the past"}), 400
             if follow_up_dt > datetime.now().date() + timedelta(days=6):
-                return jsonify(
-                    {"message": "Follow-up must be scheduled within the next 7 days"}
-                ), 400
+                return (
+                    jsonify(
+                        {
+                            "message": "Follow-up must be scheduled within the next 7 days"
+                        }
+                    ),
+                    400,
+                )
         except ValueError:
             return jsonify({"message": "Invalid next_visit_date. Use YYYY-MM-DD"}), 400
 
@@ -290,11 +296,14 @@ def complete_appointment(id):
             follow_up_source_appointment_id=appointment.id,
         )
         if not follow_up_appointment:
-            return jsonify(
-                {
-                    "message": "Could not auto-schedule follow-up appointment for selected date",
-                }
-            ), 409
+            return (
+                jsonify(
+                    {
+                        "message": "Could not auto-schedule follow-up appointment for selected date",
+                    }
+                ),
+                409,
+            )
         follow_up_result = {
             "appointment_id": follow_up_appointment.id,
             "date": follow_up_date,
@@ -354,9 +363,12 @@ def update_treatment(id):
     if appointment.doctor_id != doctor.id:
         return jsonify({"message": "Unauthorized - not your appointment"}), 403
     if appointment.status != "Completed":
-        return jsonify(
-            {"message": "Treatment can be updated only for completed appointments"}
-        ), 400
+        return (
+            jsonify(
+                {"message": "Treatment can be updated only for completed appointments"}
+            ),
+            400,
+        )
 
     treatment = Treatment.query.filter_by(appointment_id=appointment.id).first()
     if not treatment:
@@ -536,9 +548,14 @@ def get_patient_full_history(patient_id):
     ).first()
 
     if not has_treated:
-        return jsonify(
-            {"message": "Unauthorized - no treatment relationship with this patient"}
-        ), 403
+        return (
+            jsonify(
+                {
+                    "message": "Unauthorized - no treatment relationship with this patient"
+                }
+            ),
+            403,
+        )
 
     # Try cache
     cache_key = f"patient_history_{patient_id}"
@@ -615,9 +632,14 @@ def get_patient_summary(patient_id):
     ).first()
 
     if not has_treated:
-        return jsonify(
-            {"message": "Unauthorized - no treatment relationship with this patient"}
-        ), 403
+        return (
+            jsonify(
+                {
+                    "message": "Unauthorized - no treatment relationship with this patient"
+                }
+            ),
+            403,
+        )
 
     # Get recent appointments (last 5)
     recent_appointments = (
@@ -634,9 +656,11 @@ def get_patient_summary(patient_id):
             "email": patient.user.email,
             "phone": patient.user.phone,
         },
-        "medical_history_summary": patient.medical_history[:500] + "..."
-        if patient.medical_history and len(patient.medical_history) > 500
-        else patient.medical_history,
+        "medical_history_summary": (
+            patient.medical_history[:500] + "..."
+            if patient.medical_history and len(patient.medical_history) > 500
+            else patient.medical_history
+        ),
         "total_visits": Appointment.query.filter_by(
             patient_id=patient_id, status="Completed"
         ).count(),
@@ -770,9 +794,14 @@ def download_patient_history_pdf(patient_id):
     ).first()
 
     if not has_treated:
-        return jsonify(
-            {"message": "Unauthorized - no treatment relationship with this patient"}
-        ), 403
+        return (
+            jsonify(
+                {
+                    "message": "Unauthorized - no treatment relationship with this patient"
+                }
+            ),
+            403,
+        )
 
     # Get all completed appointments with treatments
     appointments = (

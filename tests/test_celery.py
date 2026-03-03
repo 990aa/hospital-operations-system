@@ -98,9 +98,9 @@ def test_no_google_chat_in_tasks():
     """
     import backend.tasks as tasks_module
 
-    assert not hasattr(tasks_module, "send_google_chat_message"), (
-        "send_google_chat_message should not exist - Google Chat is not supported"
-    )
+    assert not hasattr(
+        tasks_module, "send_google_chat_message"
+    ), "send_google_chat_message should not exist - Google Chat is not supported"
 
 
 def test_daily_reminders_task_exists():
@@ -278,9 +278,10 @@ def test_celery_uses_solo_pool_on_windows():
             "The prefork pool causes PermissionError/OSError on Windows."
         )
     else:
-        assert pool_setting in ("prefork", "solo"), (
-            f"Unexpected pool setting '{pool_setting}'"
-        )
+        assert pool_setting in (
+            "prefork",
+            "solo",
+        ), f"Unexpected pool setting '{pool_setting}'"
 
 
 def test_celery_solo_pool_concurrency_is_one_on_windows():

@@ -169,9 +169,9 @@ class Doctor(db.Model):  # type: ignore[misc]
             "slot_minutes": self.slot_minutes or 30,
             "bio": self.bio or "",
             "email_notifications": self.email_notifications,
-            "appointment_cost": self.appointment_cost
-            if self.appointment_cost is not None
-            else 500.0,
+            "appointment_cost": (
+                self.appointment_cost if self.appointment_cost is not None else 500.0
+            ),
         }
 
     def get_availability_days(self):
@@ -354,9 +354,9 @@ class ExportJob(db.Model):  # type: ignore[misc]
             "status": self.status,
             "file_path": self.file_path,
             "created_at": self.created_at.isoformat() if self.created_at else None,
-            "completed_at": self.completed_at.isoformat()
-            if self.completed_at
-            else None,
+            "completed_at": (
+                self.completed_at.isoformat() if self.completed_at else None
+            ),
             "error_message": self.error_message,
         }
 
@@ -415,8 +415,8 @@ class Payment(db.Model):  # type: ignore[misc]
             "card_last4": self.card_last4,
             "status": self.status,
             "transaction_id": self.transaction_id,
-            "payment_date": self.payment_date.isoformat()
-            if self.payment_date
-            else None,
+            "payment_date": (
+                self.payment_date.isoformat() if self.payment_date else None
+            ),
             "notes": self.notes,
         }

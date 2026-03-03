@@ -626,9 +626,9 @@ def test_multiple_doctors_across_departments(test_client):
     doctors = resp.get_json()
     assert len(doctors) >= 4, f"Expected ≥4 doctors, got {len(doctors)}"
     depts_represented = {d["department"] for d in doctors if d.get("department")}
-    assert len(depts_represented) >= 4, (
-        f"Expected doctors from ≥4 departments, got: {depts_represented}"
-    )
+    assert (
+        len(depts_represented) >= 4
+    ), f"Expected doctors from ≥4 departments, got: {depts_represented}"
 
 
 def test_multiple_patients_can_all_book_same_doctor(test_client):
@@ -727,9 +727,9 @@ def test_patient_can_book_doctors_in_different_departments(test_client):
         resp = test_client.post(
             "/api/appointments", json={"doctor_id": doc["id"], "date": dates[i]}
         )
-        assert resp.status_code == 201, (
-            f"Booking failed for doctor in {doc.get('department')}: {resp.get_json()}"
-        )
+        assert (
+            resp.status_code == 201
+        ), f"Booking failed for doctor in {doc.get('department')}: {resp.get_json()}"
 
 
 def test_admin_sees_appointments_across_all_doctors(test_client):
@@ -756,9 +756,9 @@ def test_admin_sees_appointments_across_all_doctors(test_client):
     data = resp.get_json()
     appointments = data if isinstance(data, list) else data.get("appointments", [])
     doctor_ids = {a["doctor_id"] for a in appointments}
-    assert len(doctor_ids) >= 2, (
-        f"Expected appointments from ≥2 doctors, found: {doctor_ids}"
-    )
+    assert (
+        len(doctor_ids) >= 2
+    ), f"Expected appointments from ≥2 doctors, found: {doctor_ids}"
 
 
 def test_doctor2_and_doctor3_have_independent_slots(test_client):

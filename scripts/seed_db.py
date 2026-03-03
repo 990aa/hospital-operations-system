@@ -494,9 +494,9 @@ def _seed_appointments_and_treatments(doctors, patients):
                 appointment_id=apt.id,
                 patient_id=apt.patient_id,
                 amount=doctor.appointment_cost or 500.0,
-                payment_method="credit_card"
-                if payment_count % 2 == 0
-                else "debit_card",
+                payment_method=(
+                    "credit_card" if payment_count % 2 == 0 else "debit_card"
+                ),
                 card_last4=str(1000 + payment_count),
                 status="completed",
                 transaction_id=f"TXN-SEED-{uuid.uuid4().hex[:12].upper()}",

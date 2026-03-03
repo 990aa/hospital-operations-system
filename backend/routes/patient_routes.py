@@ -360,9 +360,12 @@ def book_appointment():
         if appointment_date < datetime.now().date():
             return jsonify({"message": "Cannot book appointments in the past"}), 400
         if appointment_date > datetime.now().date() + timedelta(days=6):
-            return jsonify(
-                {"message": "Appointments can be booked only within next 7 days"}
-            ), 400
+            return (
+                jsonify(
+                    {"message": "Appointments can be booked only within next 7 days"}
+                ),
+                400,
+            )
     except ValueError:
         return jsonify({"message": "Invalid date format. Use YYYY-MM-DD"}), 400
 
@@ -382,14 +385,17 @@ def book_appointment():
     cache.delete(f"patient_appointments_{patient.id}_Completed")
     cache.delete(f"patient_appointments_{patient.id}_Cancelled")
 
-    return jsonify(
-        {
-            "message": "Appointment booked successfully",
-            "appointment_id": new_app.id,
-            "assigned_time": assigned_time,
-            "date": date_str,
-        }
-    ), 201
+    return (
+        jsonify(
+            {
+                "message": "Appointment booked successfully",
+                "appointment_id": new_app.id,
+                "assigned_time": assigned_time,
+                "date": date_str,
+            }
+        ),
+        201,
+    )
 
 
 @patient_bp.route("/my-appointments", methods=["GET"])
@@ -507,9 +513,14 @@ def cancel_appointment(id):
 
     # Check if appointment is already completed or cancelled
     if appointment.status in ["Completed", "Cancelled"]:
-        return jsonify(
-            {"message": f"Cannot cancel appointment with status: {appointment.status}"}
-        ), 400
+        return (
+            jsonify(
+                {
+                    "message": f"Cannot cancel appointment with status: {appointment.status}"
+                }
+            ),
+            400,
+        )
 
     # Update status
     appointment.status = "Cancelled"
@@ -574,9 +585,10 @@ def update_appointment_status(id):
 
     # Validate status
     if new_status not in ["Completed", "Cancelled"]:
-        return jsonify(
-            {"message": "Invalid status. Must be 'Completed' or 'Cancelled'"}
-        ), 400
+        return (
+            jsonify({"message": "Invalid status. Must be 'Completed' or 'Cancelled'"}),
+            400,
+        )
 
     # Check permissions
     can_update = False
@@ -602,13 +614,15 @@ def update_appointment_status(id):
 
     # Check current status
     if appointment.status == "Completed":
-        return jsonify(
-            {"message": "Cannot change status of completed appointment"}
-        ), 400
+        return (
+            jsonify({"message": "Cannot change status of completed appointment"}),
+            400,
+        )
     if appointment.status == "Cancelled":
-        return jsonify(
-            {"message": "Cannot change status of cancelled appointment"}
-        ), 400
+        return (
+            jsonify({"message": "Cannot change status of cancelled appointment"}),
+            400,
+        )
 
     # Update status
     appointment.status = new_status
@@ -675,13 +689,16 @@ def trigger_export():
         ).first()
 
     if existing:
-        return jsonify(
-            {
-                "message": "Export already in progress",
-                "job_id": existing.id,
-                "status": existing.status,
-            }
-        ), 200
+        return (
+            jsonify(
+                {
+                    "message": "Export already in progress",
+                    "job_id": existing.id,
+                    "status": existing.status,
+                }
+            ),
+            200,
+        )
 
     # Create export job
     export_job = ExportJob(patient_id=patient.id, status="pending")
@@ -704,14 +721,17 @@ def trigger_export():
         # Reload job status after sync execution
         db.session.refresh(export_job)
 
-    return jsonify(
-        {
-            "message": "Export job created successfully",
-            "job_id": export_job.id,
-            "task_id": task_id,
-            "status": export_job.status,
-        }
-    ), 201
+    return (
+        jsonify(
+            {
+                "message": "Export job created successfully",
+                "job_id": export_job.id,
+                "task_id": task_id,
+                "status": export_job.status,
+            }
+        ),
+        201,
+    )
 
 
 @patient_bp.route("/export/jobs", methods=["GET"])
@@ -780,9 +800,10 @@ def download_export(job_id):
         return jsonify({"message": "Export job not found"}), 404
 
     if job.status != "completed":
-        return jsonify(
-            {"message": f"Export not ready. Current status: {job.status}"}
-        ), 400
+        return (
+            jsonify({"message": f"Export not ready. Current status: {job.status}"}),
+            400,
+        )
 
     if not job.file_path or not os.path.exists(job.file_path):
         return jsonify({"message": "Export file not found"}), 404
@@ -900,9 +921,10 @@ def process_payment(appointment_id):
 
     # Consultation payments must be completed before doctor marks appointment complete.
     if appointment.status != "Booked":
-        return jsonify(
-            {"message": "Payments are only allowed for booked appointments"}
-        ), 400
+        return (
+            jsonify({"message": "Payments are only allowed for booked appointments"}),
+            400,
+        )
 
     # Avoid duplicate active payments for same appointment.
     if _has_active_completed_payment(appointment_id):
@@ -919,9 +941,12 @@ def process_payment(appointment_id):
     payment_method = data.get("payment_method", "credit_card")
     # Only credit card and debit card are accepted; insurance has been removed.
     if payment_method not in ("credit_card", "debit_card"):
-        return jsonify(
-            {"message": "Invalid payment method. Use credit_card or debit_card."}
-        ), 400
+        return (
+            jsonify(
+                {"message": "Invalid payment method. Use credit_card or debit_card."}
+            ),
+            400,
+        )
 
     card_number = data.get("card_number", "")
     notes = data.get("notes", "")
@@ -947,13 +972,16 @@ def process_payment(appointment_id):
     db.session.add(payment)
     db.session.commit()
 
-    return jsonify(
-        {
-            "message": "Payment processed successfully",
-            "payment": payment.to_dict(),
-            "transaction_id": transaction_id,
-        }
-    ), 201
+    return (
+        jsonify(
+            {
+                "message": "Payment processed successfully",
+                "payment": payment.to_dict(),
+                "transaction_id": transaction_id,
+            }
+        ),
+        201,
+    )
 
 
 @patient_bp.route("/patient/payments", methods=["GET"])
