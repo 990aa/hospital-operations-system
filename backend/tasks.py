@@ -143,10 +143,11 @@ def send_monthly_reports(self):
     last_day_of_previous = first_day_of_current - timedelta(days=1)
     first_day_of_previous = last_day_of_previous.replace(day=1)
 
-
+    # Remove for demo
     prev_month_start = first_day_of_previous.strftime("%Y-%m-%d")
     prev_month_end = last_day_of_previous.strftime("%Y-%m-%d")
     prev_month_name = first_day_of_previous.strftime("%B %Y")
+    # Remove for demo
     
 
     """
