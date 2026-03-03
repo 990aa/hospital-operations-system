@@ -51,7 +51,7 @@ SEEDED ENTITIES
 import os
 import sys
 import uuid
-from datetime import date, timedelta, datetime
+from datetime import date, timedelta
 
 # Ensure project root is on sys.path so imports work when
 # running as `python scripts/seed_db.py` from the repo root.
@@ -63,7 +63,6 @@ from app import create_app
 from models.database import (
     db,
     User,
-    Role,
     Doctor,
     Patient,
     Department,
@@ -325,74 +324,120 @@ def _seed_appointments_and_treatments(doctors, patients):
     appointments_data = [
         # --- Completed appointments (past dates) with treatments ---
         {
-            "patient": patients[0], "doctor": doctors[0],
-            "date": three_weeks_ago.isoformat(), "time": "09:00",
+            "patient": patients[0],
+            "doctor": doctors[0],
+            "date": three_weeks_ago.isoformat(),
+            "time": "09:00",
             "status": "Completed",
-            "treatment": {"diagnosis": "Hypertension Stage 1", "prescription": "Amlodipine 5mg daily", "notes": "BP 150/95. Follow-up in 3 weeks."},
+            "treatment": {
+                "diagnosis": "Hypertension Stage 1",
+                "prescription": "Amlodipine 5mg daily",
+                "notes": "BP 150/95. Follow-up in 3 weeks.",
+            },
         },
         {
-            "patient": patients[1], "doctor": doctors[2],
-            "date": two_weeks_ago.isoformat(), "time": "08:00",
+            "patient": patients[1],
+            "doctor": doctors[2],
+            "date": two_weeks_ago.isoformat(),
+            "time": "08:00",
             "status": "Completed",
-            "treatment": {"diagnosis": "Seasonal Allergic Rhinitis", "prescription": "Cetirizine 10mg, Fluticasone nasal spray", "notes": "Avoid dust exposure."},
+            "treatment": {
+                "diagnosis": "Seasonal Allergic Rhinitis",
+                "prescription": "Cetirizine 10mg, Fluticasone nasal spray",
+                "notes": "Avoid dust exposure.",
+            },
         },
         {
-            "patient": patients[2], "doctor": doctors[2],
-            "date": two_weeks_ago.isoformat(), "time": "08:20",
+            "patient": patients[2],
+            "doctor": doctors[2],
+            "date": two_weeks_ago.isoformat(),
+            "time": "08:20",
             "status": "Completed",
-            "treatment": {"diagnosis": "Type 2 Diabetes - Routine Check", "prescription": "Continue diet plan. Metformin 500mg if HbA1c > 7", "notes": "HbA1c: 6.8. Good control."},
+            "treatment": {
+                "diagnosis": "Type 2 Diabetes - Routine Check",
+                "prescription": "Continue diet plan. Metformin 500mg if HbA1c > 7",
+                "notes": "HbA1c: 6.8. Good control.",
+            },
         },
         {
-            "patient": patients[3], "doctor": doctors[3],
-            "date": last_week.isoformat(), "time": "09:00",
+            "patient": patients[3],
+            "doctor": doctors[3],
+            "date": last_week.isoformat(),
+            "time": "09:00",
             "status": "Completed",
-            "treatment": {"diagnosis": "Contact Dermatitis", "prescription": "Hydrocortisone cream 1%, avoid irritant", "notes": "Rash on forearms. Likely detergent allergy."},
+            "treatment": {
+                "diagnosis": "Contact Dermatitis",
+                "prescription": "Hydrocortisone cream 1%, avoid irritant",
+                "notes": "Rash on forearms. Likely detergent allergy.",
+            },
         },
         {
-            "patient": patients[0], "doctor": doctors[1],
-            "date": last_week.isoformat(), "time": "10:00",
+            "patient": patients[0],
+            "doctor": doctors[1],
+            "date": last_week.isoformat(),
+            "time": "10:00",
             "status": "Completed",
-            "treatment": {"diagnosis": "Tension Headache", "prescription": "Ibuprofen 400mg PRN, stress management", "notes": "MRI normal. Likely work-related stress."},
+            "treatment": {
+                "diagnosis": "Tension Headache",
+                "prescription": "Ibuprofen 400mg PRN, stress management",
+                "notes": "MRI normal. Likely work-related stress.",
+            },
         },
         {
-            "patient": patients[4], "doctor": doctors[4],
-            "date": last_week.isoformat(), "time": "11:00",
+            "patient": patients[4],
+            "doctor": doctors[4],
+            "date": last_week.isoformat(),
+            "time": "11:00",
             "status": "Completed",
-            "treatment": {"diagnosis": "Upper Respiratory Infection", "prescription": "Amoxicillin 500mg TID x 7 days, rest, fluids", "notes": "Mild sore throat, no complications."},
+            "treatment": {
+                "diagnosis": "Upper Respiratory Infection",
+                "prescription": "Amoxicillin 500mg TID x 7 days, rest, fluids",
+                "notes": "Mild sore throat, no complications.",
+            },
         },
-
         # --- Cancelled appointment ---
         {
-            "patient": patients[1], "doctor": doctors[0],
-            "date": last_week.isoformat(), "time": "09:30",
+            "patient": patients[1],
+            "doctor": doctors[0],
+            "date": last_week.isoformat(),
+            "time": "09:30",
             "status": "Cancelled",
         },
-
         # --- Upcoming booked appointments (future dates) ---
         {
-            "patient": patients[0], "doctor": doctors[0],
-            "date": tomorrow.isoformat(), "time": "09:00",
+            "patient": patients[0],
+            "doctor": doctors[0],
+            "date": tomorrow.isoformat(),
+            "time": "09:00",
             "status": "Booked",
             "is_follow_up": True,
         },
         {
-            "patient": patients[2], "doctor": doctors[5],
-            "date": tomorrow.isoformat(), "time": "14:00",
+            "patient": patients[2],
+            "doctor": doctors[5],
+            "date": tomorrow.isoformat(),
+            "time": "14:00",
             "status": "Booked",
         },
         {
-            "patient": patients[3], "doctor": doctors[4],
-            "date": day_after.isoformat(), "time": "11:00",
+            "patient": patients[3],
+            "doctor": doctors[4],
+            "date": day_after.isoformat(),
+            "time": "11:00",
             "status": "Booked",
         },
         {
-            "patient": patients[4], "doctor": doctors[2],
-            "date": day_after.isoformat(), "time": "08:00",
+            "patient": patients[4],
+            "doctor": doctors[2],
+            "date": day_after.isoformat(),
+            "time": "08:00",
             "status": "Booked",
         },
         {
-            "patient": patients[1], "doctor": doctors[3],
-            "date": three_days.isoformat(), "time": "09:00",
+            "patient": patients[1],
+            "doctor": doctors[3],
+            "date": three_days.isoformat(),
+            "time": "09:00",
             "status": "Booked",
         },
     ]
@@ -436,7 +481,9 @@ def _seed_appointments_and_treatments(doctors, patients):
                 patient.medical_history = summary
 
     db.session.commit()
-    print(f"  Created {len(created_appointments)} appointments, {treatment_count} treatments.")
+    print(
+        f"  Created {len(created_appointments)} appointments, {treatment_count} treatments."
+    )
 
     # Create payments
     payment_count = 0
@@ -447,7 +494,9 @@ def _seed_appointments_and_treatments(doctors, patients):
                 appointment_id=apt.id,
                 patient_id=apt.patient_id,
                 amount=doctor.appointment_cost or 500.0,
-                payment_method="credit_card" if payment_count % 2 == 0 else "debit_card",
+                payment_method="credit_card"
+                if payment_count % 2 == 0
+                else "debit_card",
                 card_last4=str(1000 + payment_count),
                 status="completed",
                 transaction_id=f"TXN-SEED-{uuid.uuid4().hex[:12].upper()}",

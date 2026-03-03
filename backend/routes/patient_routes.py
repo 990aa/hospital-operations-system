@@ -652,6 +652,7 @@ def trigger_export():
     # Check if there's already a pending export for this patient
     # Clean up stale pending/processing jobs older than 5 minutes
     from datetime import datetime, timedelta
+
     stale_cutoff = datetime.now() - timedelta(minutes=5)
     stale_jobs = ExportJob.query.filter(
         ExportJob.patient_id == patient.id,

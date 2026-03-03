@@ -1,6 +1,6 @@
 """Test that rescheduling transfers payment correctly."""
+
 import requests
-from datetime import date, timedelta
 
 BASE = "http://localhost:5000/api"
 s = requests.Session()
@@ -33,10 +33,10 @@ apt_id = r.json().get("appointment_id")
 assert apt_id, "Failed to book appointment"
 
 # 3. Pay for it
-r = s.post(f"{BASE}/patient/payment/appointment/{apt_id}", json={
-    "payment_method": "credit_card",
-    "card_number": "4111111111111234"
-})
+r = s.post(
+    f"{BASE}/patient/payment/appointment/{apt_id}",
+    json={"payment_method": "credit_card", "card_number": "4111111111111234"},
+)
 print(f"Payment: {r.status_code} {r.json().get('message')}")
 assert r.status_code == 201
 
@@ -44,7 +44,9 @@ assert r.status_code == 201
 r = s.get(f"{BASE}/my-appointments")
 for a in r.json():
     if a["id"] == apt_id:
-        print(f"  Old apt {apt_id}: paid={a['paid']}, payment_status={a['payment_status']}")
+        print(
+            f"  Old apt {apt_id}: paid={a['paid']}, payment_status={a['payment_status']}"
+        )
         assert a["paid"] is True, "Appointment should be paid"
         break
 
@@ -54,7 +56,10 @@ r = s.post(f"{BASE}/login", json={"username": "dr.brooks", "password": "password
 assert r.status_code == 200
 
 # Reschedule to a different date
-r = s.post(f"{BASE}/doctor/appointments/{apt_id}/reschedule", json={"new_date": reschedule_date})
+r = s.post(
+    f"{BASE}/doctor/appointments/{apt_id}/reschedule",
+    json={"new_date": reschedule_date},
+)
 print(f"Reschedule: {r.status_code} {r.json()}")
 assert r.status_code == 200, f"Reschedule failed: {r.text}"
 new_apt_id = r.json().get("new_appointment_id")
@@ -66,10 +71,14 @@ s.post(f"{BASE}/login", json={"username": "emma.taylor", "password": "password"}
 r = s.get(f"{BASE}/my-appointments")
 for a in r.json():
     if a["id"] == new_apt_id:
-        print(f"  New apt {new_apt_id}: paid={a['paid']}, payment_status={a['payment_status']}")
+        print(
+            f"  New apt {new_apt_id}: paid={a['paid']}, payment_status={a['payment_status']}"
+        )
         assert a["paid"] is True, "NEW appointment should be paid (payment transferred)"
     if a["id"] == apt_id:
-        print(f"  Old apt {apt_id}: paid={a['paid']}, status={a['status']}, payment_status={a['payment_status']}")
+        print(
+            f"  Old apt {apt_id}: paid={a['paid']}, status={a['status']}, payment_status={a['payment_status']}"
+        )
         assert a["status"] == "Cancelled", "Old appointment should be cancelled"
 
 # 7. Check total payments haven't doubled
@@ -84,7 +93,9 @@ print(f"  New apt payments: {[(p['status'], p['amount']) for p in new_payments]}
 old_net = sum(p["amount"] for p in old_payments)
 new_net = sum(p["amount"] for p in new_payments)
 print(f"  Old net: {old_net}, New net: {new_net}")
-assert old_net == 0 or abs(old_net) < 0.01, f"Old appointment net should be ~0 (paid + refund), got {old_net}"
+assert old_net == 0 or abs(old_net) < 0.01, (
+    f"Old appointment net should be ~0 (paid + refund), got {old_net}"
+)
 assert new_net > 0, f"New appointment should have positive payment, got {new_net}"
 
 print("\n=== RESCHEDULE PAYMENT TEST PASSED ===")

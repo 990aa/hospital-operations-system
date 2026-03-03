@@ -84,6 +84,7 @@ def _json(resp_body):
 # TESTS
 # ──────────────────────────────────────────────────────────────────
 
+
 def test_health():
     print("\n--- Health ---")
     _req("GET", "/health")
@@ -97,12 +98,17 @@ def test_home_page():
 def test_auth_flows():
     global SESSION_COOKIE
     print("\n--- Auth: Register ---")
-    _req("POST", "/api/register", {
-        "username": "livetest_patient",
-        "password": "password123",
-        "name": "Live Test Patient",
-        "email": "livetest@test.com",
-    }, [200, 400])  # 400 if already exists
+    _req(
+        "POST",
+        "/api/register",
+        {
+            "username": "livetest_patient",
+            "password": "password123",
+            "name": "Live Test Patient",
+            "email": "livetest@test.com",
+        },
+        [200, 400],
+    )  # 400 if already exists
 
     print("\n--- Auth: Login (Admin) ---")
     SESSION_COOKIE = None
@@ -159,10 +165,12 @@ def test_admin_routes():
     _req("POST", "/api/departments", {"name": "General Medicine"}, [409])
 
     print("\n--- Admin: Create Department (new) ---")
-    _req("POST", "/api/departments", {
-        "name": "LiveTestDept",
-        "description": "Test department"
-    }, [200, 201, 409])
+    _req(
+        "POST",
+        "/api/departments",
+        {"name": "LiveTestDept", "description": "Test department"},
+        [200, 201, 409],
+    )
 
     # Get a doctor ID for sub-routes
     if isinstance(doctors, list) and doctors:
@@ -212,12 +220,16 @@ def test_doctor_routes():
     _req("GET", "/api/doctor/payments")
 
     print("\n--- Doctor: Update Availability ---")
-    _req("PUT", "/api/doctor/availability", {
-        "availability_days": ["Mon", "Tue", "Wed", "Thu", "Fri"],
-        "availability_start": "09:00",
-        "availability_end": "17:00",
-        "slot_minutes": 30,
-    })
+    _req(
+        "PUT",
+        "/api/doctor/availability",
+        {
+            "availability_days": ["Mon", "Tue", "Wed", "Thu", "Fri"],
+            "availability_start": "09:00",
+            "availability_end": "17:00",
+            "slot_minutes": 30,
+        },
+    )
 
     # Test reschedule on a booked appointment
     if isinstance(appointments, list):
@@ -226,8 +238,12 @@ def test_doctor_routes():
             apt_id = booked[0]["id"]
             day3 = (date.today() + timedelta(days=3)).isoformat()
             print(f"\n--- Doctor: Reschedule Appointment {apt_id} ---")
-            _req("POST", f"/api/doctor/appointments/{apt_id}/reschedule",
-                 {"new_date": day3}, [200, 400])
+            _req(
+                "POST",
+                f"/api/doctor/appointments/{apt_id}/reschedule",
+                {"new_date": day3},
+                [200, 400],
+            )
 
     _req("POST", "/api/logout")
 
@@ -261,7 +277,9 @@ def test_patient_routes():
     _req("GET", "/api/patient/payments")
 
     print("\n--- Patient: Export Treatments ---")
-    _, export_body = _req("POST", "/api/export/treatments", expect_codes=[200, 201, 500])
+    _, export_body = _req(
+        "POST", "/api/export/treatments", expect_codes=[200, 201, 500]
+    )
     export_data = _json(export_body)
 
     if export_data.get("job_id"):
@@ -275,11 +293,18 @@ def test_patient_routes():
     # Book a new appointment
     if isinstance(doctors, list) and doctors:
         tomorrow = (date.today() + timedelta(days=1)).isoformat()
-        print(f"\n--- Patient: Book Appointment (doctor {doctors[0]['id']}, {tomorrow}) ---")
-        _, book_body = _req("POST", "/api/appointments", {
-            "doctor_id": doctors[0]["id"],
-            "date": tomorrow,
-        }, [201, 400, 409])  # 400/409 if no slots or date not available
+        print(
+            f"\n--- Patient: Book Appointment (doctor {doctors[0]['id']}, {tomorrow}) ---"
+        )
+        _, book_body = _req(
+            "POST",
+            "/api/appointments",
+            {
+                "doctor_id": doctors[0]["id"],
+                "date": tomorrow,
+            },
+            [201, 400, 409],
+        )  # 400/409 if no slots or date not available
 
     # Cancel an appointment if we have a booked one
     if isinstance(apts, list):

@@ -18,7 +18,7 @@ Author: Abdul Ahad
 
 import os
 import csv
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 
 from celery import shared_task
 from celery.exceptions import MaxRetriesExceededError
@@ -151,13 +151,11 @@ def send_monthly_reports(self):
     # Remove for demo
     """
 
-    
     # Start demo – widen range to cover previous month + current month
     prev_month_start = first_day_of_previous.strftime("%Y-%m-%d")
     prev_month_end = today.strftime("%Y-%m-%d")
     prev_month_name = today.strftime("%B %Y") + " (DEMO)"
     # End demo
-    
 
     # Get all doctors
     doctors = Doctor.query.all()
@@ -363,12 +361,14 @@ Hospital Management Team
                 send_email_with_attachment(
                     patient.user.email, subject, message, file_path
                 )
-            except Exception as e:
+            except Exception:
                 # Fallback: send without attachment
                 try:
                     send_email(patient.user.email, subject, message)
                 except Exception as e2:
-                    current_app.logger.error(f"Failed to send export notification: {e2}")
+                    current_app.logger.error(
+                        f"Failed to send export notification: {e2}"
+                    )
 
         return {
             "success": True,
@@ -543,4 +543,6 @@ def send_email_with_attachment(to_email, subject, message, file_path):
             msg.attach(filename, "text/csv", fp.read())
         mail.send(msg)
     else:
-        print(f"[EMAIL+ATTACHMENT] To: {to_email}\nSubject: {subject}\nAttachment: {file_path}\n\n{message}\n---")
+        print(
+            f"[EMAIL+ATTACHMENT] To: {to_email}\nSubject: {subject}\nAttachment: {file_path}\n\n{message}\n---"
+        )

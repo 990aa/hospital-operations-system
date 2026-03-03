@@ -14,7 +14,7 @@ Author: Abdul Ahad
 """
 
 from datetime import datetime, timedelta
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 
 def login(client, username, password):
@@ -235,9 +235,7 @@ def test_send_email_with_attachment_console_fallback(test_client, capsys):
 
     with test_client.application.app_context():
         # Create a temporary CSV file
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".csv", delete=False
-        ) as tmp:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as tmp:
             tmp.write("Date,Doctor,Diagnosis\n2025-01-01,Dr.Test,Cold\n")
             tmp_path = tmp.name
 
@@ -298,9 +296,7 @@ def test_celery_config_has_project_root_on_path():
     import sys
     import os
 
-    project_root = os.path.dirname(
-        os.path.dirname(os.path.abspath(__file__))
-    )
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     # After importing celery_config, project root should be on sys.path
     import backend.celery_config  # noqa: F401
 

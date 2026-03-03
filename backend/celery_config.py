@@ -114,6 +114,7 @@ def _get_flask_app():
         if _project_root not in sys.path:
             sys.path.insert(0, _project_root)
         from app import create_app
+
         _flask_app = create_app()
         celery.conf.update(_flask_app.config)
     return _flask_app
@@ -121,6 +122,7 @@ def _get_flask_app():
 
 class _ContextTask(celery.Task):
     """Run every Celery task inside the Flask application context."""
+
     def __call__(self, *args, **kwargs):
         with _get_flask_app().app_context():
             return self.run(*args, **kwargs)

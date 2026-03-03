@@ -442,9 +442,7 @@ def reschedule_appointment(id):
     # and the doctor's total earnings remain unchanged.
     if _has_active_completed_payment(appointment.id):
         old_payment = (
-            Payment.query.filter_by(
-                appointment_id=appointment.id, status="completed"
-            )
+            Payment.query.filter_by(appointment_id=appointment.id, status="completed")
             .order_by(Payment.payment_date.desc(), Payment.id.desc())
             .first()
         )
@@ -491,13 +489,15 @@ def reschedule_appointment(id):
     for suffix in [None, "Booked", "Completed", "Cancelled"]:
         cache.delete(f"patient_appointments_{appointment.patient_id}_{suffix}")
 
-    return jsonify({
-        "message": "Appointment rescheduled successfully",
-        "old_appointment_id": appointment.id,
-        "new_appointment_id": new_app.id,
-        "new_date": new_date_str,
-        "new_time": assigned_time,
-    })
+    return jsonify(
+        {
+            "message": "Appointment rescheduled successfully",
+            "old_appointment_id": appointment.id,
+            "new_appointment_id": new_app.id,
+            "new_date": new_date_str,
+            "new_time": assigned_time,
+        }
+    )
 
 
 # Patient History Routes
