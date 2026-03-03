@@ -128,7 +128,7 @@ def create_app(test_config=None):
     app.config.setdefault("MAIL_USERNAME", os.environ.get("SMTP_USERNAME", ""))
     app.config.setdefault("MAIL_PASSWORD", os.environ.get("SMTP_PASSWORD", ""))
     app.config.setdefault(
-        "MAIL_DEFAULT_SENDER", os.environ.get("FROM_EMAIL", "hospital@example.com")
+        "MAIL_DEFAULT_SENDER", os.environ.get("FROM_EMAIL", "hms238537@gmail.com")
     )
 
     # Initialize Flask-Mail with app
