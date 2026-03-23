@@ -85,13 +85,18 @@ def create_app(test_config=None):
     )
 
     # Database Configuration
-    # Using SQLite
-    app.config.setdefault("SQLALCHEMY_DATABASE_URI", "sqlite:///hospital.db")
+    # Using SQLite by default, overridable via environment variables.
+    app.config.setdefault(
+        "SQLALCHEMY_DATABASE_URI",
+        os.environ.get("SQLALCHEMY_DATABASE_URI", "sqlite:///hospital.db"),
+    )
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False  # Disable warning
 
     # Security Configuration
-    app.config["SECRET_KEY"] = "thisisasecretkey"
-    app.config["SECURITY_PASSWORD_SALT"] = "somesalt"
+    app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "thisisasecretkey")
+    app.config["SECURITY_PASSWORD_SALT"] = os.environ.get(
+        "SECURITY_PASSWORD_SALT", "somesalt"
+    )
     app.config["SECURITY_REGISTERABLE"] = False  # Only admin can register doctors
     app.config["SECURITY_SEND_REGISTER_EMAIL"] = False  # Disable email for now
     app.config["SECURITY_USERNAME_ENABLE"] = True  # Enable username login
@@ -107,8 +112,11 @@ def create_app(test_config=None):
 
     # Caching Configuration
     # Using Redis for caching - improves performance for frequently accessed data
-    app.config.setdefault("CACHE_TYPE", "RedisCache")
-    app.config.setdefault("CACHE_REDIS_URL", "redis://localhost:6379/0")
+    app.config.setdefault("CACHE_TYPE", os.environ.get("CACHE_TYPE", "RedisCache"))
+    app.config.setdefault(
+        "CACHE_REDIS_URL",
+        os.environ.get("CACHE_REDIS_URL", "redis://localhost:6379/0"),
+    )
     app.config.setdefault(
         "CACHE_DEFAULT_TIMEOUT", 300
     )  # 5 minutes default cache expiry
@@ -420,5 +428,9 @@ if __name__ == "__main__":
     # Initialize database and create initial data
     create_initial_data(app)
     # Run the development server
-    # Use debug=True only in development!
-    app.run(debug=True, port=5000)
+    # Use environment variables so local and Docker runs share one entrypoint.
+    debug_env = os.environ.get("FLASK_DEBUG", "true").strip().lower()
+    debug_enabled = debug_env in {"1", "true", "yes", "on"}
+    host = os.environ.get("FLASK_HOST", "127.0.0.1")
+    port = int(os.environ.get("FLASK_PORT", "5000"))
+    app.run(host=host, port=port, debug=debug_enabled)

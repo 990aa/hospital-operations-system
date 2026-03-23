@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.pytest_cache/
+.venv/
+venv/
+.env
+.git/
+.gitignore
+*.db
+instance/
+exports/
+celerybeat-schedule*
+blood-bank-ms
