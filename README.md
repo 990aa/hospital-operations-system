@@ -1,13 +1,19 @@
 # Hospital Management System
 
-Hospital Management System is a full-stack, role-based web application for managing hospital operations across three user roles: Admin, Doctor, and Patient.
+Hospital Management System is a full-stack, role-based web application for managing hospital operations with integrated Blood Bank Management capabilities.
 
-It includes appointment lifecycle management, doctor scheduling metadata, patient records, payment tracking, export workflows, PDF reporting, and background automation with Celery + Redis.
+The platform includes two tightly integrated modules in one runtime:
+
+- Hospital Management module (appointments, doctor/patient/admin workflows, reports, exports, payments).
+- Blood Bank Management module (inventory, donor workflows, smart allocation, shortage alerts, audit trail).
+
+Both modules share the same authentication/session layer and are deployed together in one Docker stack.
 
 ## Table of Contents
 
 - [Project Highlights](#project-highlights)
 - [Architecture Overview](#architecture-overview)
+- [RBAC and Access Control](#rbac-and-access-control)
 - [Tech Stack](#tech-stack)
 - [Repository Structure](#repository-structure)
 - [Environment Configuration](#environment-configuration)
@@ -15,12 +21,14 @@ It includes appointment lifecycle management, doctor scheduling metadata, patien
 - [Run with Docker Compose (Recommended)](#run-with-docker-compose-recommended)
 - [Manual Run (Equivalent to 4 Terminals)](#manual-run-equivalent-to-4-terminals)
 - [Usage Notes](#usage-notes)
+- [Blood Bank Module Details](#blood-bank-module-details)
+- [Testing Both Modules](#testing-both-modules)
 - [Verification and Health Checks](#verification-and-health-checks)
 - [Troubleshooting](#troubleshooting)
 
 ## Project Highlights
 
-- Role-based authentication/authorization for Admin, Doctor, Patient.
+- Role-based authentication/authorization for Admin, Doctor, Patient, and Blood Bank Staff.
 - Appointment booking with conflict prevention and status workflow.
 - Doctor management with departments, availability slots, profile metadata, and fixed consultation cost.
 - Treatment history and CSV export (async via Celery task).
@@ -30,6 +38,11 @@ It includes appointment lifecycle management, doctor scheduling metadata, patien
 - PDF generation support for reporting.
 - Redis-backed caching and Celery broker/backend integration.
 - Vue.js frontend served by Flask.
+- Integrated Blood Bank Management System under `/blood-bank`:
+	- Donor registration and donation logging (whole blood + component split).
+	- Smart compatibility-based allocation engine.
+	- Critical shortage and predictive alert dashboard.
+	- Full forensic audit trail with trigger-backed history.
 
 ## Architecture Overview
 
@@ -37,8 +50,9 @@ Runtime services and responsibilities:
 
 - `web` (Flask app):
 	- Serves API and frontend UI.
-	- Initializes DB and seed roles/admin/departments on startup.
+	- Initializes DB and seed roles/admin/departments plus blood-bank staff account.
 	- Loads SMTP and other runtime configuration from `.env`.
+	- Hosts the integrated blood-bank pages under `/blood-bank`.
 - `redis`:
 	- Message broker and result backend for Celery.
 	- Cache backend for Flask-Caching.
@@ -49,12 +63,28 @@ Runtime services and responsibilities:
 
 The Docker Compose setup replaces the classic 4-terminal local workflow with a single orchestrated stack.
 
+## RBAC and Access Control
+
+Application roles and capabilities:
+
+- `admin`: full access to hospital module and blood-bank module.
+- `doctor`: access to doctor workflows only.
+- `patient`: access to patient workflows only.
+- `blood_bank_staff`: access to blood-bank module pages and operations.
+
+Blood bank authorization behavior:
+
+- Blood bank module is mounted at `/blood-bank`.
+- Access requires authentication and either `admin` or `blood_bank_staff` role.
+- Unauthorized users are redirected back to the main HMS interface.
+
 ## Tech Stack
 
 - Backend: Flask, Flask-SQLAlchemy, Flask-Security-Too, Flask-Mail, Flask-Caching
 - Async & Scheduling: Celery, Redis
 - Data: SQLite (default), SQLAlchemy ORM
 - Frontend: Vue.js + Bootstrap
+- Blood Bank Engine: integrated SQL-heavy module (triggers, views, allocation logic)
 - Reporting: PyMuPDF, Pandas
 - Packaging: `requirements.txt` generated from `pyproject.toml`
 - Containerization: Docker + Docker Compose
@@ -65,6 +95,7 @@ The Docker Compose setup replaces the classic 4-terminal local workflow with a s
 - `backend/`: routes, tasks, celery config, validators, extensions.
 - `models/`: database models and ORM definitions.
 - `frontend/`: static assets and `index.html` template.
+- `blood-bank-ms/`: integrated blood-bank domain logic, templates, seed/test scripts.
 - `tests/`: pytest suite.
 - `Dockerfile`: image build instructions.
 - `docker-compose.yml`: multi-service orchestration.
@@ -100,6 +131,7 @@ SQLALCHEMY_DATABASE_URI=sqlite:///hospital.db
 CACHE_TYPE=RedisCache
 REDIS_URL=redis://redis:6379/0
 CACHE_REDIS_URL=redis://redis:6379/0
+BLOODBANK_DB_PATH=/app/instance/bloodbank.db
 
 GUNICORN_WORKERS=3
 GUNICORN_THREADS=2
@@ -131,9 +163,9 @@ For Gmail:
 
 ## Run with Docker Compose (Recommended)
 
-The compose setup has profile-based runtimes:
+The compose setup has profile-based runtimes and includes both HMS and Blood Bank modules in the same `web` service:
 
-- `dev` profile: Flask dev server (`python app.py`) + live code mount.
+- `dev` profile: Flask dev server + live code mount.
 - `prod` profile: Gunicorn + non-root runtime (with startup volume permission initialization).
 
 ### Production Profile (Recommended)
@@ -221,7 +253,7 @@ If you prefer non-Docker local execution, this is the equivalent setup.
 1. Install dependencies:
 
 ```powershell
-pip install -r requirements.txt
+uv sync
 ```
 
 2. Terminal A: Redis
@@ -233,31 +265,82 @@ docker run --name hms-redis -p 6379:6379 -d redis:7-alpine
 3. Terminal B: Flask web app
 
 ```powershell
-python app.py
+uv run python app.py
 ```
 
 4. Terminal C: Celery worker
 
 ```powershell
-celery -A backend.celery_config worker --loglevel=info
+uv run celery -A backend.celery_config worker --loglevel=info
 ```
 
 5. Terminal D: Celery beat
 
 ```powershell
-celery -A backend.celery_config beat --loglevel=info
+uv run celery -A backend.celery_config beat --loglevel=info
 ```
 
 Docker Compose automates all of the above into one command.
+
+After login, authorized users can enter the blood bank module directly at `http://localhost:5000/blood-bank`.
 
 ## Usage Notes
 
 - Default seeded admin credentials:
 	- Username: `admin`
 	- Password: `admin`
+- Default seeded blood bank staff credentials:
+	- Username: `bbstaff`
+	- Password: `bbstaff`
 - In production, change default credentials and all security secrets.
 - SQLite data is persisted in Docker volume `hms_instance_data`.
 - Export CSV files are persisted in Docker volume `hms_exports_data`.
+
+## Blood Bank Module Details
+
+Integrated blood bank pages:
+
+- `GET /blood-bank/`: dashboard with inventory and predictive alerts.
+- `POST /blood-bank/allocate_all`: run smart allocation engine.
+- `GET/POST /blood-bank/donor`: donor registration, donation logging, loyalty view.
+- `GET/POST /blood-bank/hospital`: recipient/hospital management and blood requests.
+- `GET /blood-bank/audit`: forensic audit trail view.
+
+Data and persistence:
+
+- Blood bank database path is configured via `BLOODBANK_DB_PATH`.
+- Recommended path in Docker: `/app/instance/bloodbank.db`.
+- Database is initialized automatically on first blood-bank access.
+
+## Testing Both Modules
+
+Run HMS tests:
+
+```powershell
+uv run pytest tests -q
+```
+
+Run integrated blood-bank RBAC/route tests from HMS suite:
+
+```powershell
+uv run pytest tests/test_blood_bank_integration.py -q
+```
+
+Run original blood-bank module tests:
+
+```powershell
+Push-Location blood-bank-ms
+uv run pytest tests/test_logic.py -q
+Pop-Location
+```
+
+Seed blood bank demo data (optional, standalone verification utility):
+
+```powershell
+Push-Location blood-bank-ms
+uv run python seed_demo.py
+Pop-Location
+```
 
 ## Verification and Health Checks
 
