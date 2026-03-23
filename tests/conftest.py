@@ -61,6 +61,9 @@ def test_client():
         user_datastore.find_or_create_role(name="admin", description="Administrator")
         user_datastore.find_or_create_role(name="doctor", description="Doctor")
         user_datastore.find_or_create_role(name="patient", description="Patient")
+        user_datastore.find_or_create_role(
+            name="blood_bank_staff", description="Blood bank authorized staff"
+        )
         db.session.commit()
 
         # Create test admin (username = password for easy login)
@@ -150,6 +153,19 @@ def test_client():
                 )
                 db.session.add(p)
                 db.session.commit()
+
+        # Create blood bank staff user.
+        if not user_datastore.find_user(username="bbstaff"):
+            user_datastore.create_user(
+                username="bbstaff",
+                email="bbstaff@test.com",
+                phone="3556789015",
+                password=hash_password("bbstaff"),
+                roles=["blood_bank_staff"],
+                name="Test Blood Bank Staff",
+                active=True,
+            )
+            db.session.commit()
 
     testing_client = app.test_client()
 

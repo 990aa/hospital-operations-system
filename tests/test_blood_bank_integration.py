@@ -46,8 +46,8 @@ def test_blood_bank_access_for_admin(test_client):
             os.remove(db_path)
 
 
-def test_blood_bank_seeded_staff_can_access(app_context_client):
-    client = app_context_client
+def test_blood_bank_seeded_staff_can_access(test_client):
+    client = test_client
     db_path = _with_temp_bloodbank_db(client)
     try:
         login_resp = _login(client, "bbstaff", "bbstaff")

@@ -1,6 +1,7 @@
 import os
 import sys
 import threading
+import importlib.util
 from functools import wraps
 from pathlib import Path
 
@@ -24,14 +25,22 @@ if str(_BLOOD_BANK_ROOT) not in sys.path:
 
 import db as bb_db
 import db_init as bb_db_init
-from app.logic import (
-    get_donor_scores,
-    get_eligible_donors_for_group,
-    get_shortage_alerts,
-    get_db_connection,
-    process_donation,
-    smart_allocate_all,
+
+_LOGIC_MODULE_PATH = _BLOOD_BANK_ROOT / "app" / "logic.py"
+_LOGIC_SPEC = importlib.util.spec_from_file_location(
+    "blood_bank_logic", _LOGIC_MODULE_PATH
 )
+if _LOGIC_SPEC is None or _LOGIC_SPEC.loader is None:
+    raise RuntimeError(f"Unable to load blood-bank logic module: {_LOGIC_MODULE_PATH}")
+_LOGIC_MODULE = importlib.util.module_from_spec(_LOGIC_SPEC)
+_LOGIC_SPEC.loader.exec_module(_LOGIC_MODULE)
+
+get_donor_scores = _LOGIC_MODULE.get_donor_scores
+get_eligible_donors_for_group = _LOGIC_MODULE.get_eligible_donors_for_group
+get_shortage_alerts = _LOGIC_MODULE.get_shortage_alerts
+get_db_connection = _LOGIC_MODULE.get_db_connection
+process_donation = _LOGIC_MODULE.process_donation
+smart_allocate_all = _LOGIC_MODULE.smart_allocate_all
 
 blood_bank_bp = Blueprint(
     "blood_bank",
