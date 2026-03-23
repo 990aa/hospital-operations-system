@@ -1,4 +1,4 @@
-# Hospital Management System
+# Hospital Operations System
 
 Hospital Management System is a full-stack, role-based web application for managing hospital operations with integrated Blood Bank Management capabilities.
 

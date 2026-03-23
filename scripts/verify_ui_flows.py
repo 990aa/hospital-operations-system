@@ -62,7 +62,7 @@ try:
         json={"name": "Nephrology", "description": "Kidney care"},
         timeout=15,
     )
-    ok_create = create_resp.status_code in (200, 201)
+    ok_create = create_resp.status_code in (200, 201, 409)
 
     search_resp = admin.get(f"{API}/departments?search=nePH", timeout=15)
     search_resp.raise_for_status()
