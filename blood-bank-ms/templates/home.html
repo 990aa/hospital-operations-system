@@ -15,7 +15,7 @@
                     {% endfor %}
                 </ul>
             </div>
-            <form action="{{ url_for('allocate_all') }}" method="POST">
+            <form action="{{ url_for('blood_bank.allocate_all') }}" method="POST">
                 <button type="submit" class="btn btn-dark btn-lg fw-bold pulse-button">
                     <i class="bi bi-exclamation-triangle-fill me-1"></i> ALLOCATE RESOURCES NOW
                 </button>
@@ -30,7 +30,7 @@
         <p class="lead text-muted">Real-time inventory, allocation & predictive analytics</p>
     </div>
     <div class="col-md-4 text-end">
-        <form action="{{ url_for('allocate_all') }}" method="POST">
+        <form action="{{ url_for('blood_bank.allocate_all') }}" method="POST">
             <button type="submit" class="btn btn-primary btn-lg shadow-sm">
                 Run Allocation Algorithm
             </button>
@@ -269,7 +269,7 @@
     <!-- Audit Trail -->
     <div class="tab-pane fade" id="audit">
         <div class="card p-4 shadow-sm">
-            <p class="text-muted small">Recent system-level actions (full log on <a href="{{ url_for('audit') }}">Audit Trail</a> page)</p>
+            <p class="text-muted small">Recent system-level actions (full log on <a href="{{ url_for('blood_bank.audit') }}">Audit Trail</a> page)</p>
             <table class="table table-sm table-striped">
                 <thead>
                     <tr><th>Time</th><th>Action</th><th>Table</th><th>Record</th><th>Old</th><th>New</th><th>By</th></tr>

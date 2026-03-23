@@ -44,6 +44,7 @@ from backend.routes.auth_routes import auth_bp
 from backend.routes.admin_routes import admin_bp
 from backend.routes.doctor_routes import doctor_bp
 from backend.routes.patient_routes import patient_bp
+from backend.routes.blood_bank_routes import blood_bank_bp
 
 # Import Celery configuration
 from backend.celery_config import celery
@@ -176,6 +177,8 @@ def create_app(test_config=None):
     app.register_blueprint(admin_bp, url_prefix="/api")
     app.register_blueprint(doctor_bp, url_prefix="/api")
     app.register_blueprint(patient_bp, url_prefix="/api")
+    # Server-rendered blood bank module pages live under /blood-bank.
+    app.register_blueprint(blood_bank_bp)
 
     # Routes
     @app.route("/")
@@ -373,6 +376,9 @@ def create_initial_data(app):
         )
         app.user_datastore.find_or_create_role(name="doctor", description="Doctor")
         app.user_datastore.find_or_create_role(name="patient", description="Patient")
+        app.user_datastore.find_or_create_role(
+            name="blood_bank_staff", description="Blood bank authorized staff"
+        )
         db.session.commit()
 
         # Create admin user if doesn't exist
@@ -388,6 +394,20 @@ def create_initial_data(app):
             )
             db.session.commit()
             print("Admin created: username='admin', password='admin'")
+
+        # Seed a dedicated blood bank operator account for demonstrations.
+        if not app.user_datastore.find_user(username="bbstaff"):
+            app.user_datastore.create_user(
+                username="bbstaff",
+                email="bbstaff@hospital.com",
+                password=hash_password("bbstaff"),
+                roles=["blood_bank_staff"],
+                name="Blood Bank Staff",
+                active=True,
+                fs_uniquifier="bbstaff_uniq",
+            )
+            db.session.commit()
+            print("Blood bank staff created: username='bbstaff', password='bbstaff'")
 
         # Create default departments
         # Departments represent medical specializations

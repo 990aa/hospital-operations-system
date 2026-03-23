@@ -80,9 +80,7 @@ def _json(resp_body):
         return {}
 
 
-
 # TESTS
-
 
 
 def test_health():
@@ -329,8 +327,6 @@ def test_unauthorized():
 def test_404():
     print("\n--- 404 Routes ---")
     _req("GET", "/api/nonexistent", expect_codes=[404])
-
-
 
 
 if __name__ == "__main__":

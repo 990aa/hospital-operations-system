@@ -274,7 +274,7 @@ def update_doctor(id):
                     {"message": "appointment_cost must be non-negative"}
                 ), 400
             doctor.appointment_cost = cost
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return jsonify({"message": "appointment_cost must be a number"}), 400
 
     availability_payload, availability_error = _normalize_availability_payload(

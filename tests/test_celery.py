@@ -98,9 +98,9 @@ def test_no_google_chat_in_tasks():
     """
     import backend.tasks as tasks_module
 
-    assert not hasattr(
-        tasks_module, "send_google_chat_message"
-    ), "send_google_chat_message should not exist - Google Chat is not supported"
+    assert not hasattr(tasks_module, "send_google_chat_message"), (
+        "send_google_chat_message should not exist - Google Chat is not supported"
+    )
 
 
 def test_daily_reminders_task_exists():
