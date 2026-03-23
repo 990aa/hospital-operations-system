@@ -1,6 +1,6 @@
 # Blood Bank Management System — Technical Implementation Reference
 
-This document provides exhaustive technical detail on every aspect of the Blood Bank Management System. It is intended as a reference for understanding the architectural decisions, database engineering strategies, algorithmic logic, and implementation patterns used throughout the project. Any question about the project's internals should be answerable from this document.
+This document provides exhaustive technical detail on every aspect of the Blood Bank Management System.
 
 ---
 
