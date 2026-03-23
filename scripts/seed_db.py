@@ -81,10 +81,15 @@ def _clear_data():
     Appointment.query.delete()
     Doctor.query.delete()
     Patient.query.delete()
-    # Delete non-admin users
+    # Keep privileged service/demo users and delete others.
     admin_user = User.query.filter_by(username="admin").first()
+    blood_bank_user = User.query.filter_by(username="bbstaff").first()
+    keep_ids = {
+        admin_user.id if admin_user else -1,
+        blood_bank_user.id if blood_bank_user else -1,
+    }
     for user in User.query.all():
-        if user.id != (admin_user.id if admin_user else -1):
+        if user.id not in keep_ids:
             db.session.delete(user)
     db.session.commit()
     print("  Cleared existing seed data.")
