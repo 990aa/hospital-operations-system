@@ -1,0 +1,114 @@
+---
+title: Blood Bank Management System - Entity Relationship Diagram
+---
+erDiagram
+    BLOOD_GROUP_MASTER {
+        TEXT blood_group PK "8 valid groups"
+    }
+
+    URGENCY_LEVEL_MASTER {
+        TEXT urgency_level PK "Normal or Critical"
+    }
+
+    BAG_STATUS_MASTER {
+        TEXT status PK "Available Empty Expired Quarantined"
+    }
+
+    REQUEST_STATUS_MASTER {
+        TEXT status PK "Pending Partial Fulfilled Cancelled"
+    }
+
+    COMPONENT_MASTER {
+        TEXT component_type PK "WholeBlood RBC Platelets Plasma Cryo"
+        INTEGER shelf_life_days "5 to 365 days"
+    }
+
+    COMPATIBILITY_MATRIX {
+        TEXT recipient_group FK "References BLOOD_GROUP_MASTER"
+        TEXT donor_group FK "References BLOOD_GROUP_MASTER"
+        INTEGER preference_rank "Lower is preferred"
+    }
+
+    DONOR {
+        INTEGER donor_id PK "AUTOINCREMENT"
+        TEXT name "NOT NULL"
+        TEXT blood_group FK "References BLOOD_GROUP_MASTER"
+        TEXT phone
+        TEXT email
+        DATE last_donation_date "Updated per donation"
+        INTEGER is_active "DEFAULT 1 soft-delete"
+    }
+
+    RECIPIENT {
+        INTEGER recipient_id PK "AUTOINCREMENT"
+        TEXT name "NOT NULL"
+        TEXT hospital_name "NOT NULL"
+        TEXT contact_info
+        INTEGER is_active "DEFAULT 1 soft-delete"
+    }
+
+    DONATION_LOG {
+        INTEGER donation_id PK "AUTOINCREMENT"
+        INTEGER donor_id FK "References DONOR"
+        DATE donation_date "NOT NULL"
+        REAL quantity_ml "NOT NULL"
+    }
+
+    BLOOD_BAG {
+        INTEGER bag_id PK "AUTOINCREMENT"
+        INTEGER donation_id FK "References DONATION_LOG"
+        TEXT blood_group FK "References BLOOD_GROUP_MASTER"
+        TEXT component_type FK "References COMPONENT_MASTER"
+        DATE collection_date "NOT NULL"
+        DATE expiry_date "collection plus shelf-life"
+        REAL initial_volume_ml "NOT NULL"
+        REAL current_volume_ml "decremented on allocation"
+        TEXT status FK "DEFAULT Available"
+    }
+
+    TRANSFUSION_REQ {
+        INTEGER req_id PK "AUTOINCREMENT"
+        INTEGER recipient_id FK "References RECIPIENT"
+        TEXT requested_group FK "References BLOOD_GROUP_MASTER"
+        TEXT requested_component FK "References COMPONENT_MASTER"
+        REAL quantity_ml "NOT NULL"
+        REAL quantity_allocated_ml "DEFAULT 0 partial fill"
+        TEXT urgency_level FK "DEFAULT Normal"
+        DATE req_date "NOT NULL"
+        TEXT status FK "DEFAULT Pending"
+    }
+
+    FULFILLMENT_LOG {
+        INTEGER fulfillment_id PK "AUTOINCREMENT"
+        INTEGER req_id FK "References TRANSFUSION_REQ"
+        INTEGER bag_id FK "References BLOOD_BAG"
+        REAL quantity_allocated_ml "NOT NULL"
+        DATE fulfillment_date "DEFAULT current date"
+    }
+
+    AUDIT_LOG {
+        INTEGER log_id PK "AUTOINCREMENT"
+        TEXT action_type "INSERT or UPDATE"
+        TEXT table_name "target table"
+        INTEGER record_id "PK of affected row"
+        TEXT old_value "previous state"
+        TEXT new_value "new state"
+        DATETIME timestamp "DEFAULT current time"
+        TEXT performed_by "DEFAULT SYSTEM"
+    }
+
+    BLOOD_GROUP_MASTER ||--o{ DONOR : "blood_group"
+    BLOOD_GROUP_MASTER ||--o{ BLOOD_BAG : "blood_group"
+    BLOOD_GROUP_MASTER ||--o{ TRANSFUSION_REQ : "requested_group"
+    BLOOD_GROUP_MASTER ||--o{ COMPATIBILITY_MATRIX : "recipient_group"
+    BLOOD_GROUP_MASTER ||--o{ COMPATIBILITY_MATRIX : "donor_group"
+    URGENCY_LEVEL_MASTER ||--o{ TRANSFUSION_REQ : "urgency_level"
+    BAG_STATUS_MASTER ||--o{ BLOOD_BAG : "status"
+    REQUEST_STATUS_MASTER ||--o{ TRANSFUSION_REQ : "status"
+    COMPONENT_MASTER ||--o{ BLOOD_BAG : "component_type"
+    COMPONENT_MASTER ||--o{ TRANSFUSION_REQ : "requested_component"
+    DONOR ||--o{ DONATION_LOG : "donor_id"
+    DONATION_LOG ||--o{ BLOOD_BAG : "donation_id"
+    RECIPIENT ||--o{ TRANSFUSION_REQ : "recipient_id"
+    TRANSFUSION_REQ ||--o{ FULFILLMENT_LOG : "req_id"
+    BLOOD_BAG ||--o{ FULFILLMENT_LOG : "bag_id"

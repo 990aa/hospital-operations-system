@@ -1,0 +1,314 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<!-- 1. Critical Alerts Section -->
+{% if alerts %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="alert alert-danger shadow-sm d-flex justify-content-between align-items-center">
+            <div>
+                <h4 class="alert-heading fw-bold"><i class="bi bi-exclamation-triangle-fill"></i> CRITICAL SHORTAGES
+                    DETECTED</h4>
+                <ul class="mb-0">
+                    {% for alert in alerts %}
+                    <li><strong>{{ alert.requested_group }}</strong> needed urgently: {{ alert.total_needed }} ml</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            <form action="{{ url_for('allocate_all') }}" method="POST">
+                <button type="submit" class="btn btn-dark btn-lg fw-bold pulse-button">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i> ALLOCATE RESOURCES NOW
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="row mb-4 align-items-center">
+    <div class="col-md-8">
+        <h1 class="display-5 fw-bold text-dark">Blood Bank Dashboard</h1>
+        <p class="lead text-muted">Real-time inventory, allocation & predictive analytics</p>
+    </div>
+    <div class="col-md-4 text-end">
+        <form action="{{ url_for('allocate_all') }}" method="POST">
+            <button type="submit" class="btn btn-primary btn-lg shadow-sm">
+                Run Allocation Algorithm
+            </button>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+<!-- Predictive Shortage Alerts (Item 7) -->
+{% if shortage_alerts %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="alert alert-warning shadow-sm">
+            <h5 class="fw-bold"><i class="bi bi-graph-down-arrow me-1"></i> Predictive Shortage Forecast</h5>
+            <p class="mb-2 small text-muted">Based on average daily consumption over the past 30 days</p>
+            <div class="row">
+                {% for sa in shortage_alerts %}
+                <div class="col-md-3 mb-2">
+                    <div class="card border-warning">
+                        <div class="card-body py-2 text-center">
+                            <h4 class="fw-bold text-danger">{{ sa.blood_group }}</h4>
+                            <p class="mb-0"><strong>{{ sa.projected_days }}</strong> days supply left</p>
+                            <small class="text-muted">{{ sa.current_ml }} ml @ {{ sa.daily_rate }} ml/day</small>
+                            {% if shortage_donors.get(sa.blood_group) %}
+                            <hr class="my-1">
+                            <small class="text-success fw-bold">Top donors to contact:</small><br>
+                            {% for donor in shortage_donors[sa.blood_group] %}
+                            <small>{{ donor.name }} ({{ donor.phone or 'N/A' }})</small><br>
+                            {% endfor %}
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Expiring Soon Warning -->
+{% if expiring_soon %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="alert alert-info shadow-sm">
+            <h5 class="fw-bold"><i class="bi bi-clock-history me-1"></i> Bags Expiring Within 5 Days</h5>
+            <div class="table-responsive">
+                <table class="table table-sm table-borderless mb-0">
+                    <thead><tr><th>Bag</th><th>Group</th><th>Component</th><th>Volume</th><th>Expires</th><th>Days Left</th></tr></thead>
+                    <tbody>
+                    {% for bag in expiring_soon %}
+                    <tr>
+                        <td>#{{ bag.bag_id }}</td>
+                        <td><span class="badge bg-secondary">{{ bag.blood_group }}</span></td>
+                        <td>{{ bag.component_type }}</td>
+                        <td>{{ bag.current_volume_ml }} ml</td>
+                        <td>{{ bag.expiry_date }}</td>
+                        <td><span class="badge bg-{{ 'danger' if bag.days_until_expiry <= 2 else 'warning' }}">{{ bag.days_until_expiry }}d</span></td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- 2. Stock Ticker (Summary) -->
+<div class="row g-4 mb-5">
+    {% for item in inventory %}
+    <div class="col-md-3">
+        <div class="card h-100 shadow-sm border-{{ 'danger' if item.total_vol < 1000 else 'success' }}">
+            <div class="card-body text-center">
+                <h2 class="display-4 fw-bold">{{ item.blood_group }}</h2>
+                <p class="fs-5 mb-0">{{ item.total_vol }} <small class="text-muted">ml</small></p>
+                <p class="text-muted small">{{ item.bag_count }} Bags</p>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="col-12 text-center">
+        <div class="alert alert-warning">No blood bags in stock!</div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- 3. Detailed Views (Tabs) -->
+<ul class="nav nav-tabs mb-4" id="myTab" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="inventory-tab" data-bs-toggle="tab" data-bs-target="#inventory"
+            type="button">Detailed Inventory</button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="component-tab" data-bs-toggle="tab" data-bs-target="#component-view"
+            type="button">By Component</button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="kivixa-history-tab" data-bs-toggle="tab" data-bs-target="#history"
+            type="button">Donation History</button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="fulfilled-tab" data-bs-toggle="tab" data-bs-target="#fulfilled"
+            type="button">Fulfilled Requests</button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="audit-tab" data-bs-toggle="tab" data-bs-target="#audit"
+            type="button">Audit Trail</button>
+    </li>
+</ul>
+
+<div class="tab-content" id="myTabContent">
+    <!-- Detailed Inventory -->
+    <div class="tab-pane fade show active" id="inventory">
+        <div class="card p-4 shadow-sm">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Bag ID</th>
+                        <th>Group</th>
+                        <th>Component</th>
+                        <th>Current Vol / Initial Vol</th>
+                        <th>Deduction Trace</th>
+                        <th>Status</th>
+                        <th>Expiry Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for bag in full_inventory %}
+                    <tr>
+                        <td>#{{ bag.bag_id }}</td>
+                        <td><span class="badge bg-secondary">{{ bag.blood_group }}</span></td>
+                        <td><small>{{ bag.component_type }}</small></td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <div class="progress flex-grow-1 me-2" style="height: 10px; width: 100px;">
+                                    <div class="progress-bar bg-danger" role="progressbar"
+                                        style="width: {{ (bag.current_volume_ml / bag.initial_volume_ml) * 100 }}%">
+                                    </div>
+                                </div>
+                                <small>{{ bag.current_volume_ml }} / {{ bag.initial_volume_ml }} ml</small>
+                            </div>
+                        </td>
+                        <td>
+                            <small class="text-muted">
+                                Used: {{ bag.initial_volume_ml - bag.current_volume_ml }} ml
+                            </small>
+                        </td>
+                        <td>{{ bag.status }}</td>
+                        <td>{{ bag.expiry_date }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Component View (from vw_inventory_summary) -->
+    <div class="tab-pane fade" id="component-view">
+        <div class="card p-4 shadow-sm">
+            <table class="table table-striped">
+                <thead>
+                    <tr><th>Blood Group</th><th>Component</th><th>Bags</th><th>Total Volume</th></tr>
+                </thead>
+                <tbody>
+                    {% for row in inventory_detail %}
+                    <tr>
+                        <td><span class="badge bg-secondary">{{ row.blood_group }}</span></td>
+                        <td>{{ row.component_type }}</td>
+                        <td>{{ row.bag_count }}</td>
+                        <td>{{ row.total_volume_ml }} ml</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Donation History -->
+    <div class="tab-pane fade" id="history">
+        <div class="card p-4 shadow-sm">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Donor</th>
+                        <th>Quantity</th>
+                        <th>Log ID</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for d in donations %}
+                    <tr>
+                        <td>{{ d.donation_date }}</td>
+                        <td>{{ d.name }}</td>
+                        <td>{{ d.quantity_ml }} ml</td>
+                        <td>#{{ d.donation_id }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Fulfilled Requests -->
+    <div class="tab-pane fade" id="fulfilled">
+        <div class="card p-4 shadow-sm">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Recipient</th>
+                        <th>Request</th>
+                        <th>Allocated From Bag</th>
+                        <th>Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for f in fulfilled %}
+                    <tr>
+                        <td>{{ f.fulfillment_date }}</td>
+                        <td>{{ f.recipient_name }}</td>
+                        <td>
+                            {{ f.requested_group }} ({{ f.requested_component }})
+                            {% if f.urgency_level == 'Critical' %}<span class="badge bg-danger">Critical</span>{% endif %}
+                        </td>
+                        <td>#{{ f.bag_id }}</td>
+                        <td>{{ f.fl_allocated }} ml</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Audit Trail -->
+    <div class="tab-pane fade" id="audit">
+        <div class="card p-4 shadow-sm">
+            <p class="text-muted small">Recent system-level actions (full log on <a href="{{ url_for('audit') }}">Audit Trail</a> page)</p>
+            <table class="table table-sm table-striped">
+                <thead>
+                    <tr><th>Time</th><th>Action</th><th>Table</th><th>Record</th><th>Old</th><th>New</th><th>By</th></tr>
+                </thead>
+                <tbody>
+                    {% for log in audit_log %}
+                    <tr>
+                        <td><small>{{ log.timestamp }}</small></td>
+                        <td><span class="badge bg-{{ 'success' if log.action_type == 'INSERT' else 'primary' }}">{{ log.action_type }}</span></td>
+                        <td><small>{{ log.table_name }}</small></td>
+                        <td>#{{ log.record_id }}</td>
+                        <td><small class="text-muted">{{ log.old_value or '—' }}</small></td>
+                        <td><small>{{ log.new_value or '—' }}</small></td>
+                        <td><small>{{ log.performed_by }}</small></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<style>
+    .pulse-button {
+        animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+        0% {
+            transform: scale(1);
+        }
+
+        50% {
+            transform: scale(1.05);
+        }
+
+        100% {
+            transform: scale(1);
+        }
+    }
+</style>
+{% endblock %}

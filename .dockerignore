@@ -13,7 +13,6 @@ venv/
 instance/
 exports/
 celerybeat-schedule*
-blood-bank-ms
 !.dockerignore
 !docker/
 !docker/entrypoint.sh

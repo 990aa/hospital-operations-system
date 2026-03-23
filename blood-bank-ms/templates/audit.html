@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="row mb-4 align-items-center">
+    <div class="col">
+        <h2 class="fw-bold">System Audit Trail</h2>
+        <p class="text-muted">
+            Complete forensic log of all INSERT / UPDATE operations on sensitive tables.
+            Populated automatically via database triggers (HIPAA-style compliance).
+        </p>
+    </div>
+</div>
+
+<div class="card p-4 shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-sm table-striped table-hover align-middle">
+            <thead class="table-dark">
+                <tr>
+                    <th>Log ID</th>
+                    <th>Timestamp</th>
+                    <th>Action</th>
+                    <th>Table</th>
+                    <th>Record ID</th>
+                    <th>Old Value</th>
+                    <th>New Value</th>
+                    <th>Performed By</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs %}
+                <tr>
+                    <td>{{ log.log_id }}</td>
+                    <td><small>{{ log.timestamp }}</small></td>
+                    <td>
+                        {% if log.action_type == 'INSERT' %}
+                        <span class="badge bg-success">INSERT</span>
+                        {% elif log.action_type == 'UPDATE' %}
+                        <span class="badge bg-primary">UPDATE</span>
+                        {% elif log.action_type == 'DELETE' %}
+                        <span class="badge bg-danger">DELETE</span>
+                        {% else %}
+                        <span class="badge bg-secondary">{{ log.action_type }}</span>
+                        {% endif %}
+                    </td>
+                    <td><code>{{ log.table_name }}</code></td>
+                    <td>#{{ log.record_id }}</td>
+                    <td><small class="text-muted">{{ log.old_value or '—' }}</small></td>
+                    <td><small>{{ log.new_value or '—' }}</small></td>
+                    <td>{{ log.performed_by }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if not logs %}
+    <div class="text-center py-4 text-muted">
+        <p>No audit entries yet. Actions on BLOOD_BAG, TRANSFUSION_REQ, DONATION_LOG and FULFILLMENT_LOG are automatically recorded.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,158 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="row g-4">
+    <!-- Left Column: Forms -->
+    <div class="col-md-4">
+        <!-- Add Hospital Form -->
+        <div class="card p-4 shadow-sm mb-4">
+            <h5 class="fw-bold text-primary"><i class="bi bi-hospital me-1"></i> Add New Hospital</h5>
+            <form method="POST">
+                <input type="hidden" name="add_hospital" value="true">
+                <div class="mb-2">
+                    <label class="form-label small text-muted">Contact Person</label>
+                    <input type="text" name="name" class="form-control form-control-sm" required
+                        placeholder="Dr. Smith">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small text-muted">Hospital Name</label>
+                    <input type="text" name="hospital_name" class="form-control form-control-sm" required
+                        placeholder="City Gen">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small text-muted">Contact Info</label>
+                    <input type="text" name="contact" class="form-control form-control-sm" required
+                        placeholder="555-0100">
+                </div>
+                <button type="submit" class="btn btn-outline-primary w-100 btn-sm">Add Hospital</button>
+            </form>
+        </div>
+
+        <!-- Request Blood Form -->
+        <div class="card p-4 shadow-sm border-warning">
+            <h5 class="fw-bold text-dark"><i class="bi bi-droplet-fill me-1"></i> Request Blood</h5>
+            <form method="POST">
+                <input type="hidden" name="request_blood" value="true">
+                <div class="mb-3">
+                    <label class="form-label">Recipient (Hospital)</label>
+                    <select name="recipient_id" class="form-select" required>
+                        {% for recipient in recipients %}
+                        <option value="{{ recipient.recipient_id }}">{{ recipient.hospital_name }} ({{ recipient.name
+                            }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <label class="form-label">Blood Group</label>
+                        <select name="blood_group" class="form-select" required>
+                            <option value="A+">A+</option>
+                            <option value="A-">A-</option>
+                            <option value="B+">B+</option>
+                            <option value="B-">B-</option>
+                            <option value="AB+">AB+</option>
+                            <option value="AB-">AB-</option>
+                            <option value="O+">O+</option>
+                            <option value="O-">O-</option>
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">Urgency</label>
+                        <select name="urgency" class="form-select">
+                            <option value="Normal">Normal</option>
+                            <option value="Critical" class="text-danger fw-bold">Critical</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Component Needed</label>
+                    <select name="component" class="form-select">
+                        {% for c in components %}
+                        <option value="{{ c.component_type }}">{{ c.component_type }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Quantity Needed (ml)</label>
+                    <input type="number" name="quantity" class="form-control" value="450" min="50" step="10" required>
+                </div>
+                <button type="submit" class="btn btn-warning w-100 fw-bold">Submit Request</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Right Column: Active Requests List -->
+    <div class="col-md-8">
+        <div class="card p-4 shadow-sm h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h4 class="mb-0">Waitlist (Prioritized)</h4>
+                <span class="badge bg-light text-dark border">Sorted by: Criticality &gt; Quantity</span>
+            </div>
+
+            {% if requests %}
+            <div class="table-responsive">
+                <table class="table align-middle table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Priority</th>
+                            <th>Hospital</th>
+                            <th>Needs</th>
+                            <th>Fulfillment</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for req in requests %}
+                        <tr class="{{ 'table-danger' if req.urgency_level == 'Critical' else '' }}">
+                            <td>
+                                {% if req.urgency_level == 'Critical' %}
+                                <span class="badge bg-danger">CRITICAL</span>
+                                {% else %}
+                                <span class="badge bg-info text-dark">Normal</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <strong>{{ req.hospital_name }}</strong><br>
+                                <small class="text-muted">{{ req.recipient_name }}</small>
+                            </td>
+                            <td>
+                                <span class="fs-5 fw-bold">{{ req.quantity_ml }} ml</span><br>
+                                of {{ req.requested_group }}
+                                <small class="text-muted">({{ req.requested_component }})</small>
+                            </td>
+                            <td>
+                                {% set pct = ((req.quantity_allocated_ml / req.quantity_ml) * 100) | round(0) | int if req.quantity_ml > 0 else 0 %}
+                                <div class="progress" style="height: 18px; min-width: 100px;">
+                                    <div class="progress-bar bg-{{ 'success' if pct == 100 else 'warning' }}"
+                                         role="progressbar" style="width: {{ pct }}%">
+                                        {{ pct }}%
+                                    </div>
+                                </div>
+                                <small class="text-muted">
+                                    {{ req.quantity_allocated_ml }} / {{ req.quantity_ml }} ml
+                                </small>
+                            </td>
+                            <td>
+                                {% if req.status == 'Pending' %}
+                                <span class="badge bg-warning text-dark">Pending</span>
+                                {% elif req.status == 'Partially Fulfilled' %}
+                                <span class="badge bg-info">Partial</span>
+                                {% else %}
+                                <span class="badge bg-success">{{ req.status }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-5 text-muted">
+                <p class="fs-4"><i class="bi bi-check-circle-fill text-success me-1"></i> All requests fulfilled!</p>
+                <p>Great job keeping the supply chain moving.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
