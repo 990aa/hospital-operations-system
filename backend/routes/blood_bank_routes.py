@@ -182,6 +182,7 @@ def index():
 
     return render_template(
         "home.html",
+        endpoint_prefix="blood_bank.",
         alerts=critical_agg,
         critical_details=critical_details,
         inventory=inventory_ticker,
@@ -242,7 +243,12 @@ def donor():
     donor_scores = get_donor_scores()
 
     conn.close()
-    return render_template("donor.html", donors=donors, donor_scores=donor_scores)
+    return render_template(
+        "donor.html",
+        endpoint_prefix="blood_bank.",
+        donors=donors,
+        donor_scores=donor_scores,
+    )
 
 
 @blood_bank_bp.route("/hospital", methods=["GET", "POST"])
@@ -314,6 +320,7 @@ def hospital():
     conn.close()
     return render_template(
         "hospital.html",
+        endpoint_prefix="blood_bank.",
         recipients=recipients,
         requests=requests_list,
         components=components,
@@ -327,4 +334,4 @@ def audit():
     conn = get_db_connection()
     logs = conn.execute("SELECT * FROM AUDIT_LOG ORDER BY timestamp DESC").fetchall()
     conn.close()
-    return render_template("audit.html", logs=logs)
+    return render_template("audit.html", endpoint_prefix="blood_bank.", logs=logs)
