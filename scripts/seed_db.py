@@ -1,6 +1,6 @@
 """
 Database Seed Script — Hospital Management System
-===================================================
+
 
 Populates the database with realistic test data for all roles and entities.
 
@@ -15,7 +15,6 @@ All emails use Gmail plus-addressing:  hms238537+<alias>@gmail.com
 so every notification lands in the same inbox.
 
 SEEDED CREDENTIALS
-==================
 
   Admin
   -----
@@ -39,7 +38,7 @@ SEEDED CREDENTIALS
   username: sophia.king   password: password  email: hms238537+sophia.king@gmail.com
 
 SEEDED ENTITIES
-===============
+
   - 5 Departments (created by app startup): General Medicine, Cardiology, Dermatology, Pediatrics, Neurology
   - 6 Doctors across 5 departments with varied availability
   - 5 Patients with diverse profiles

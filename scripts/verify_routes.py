@@ -1,6 +1,6 @@
 """
 Live Route Verification Script
-===============================
+
 Hits every API endpoint defined in the app against the running Flask server
 (http://127.0.0.1:5000) and reports pass/fail for each.
 
@@ -80,9 +80,9 @@ def _json(resp_body):
         return {}
 
 
-# ──────────────────────────────────────────────────────────────────
+
 # TESTS
-# ──────────────────────────────────────────────────────────────────
+
 
 
 def test_health():
@@ -331,7 +331,7 @@ def test_404():
     _req("GET", "/api/nonexistent", expect_codes=[404])
 
 
-# ──────────────────────────────────────────────────────────────────
+
 
 if __name__ == "__main__":
     print("=" * 70)

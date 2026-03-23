@@ -101,6 +101,11 @@ CACHE_TYPE=RedisCache
 REDIS_URL=redis://redis:6379/0
 CACHE_REDIS_URL=redis://redis:6379/0
 
+GUNICORN_WORKERS=3
+GUNICORN_THREADS=2
+GUNICORN_TIMEOUT=120
+GUNICORN_LOG_LEVEL=info
+
 SMTP_USERNAME=your-smtp-username@gmail.com
 SMTP_PASSWORD=your-smtp-app-password
 FROM_EMAIL=your-sender-email@gmail.com
@@ -126,12 +131,17 @@ For Gmail:
 
 ## Run with Docker Compose (Recommended)
 
-This starts all required services: Flask app, Redis, Celery worker, and Celery beat.
+The compose setup has profile-based runtimes:
+
+- `dev` profile: Flask dev server (`python app.py`) + live code mount.
+- `prod` profile: Gunicorn + non-root runtime (with startup volume permission initialization).
+
+### Production Profile (Recommended)
 
 1. Build and start everything:
 
 ```powershell
-docker compose up --build -d
+docker compose --profile prod up --build -d
 ```
 
 2. Check service status:
@@ -143,7 +153,7 @@ docker compose ps
 3. Stream all logs:
 
 ```powershell
-docker compose logs -f
+docker compose --profile prod logs -f
 ```
 
 4. Open the app:
@@ -154,14 +164,29 @@ docker compose logs -f
 5. Stop stack:
 
 ```powershell
-docker compose down
+docker compose --profile prod down
 ```
 
 6. Stop and remove volumes (full reset):
 
 ```powershell
-docker compose down -v
+docker compose --profile prod down -v
 ```
+
+### Development Profile
+
+```powershell
+docker compose --profile dev up --build -d
+```
+
+This starts `web-dev`, `celery-worker-dev`, and `celery-beat-dev` (plus Redis).
+
+### Hardening Details in Container Runtime
+
+- Production web service runs on Gunicorn (`gunicorn.conf.py`).
+- Entrypoint runs as root only long enough to initialize volume permissions.
+- Application process then drops to unprivileged UID/GID (`10001:10001`).
+- PID 1 uses `tini` for correct signal handling and child reaping.
 
 ### Useful Docker Operations
 
@@ -174,13 +199,13 @@ docker compose build --no-cache
 - Watch only web logs:
 
 ```powershell
-docker compose logs -f web
+docker compose --profile prod logs -f web
 ```
 
 - Open shell in web container:
 
 ```powershell
-docker compose exec web sh
+docker compose --profile prod exec web sh
 ```
 
 - Inspect Redis quickly:
@@ -259,7 +284,7 @@ docker compose exec redis redis-cli ping
 4. Verify Celery worker is connected:
 
 ```powershell
-docker compose exec celery-worker celery -A backend.celery_config inspect ping
+docker compose --profile prod exec celery-worker celery -A backend.celery_config inspect ping
 ```
 
 Expected output includes `pong` from at least one worker.
@@ -267,14 +292,14 @@ Expected output includes `pong` from at least one worker.
 ## Troubleshooting
 
 - `web` keeps restarting:
-	- Check logs: `docker compose logs -f web`
+	- Check logs: `docker compose --profile prod logs -f web`
 	- Ensure `.env` exists and has valid values.
 - No emails received:
 	- Confirm `SMTP_USERNAME`, `SMTP_PASSWORD`, `FROM_EMAIL` in `.env`.
 	- Gmail requires App Password, not regular account password.
 - Celery not processing tasks:
 	- Ensure Redis is healthy: `docker compose ps` and `docker compose exec redis redis-cli ping`.
-	- Check worker logs: `docker compose logs -f celery-worker`.
+	- Check worker logs: `docker compose --profile prod logs -f celery-worker`.
 - Want a clean reset:
-	- `docker compose down -v`
-	- `docker compose up --build -d`
+	- `docker compose --profile prod down -v`
+	- `docker compose --profile prod up --build -d`

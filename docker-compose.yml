@@ -11,22 +11,28 @@ services:
       retries: 5
     restart: unless-stopped
 
-  web:
+  web-dev:
+    profiles: ["dev"]
     build:
       context: .
       dockerfile: Dockerfile
     env_file:
       - .env
     environment:
+      APP_ENV: development
       FLASK_HOST: 0.0.0.0
       FLASK_PORT: 5000
+      FLASK_DEBUG: "true"
       REDIS_URL: redis://redis:6379/0
       CACHE_REDIS_URL: redis://redis:6379/0
+    command: ["python", "app.py"]
     ports:
       - "5000:5000"
     volumes:
+      - ./:/app
       - hms_instance_data:/app/instance
       - hms_exports_data:/app/exports
+      - hms_celery_data:/app/celery
     depends_on:
       redis:
         condition: service_healthy
@@ -38,19 +44,83 @@ services:
       start_period: 20s
     restart: unless-stopped
 
-  celery-worker:
+  web:
+    profiles: ["prod"]
     build:
       context: .
       dockerfile: Dockerfile
     env_file:
       - .env
     environment:
+      APP_ENV: production
+      FLASK_HOST: 0.0.0.0
+      FLASK_PORT: 5000
+      FLASK_DEBUG: "false"
+      REDIS_URL: redis://redis:6379/0
+      CACHE_REDIS_URL: redis://redis:6379/0
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-3}
+      GUNICORN_THREADS: ${GUNICORN_THREADS:-2}
+      GUNICORN_TIMEOUT: ${GUNICORN_TIMEOUT:-120}
+      GUNICORN_LOG_LEVEL: ${GUNICORN_LOG_LEVEL:-info}
+    command: ["gunicorn", "--config", "gunicorn.conf.py", "app:app"]
+    ports:
+      - "5000:5000"
+    volumes:
+      - hms_instance_data:/app/instance
+      - hms_exports_data:/app/exports
+      - hms_celery_data:/app/celery
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health', timeout=5)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+
+  celery-worker-dev:
+    profiles: ["dev"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    environment:
+      APP_ENV: development
+      FLASK_DEBUG: "true"
+      REDIS_URL: redis://redis:6379/0
+      CACHE_REDIS_URL: redis://redis:6379/0
+    command: ["celery", "-A", "backend.celery_config", "worker", "--loglevel=info"]
+    volumes:
+      - ./:/app
+      - hms_instance_data:/app/instance
+      - hms_exports_data:/app/exports
+      - hms_celery_data:/app/celery
+    depends_on:
+      redis:
+        condition: service_healthy
+      web-dev:
+        condition: service_healthy
+    restart: unless-stopped
+
+  celery-worker:
+    profiles: ["prod"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    environment:
+      APP_ENV: production
       REDIS_URL: redis://redis:6379/0
       CACHE_REDIS_URL: redis://redis:6379/0
     command: ["celery", "-A", "backend.celery_config", "worker", "--loglevel=info"]
     volumes:
       - hms_instance_data:/app/instance
       - hms_exports_data:/app/exports
+      - hms_celery_data:/app/celery
     depends_on:
       redis:
         condition: service_healthy
@@ -58,13 +128,40 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  celery-beat:
+  celery-beat-dev:
+    profiles: ["dev"]
     build:
       context: .
       dockerfile: Dockerfile
     env_file:
       - .env
     environment:
+      APP_ENV: development
+      FLASK_DEBUG: "true"
+      REDIS_URL: redis://redis:6379/0
+      CACHE_REDIS_URL: redis://redis:6379/0
+    command: ["celery", "-A", "backend.celery_config", "beat", "--loglevel=info", "--schedule", "/app/celery/celerybeat-schedule"]
+    volumes:
+      - ./:/app
+      - hms_instance_data:/app/instance
+      - hms_exports_data:/app/exports
+      - hms_celery_data:/app/celery
+    depends_on:
+      redis:
+        condition: service_healthy
+      web-dev:
+        condition: service_healthy
+    restart: unless-stopped
+
+  celery-beat:
+    profiles: ["prod"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    environment:
+      APP_ENV: production
       REDIS_URL: redis://redis:6379/0
       CACHE_REDIS_URL: redis://redis:6379/0
     command: ["celery", "-A", "backend.celery_config", "beat", "--loglevel=info", "--schedule", "/app/celery/celerybeat-schedule"]

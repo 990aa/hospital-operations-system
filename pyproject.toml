@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "flask",
+    "gunicorn",
     "flask-sqlalchemy",
     "flask-security-too",
     "flask-caching",

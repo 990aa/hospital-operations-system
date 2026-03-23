@@ -74,6 +74,8 @@ flask-wtf==1.2.2
     # via flask-security-too
 greenlet==3.3.2
     # via sqlalchemy
+gunicorn==23.0.0
+    # via hospital-management-system (pyproject.toml)
 idna==3.11
     # via
     #   email-validator

@@ -1,6 +1,6 @@
 """
 Live Email Job Tester
-=====================
+
 Invokes each Celery email task and waits for results.
 Run with: uv run python scripts/test_email_jobs.py
 
