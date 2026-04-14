@@ -29,7 +29,8 @@ def _resolve_role(user: User) -> str:
 
 
 @auth_bp.route("/login", methods=["POST"])
-@limiter.limit("10 per minute; 50 per hour")
+@limiter.limit("50 per hour")
+@limiter.limit("10 per minute")
 @validate(LoginRequest)
 def login(data: LoginRequest):
     """Log in a user (Admin, Doctor, or Patient)."""
@@ -71,7 +72,8 @@ def logout():
 
 
 @auth_bp.route("/register", methods=["POST"])
-@limiter.limit("5 per minute; 20 per hour")
+@limiter.limit("20 per hour")
+@limiter.limit("5 per minute")
 @validate(RegisterRequest)
 def register(data: RegisterRequest):
     """Register a new patient. Email is mandatory for notifications."""
@@ -113,7 +115,8 @@ def register(data: RegisterRequest):
 
 
 @auth_bp.route("/token", methods=["POST"])
-@limiter.limit("10 per minute; 50 per hour")
+@limiter.limit("50 per hour")
+@limiter.limit("10 per minute")
 @validate(LoginRequest)
 def issue_token(data: LoginRequest):
     """Issue access and refresh JWT tokens for stateless API clients."""
