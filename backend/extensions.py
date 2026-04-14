@@ -14,6 +14,7 @@ from flask_caching import Cache
 from flask_jwt_extended import JWTManager
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from prometheus_flask_exporter import PrometheusMetrics
 from flask_smorest import Api
 from flask_talisman import Talisman
 
@@ -25,6 +26,9 @@ jwt: JWTManager = JWTManager()
 
 # API docs singleton (OpenAPI/Swagger UI)
 api_docs: Api = Api()
+
+# Prometheus exporter singleton (enabled in non-test runtime by default)
+metrics: PrometheusMetrics = PrometheusMetrics.for_app_factory(group_by="endpoint")
 
 # Security header middleware singleton
 talisman: Talisman = Talisman()

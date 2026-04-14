@@ -27,6 +27,10 @@ dependencies = [
     "argon2-cffi>=25.1.0",
     "pymupdf>=1.27.1",
     "requests>=2.32.5",
+    "structlog>=25.5.0",
+    "prometheus-flask-exporter>=0.23.2",
+    "prometheus-client>=0.25.0",
+    "alembic>=1.18.4",
 ]
 
 [project.optional-dependencies]
@@ -39,6 +43,8 @@ dev = [
     "factory-boy>=3.3.3",
     "hypothesis>=6.142.4",
     "mutmut>=3.3.1",
+    "ruff>=0.15.10",
+    "ty>=0.0.29",
 ]
 
 [tool.pytest.ini_options]

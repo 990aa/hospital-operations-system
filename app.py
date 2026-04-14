@@ -15,12 +15,16 @@ Author: Abdul Ahad
 import os
 import logging
 import traceback
+import time
+import uuid
 from datetime import timedelta
+from logging.config import dictConfig
 from dotenv import load_dotenv
-from sqlalchemy import inspect
+import structlog
+from sqlalchemy import inspect, text
 from werkzeug.exceptions import HTTPException
 
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, g
 from flask_mail import Mail
 from models.database import db, User, Role, Department
 from flask_security import Security, SQLAlchemyUserDatastore
@@ -32,7 +36,7 @@ from backend.errors import problem
 load_dotenv()
 
 # Shared extension singletons initialised inside create_app()
-from backend.extensions import cache, jwt, limiter, talisman, api_docs
+from backend.extensions import cache, jwt, limiter, talisman, api_docs, metrics
 
 # Ensure all front-end vendor assets are present before serving requests.
 # Downloads only on first run (or when files are missing); no-op thereafter.
@@ -53,6 +57,82 @@ from backend.celery_config import celery
 
 # Flask-Mail singleton – initialised with app inside create_app()
 mail = Mail()
+
+
+def _configure_structlog(log_level: str = "INFO") -> None:
+    """Configure stdlib logging and structlog JSON output."""
+    level = getattr(logging, log_level.upper(), logging.INFO)
+    dictConfig(
+        {
+            "version": 1,
+            "disable_existing_loggers": False,
+            "formatters": {
+                "plain": {
+                    "format": "%(message)s",
+                }
+            },
+            "handlers": {
+                "default": {
+                    "class": "logging.StreamHandler",
+                    "formatter": "plain",
+                }
+            },
+            "root": {
+                "handlers": ["default"],
+                "level": level,
+            },
+        }
+    )
+    structlog.configure(
+        processors=[
+            structlog.contextvars.merge_contextvars,
+            structlog.processors.add_log_level,
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.processors.JSONRenderer(),
+        ],
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        wrapper_class=structlog.stdlib.BoundLogger,
+        cache_logger_on_first_use=True,
+    )
+
+
+def _probe_database() -> dict:
+    """Run a lightweight DB round-trip used by health checks."""
+    try:
+        db.session.execute(text("SELECT 1"))
+        return {"status": "up"}
+    except Exception as exc:
+        return {"status": "down", "detail": str(exc)}
+
+
+def _probe_cache() -> dict:
+    """Run a cache set/get/delete probe used by health checks."""
+    probe_key = f"health:{uuid.uuid4().hex}"
+    try:
+        cache.set(probe_key, "ok", timeout=5)
+        cache_value = cache.get(probe_key)
+        cache.delete(probe_key)
+        if cache_value != "ok":
+            return {"status": "down", "detail": "cache round-trip mismatch"}
+        return {"status": "up"}
+    except Exception as exc:
+        return {"status": "down", "detail": str(exc)}
+
+
+def _health_payload() -> dict:
+    """Build structured health payload for API and Docker checks."""
+    from datetime import datetime
+
+    checks = {
+        "database": _probe_database(),
+        "cache": _probe_cache(),
+    }
+    status = "healthy" if all(v["status"] == "up" for v in checks.values()) else "degraded"
+    return {
+        "status": status,
+        "timestamp": datetime.now().isoformat(),
+        "checks": checks,
+    }
 
 
 class HospitalApp(Flask):
@@ -107,6 +187,9 @@ def create_app(test_config=None):
     if test_config:
         app.config.update(test_config)
 
+    app.config.setdefault("LOG_LEVEL", os.environ.get("LOG_LEVEL", "INFO"))
+    app.config.setdefault("METRICS_ENABLED", not app.config.get("TESTING", False))
+
     # OpenAPI / Swagger configuration (flask-smorest)
     app.config.setdefault("API_TITLE", "Hospital Operations API")
     app.config.setdefault("API_VERSION", "v1")
@@ -139,10 +222,10 @@ def create_app(test_config=None):
         app.config["RATELIMIT_STORAGE_URI"] = "memory://"
 
     # Logging configuration
-    # We keep logging at INFO so normal startup and request logs are visible,
-    # while explicit error logs (CLIENT_ERROR/API_EXCEPTION) are emitted
-    # by our handlers below for terminal-first debugging.
-    app.logger.setLevel(logging.INFO)
+    # Request context fields are bound by middleware so every log line can be
+    # correlated across services by request_id.
+    _configure_structlog(app.config.get("LOG_LEVEL", "INFO"))
+    app.logger.setLevel(getattr(logging, app.config.get("LOG_LEVEL", "INFO").upper(), logging.INFO))
 
     # Caching Configuration
     # Using Redis for caching - improves performance for frequently accessed data
@@ -163,6 +246,11 @@ def create_app(test_config=None):
     jwt.init_app(app)
     limiter.init_app(app)
     api_docs.init_app(app)
+    if app.config.get("METRICS_ENABLED", True):
+        try:
+            metrics.init_app(app)
+        except ValueError as exc:
+            app.logger.warning("Prometheus metrics already initialized: %s", exc)
     talisman.init_app(
         app,
         force_https=False,
@@ -235,26 +323,56 @@ def create_app(test_config=None):
         """
         return render_template("index.html")
 
-    # --- TEST_ONLY_BLOCK START ---
-    # Health check endpoint used by automated tests and CI pipelines.
-    # Safe to delete before final submission without breaking app functionality.
+    @app.before_request
+    def bind_request_context():
+        """Attach request metadata for tracing and structured logging."""
+        request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+        g.request_id = request_id
+        g.request_started_at = time.perf_counter()
+        structlog.contextvars.clear_contextvars()
+        structlog.contextvars.bind_contextvars(
+            request_id=request_id,
+            method=request.method,
+            path=request.path,
+        )
+
+    @app.after_request
+    def append_request_id(response):
+        """Propagate request ID to clients and emit per-request access logs."""
+        response.headers["X-Request-ID"] = getattr(g, "request_id", "")
+        started_at = getattr(g, "request_started_at", None)
+        duration_ms = None
+        if started_at is not None:
+            duration_ms = round((time.perf_counter() - started_at) * 1000, 2)
+        structlog.get_logger("hos.http").info(
+            "request.completed",
+            status_code=response.status_code,
+            duration_ms=duration_ms,
+            remote_addr=request.remote_addr,
+        )
+        structlog.contextvars.clear_contextvars()
+        return response
+
+    @app.route("/api/health")
+    def api_health_check():
+        """Detailed health status for orchestrators and monitoring systems."""
+        payload = _health_payload()
+        status_code = 200 if payload["status"] == "healthy" else 503
+        return jsonify(payload), status_code
+
     @app.route("/health")
     def health_check():
-        """
-        Health check endpoint for monitoring.
-
-        Returns:
-            JSON with status and timestamp
-        """
-        from datetime import datetime
-
+        """Backward-compatible lightweight health endpoint."""
+        payload = _health_payload()
         return {
-            "status": "healthy",
-            "timestamp": datetime.now().isoformat(),
-            "cache": "connected" if cache else "not configured",
+            "status": payload["status"],
+            "timestamp": payload["timestamp"],
+            "cache": (
+                "connected"
+                if payload["checks"]["cache"]["status"] == "up"
+                else "unavailable"
+            ),
         }
-
-    # --- TEST_ONLY_BLOCK END ---
 
     # --- TEST_ONLY_BLOCK START ---
     # Client-side error logger endpoint used during development and test runs.
@@ -270,7 +388,7 @@ def create_app(test_config=None):
         and writes the full payload to server logs so errors are not shown in UI.
         """
         payload = request.get_json(silent=True) or {}
-        app.logger.error("CLIENT_ERROR %s", payload)
+        structlog.get_logger("hos.client").error("client.error", payload=payload)
         return jsonify({"logged": True})
 
     # --- TEST_ONLY_BLOCK END ---
@@ -279,7 +397,10 @@ def create_app(test_config=None):
     def not_found_error(error):
         """Return problem+json for unknown API routes while keeping normal web 404 behavior."""
         if request.path.startswith("/api"):
-            app.logger.error("API_404 path=%s", request.path)
+            structlog.get_logger("hos.api").warning(
+                "api.not_found",
+                path=request.path,
+            )
             return problem(404, "Not Found", str(error))
         return error, 404
 
@@ -305,26 +426,30 @@ def create_app(test_config=None):
         """
         if isinstance(error, HTTPException):
             if request.path.startswith("/api"):
-                app.logger.error(
-                    "API_HTTP_EXCEPTION path=%s method=%s status=%s description=%s",
-                    request.path,
-                    request.method,
-                    error.code,
-                    error.description,
+                structlog.get_logger("hos.api").warning(
+                    "api.http_exception",
+                    path=request.path,
+                    method=request.method,
+                    status=error.code,
+                    description=error.description,
                 )
                 return problem(error.code or 500, error.name, error.description)
             return error
 
         if request.path.startswith("/api"):
-            app.logger.error(
-                "API_EXCEPTION path=%s method=%s error=%s\n%s",
-                request.path,
-                request.method,
-                str(error),
-                traceback.format_exc(),
+            structlog.get_logger("hos.api").error(
+                "api.unhandled_exception",
+                path=request.path,
+                method=request.method,
+                error=str(error),
+                traceback=traceback.format_exc(),
             )
             return problem(500, "Internal Server Error", "Internal server error")
-        app.logger.error("WEB_EXCEPTION %s\n%s", str(error), traceback.format_exc())
+        structlog.get_logger("hos.web").error(
+            "web.unhandled_exception",
+            error=str(error),
+            traceback=traceback.format_exc(),
+        )
         return "Internal server error", 500
 
     return app
