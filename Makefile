@@ -48,7 +48,7 @@ format:
 	$(UV) run ruff format .
 
 typecheck:
-	$(UV) run ty check .
+	$(UV) run ty check app.py backend models tests migrations --respect-ignore-files --exclude frontend/static/vendor --exclude .venv --exclude blood-bank-ms
 
 test:
 	$(UV) run pytest tests -q

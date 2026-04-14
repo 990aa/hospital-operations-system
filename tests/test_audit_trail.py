@@ -28,7 +28,9 @@ def test_admin_writes_are_captured_in_audit_log(admin_token, test_client):
 
 
 def test_admin_can_list_audit_logs(admin_token):
-    response = admin_token.get("/api/admin/audit-logs?action=create&entity_type=Department")
+    response = admin_token.get(
+        "/api/admin/audit-logs?action=create&entity_type=Department"
+    )
     assert response.status_code == 200
 
     payload = response.get_json()

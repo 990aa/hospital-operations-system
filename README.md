@@ -15,12 +15,16 @@ Both modules share the same authentication core (session + JWT support) and are 
 - [Architecture Overview](#architecture-overview)
 - [RBAC and Access Control](#rbac-and-access-control)
 - [Security Hardening and API Standards](#security-hardening-and-api-standards)
+- [Observability and Request Tracing](#observability-and-request-tracing)
 - [Tech Stack](#tech-stack)
 - [Repository Structure](#repository-structure)
 - [Environment Configuration](#environment-configuration)
+- [Database Migrations (Alembic)](#database-migrations-alembic)
 - [SMTP Setup (Required for Real Emails)](#smtp-setup-required-for-real-emails)
 - [Run with Docker Compose (Recommended)](#run-with-docker-compose-recommended)
+- [Monitoring Profile (Prometheus and Grafana)](#monitoring-profile-prometheus-and-grafana)
 - [Manual Run (Equivalent to 4 Terminals)](#manual-run-equivalent-to-4-terminals)
+- [Developer Commands (Makefile + uv)](#developer-commands-makefile--uv)
 - [Usage Notes](#usage-notes)
 - [API Documentation and Auth Endpoints](#api-documentation-and-auth-endpoints)
 - [Blood Bank Module Details](#blood-bank-module-details)
@@ -39,6 +43,14 @@ Both modules share the same authentication core (session + JWT support) and are 
 - Pydantic v2 request schemas and reusable validation decorator for mutating API payloads.
 - RFC 7807-style problem JSON helper for consistent error response structure.
 - OpenAPI/Swagger UI via Flask-Smorest at `/api/openapi.json` and `/api/docs`.
+- Structured JSON logging via `structlog` with per-request `X-Request-ID` propagation.
+- Detailed dependency health endpoint at `/api/health` (database + cache probes).
+- Prometheus exporter endpoint at `/metrics` plus custom booking business metrics.
+- Monitoring profile in Docker Compose with pre-provisioned Prometheus + Grafana dashboard.
+- Full Alembic migration scaffold and initial versioned schema revision.
+- Application-level admin audit trail (`AuditLog`) with query endpoint at `/api/admin/audit-logs`.
+- uv-native developer workflow with expanded Makefile commands for lint/format/type/test/migrate.
+- Type-check workflow migrated to `ty` (Ruff + ty in dev dependency group).
 - SQLite PRAGMA tuning (WAL, foreign keys ON, busy timeout) for better concurrent behavior.
 - Appointment booking with conflict prevention and status workflow.
 - Doctor Operations with departments, availability slots, profile metadata, and fixed consultation cost.
@@ -112,17 +124,42 @@ This implementation now includes production-grade API hardening primitives:
 	- Flask-Limiter rate limits on auth endpoints.
 	- Flask-Talisman CSP and core browser security headers.
 
+## Observability and Request Tracing
+
+This implementation includes first-class observability primitives for production operations:
+
+- Structured JSON logs:
+	- `structlog` emits JSON events suitable for centralized log systems.
+	- Request metadata (`path`, `method`, `status_code`, duration) is captured on every request.
+- Request ID tracing:
+	- Incoming `X-Request-ID` is accepted and echoed in every response.
+	- A new UUID is generated when the header is not provided.
+	- Problem JSON responses include `request_id` for fast correlation.
+- Health probing:
+	- `GET /api/health` runs dependency checks for database and cache.
+	- Legacy `GET /health` remains available for backwards compatibility.
+- Metrics:
+	- `GET /metrics` exposes Prometheus metrics for HTTP traffic and runtime internals.
+	- Custom metrics include:
+		- `hos_appointment_booking_attempts_total{outcome=...}`
+		- `hos_appointment_booking_duration_seconds{outcome=...}`
+
+These metrics and logs are wired to the Docker monitoring profile described below.
+
 ## Tech Stack
 
 - Backend: Flask, Flask-SQLAlchemy, Flask-Security-Too, Flask-Mail, Flask-Caching
 - API hardening: Flask-JWT-Extended, Flask-Limiter, Flask-Talisman, Pydantic v2
 - API docs: Flask-Smorest (OpenAPI + Swagger UI)
+- Observability: structlog, prometheus-flask-exporter, prometheus-client
 - Async & Scheduling: Celery, Redis
 - Data: SQLite (default), SQLAlchemy ORM
+- Schema migrations: Alembic
 - Frontend: Vue.js + Bootstrap
 - Blood Bank Engine: integrated SQL-heavy module (triggers, views, allocation logic)
 - Reporting: PyMuPDF, Pandas
 - Packaging: `pyproject.toml` + `uv.lock`
+- Quality tooling: Ruff + ty
 - Containerization: Docker + Docker Compose
 
 ## Repository Structure
@@ -137,6 +174,8 @@ This implementation now includes production-grade API hardening primitives:
 - `tests/factories.py`: factory_boy factories for model-heavy tests.
 - `Dockerfile`: image build instructions.
 - `docker-compose.yml`: multi-service orchestration.
+- `migrations/`: Alembic environment and schema revisions.
+- `monitoring/`: Prometheus config + Grafana provisioning and dashboards.
 - `.env.example`: template for required environment variables.
 
 ## Environment Configuration
@@ -177,6 +216,11 @@ GUNICORN_WORKERS=3
 GUNICORN_THREADS=2
 GUNICORN_TIMEOUT=120
 GUNICORN_LOG_LEVEL=info
+LOG_LEVEL=INFO
+METRICS_ENABLED=true
+
+GRAFANA_ADMIN_USER=admin
+GRAFANA_ADMIN_PASSWORD=admin
 
 SMTP_USERNAME=your-smtp-username@gmail.com
 SMTP_PASSWORD=your-smtp-app-password
@@ -184,6 +228,31 @@ FROM_EMAIL=your-sender-email@gmail.com
 ```
 
 If SMTP credentials are not configured, the app falls back to console logging for email payloads.
+
+## Database Migrations (Alembic)
+
+Alembic is configured in this repository with:
+
+- `alembic.ini`
+- `migrations/env.py`
+- initial revision in `migrations/versions/*_initial_schema.py`
+
+Common commands:
+
+```powershell
+# Apply all pending migrations
+uv run alembic upgrade head
+
+# Generate a new revision from model changes
+uv run alembic revision --autogenerate -m "describe_change"
+```
+
+You can also use Make targets:
+
+```powershell
+make migrate-upgrade
+make migrate-revision MSG="describe_change"
+```
 
 ## SMTP Setup (Required for Real Emails)
 
@@ -207,13 +276,14 @@ The compose setup has profile-based runtimes and includes both HOS and Blood Ban
 
 - `dev` profile: Flask dev server + live code mount.
 - `prod` profile: Gunicorn + non-root runtime (with startup volume permission initialization).
+- `monitoring` profile: Prometheus + Grafana with pre-provisioned dashboard.
 
 ### Production Profile (Recommended)
 
-1. Build and start everything:
+1. Build and start production with monitoring:
 
 ```powershell
-docker compose --profile prod up --build -d
+docker compose --profile prod --profile monitoring up --build -d
 ```
 
 2. Check service status:
@@ -231,18 +301,19 @@ docker compose --profile prod logs -f
 4. Open the app:
 
 - URL: `http://localhost:5000`
-- Health endpoint: `http://localhost:5000/health`
+- Health endpoint: `http://localhost:5000/api/health`
+- Metrics endpoint: `http://localhost:5000/metrics`
 
 5. Stop stack:
 
 ```powershell
-docker compose --profile prod down
+docker compose --profile prod --profile monitoring down
 ```
 
 6. Stop and remove volumes (full reset):
 
 ```powershell
-docker compose --profile prod down -v
+docker compose --profile prod --profile monitoring down -v
 ```
 
 ### Development Profile
@@ -252,6 +323,25 @@ docker compose --profile dev up --build -d
 ```
 
 This starts `web-dev`, `celery-worker-dev`, and `celery-beat-dev` (plus Redis).
+
+## Monitoring Profile (Prometheus and Grafana)
+
+When running with `--profile monitoring`, the stack adds:
+
+- Prometheus at `http://localhost:9090`
+- Grafana at `http://localhost:3000`
+
+Default Grafana credentials are read from `.env`:
+
+- `GRAFANA_ADMIN_USER` (default `admin`)
+- `GRAFANA_ADMIN_PASSWORD` (default `admin`)
+
+Provisioned assets:
+
+- Prometheus scrape config: `monitoring/prometheus/prometheus.yml`
+- Grafana datasource provisioning: `monitoring/grafana/provisioning/datasources/datasource.yml`
+- Grafana dashboard provisioning: `monitoring/grafana/provisioning/dashboards/dashboards.yml`
+- Dashboard JSON: `monitoring/grafana/dashboards/hospital-overview.json`
 
 ### Hardening Details in Container Runtime
 
@@ -324,6 +414,31 @@ Docker Compose automates all of the above into one command.
 
 After login, authorized users can enter the blood bank module directly at `http://localhost:5000/blood-bank`.
 
+## Developer Commands (Makefile + uv)
+
+Key targets from `Makefile`:
+
+```powershell
+make install
+make run
+make run-prod
+make worker
+make beat
+make lint
+make format
+make typecheck
+make test
+make coverage
+make seed
+make stress
+make migrate-upgrade
+make migrate-revision MSG="describe_change"
+make docker-up-prod-monitoring
+make docker-down
+```
+
+All targets use `uv` for consistent dependency/environment execution.
+
 ## Usage Notes
 
 - Default seeded admin credentials:
@@ -355,6 +470,10 @@ JWT auth endpoints:
 
 - `POST /api/token`: returns short-lived access token and sets refresh cookie.
 - `POST /api/token/refresh`: issues a new access token from the refresh cookie.
+
+Operational/admin observability endpoint:
+
+- `GET /api/admin/audit-logs`: list audit entries for admin mutations with filters.
 
 Example token issue request:
 
@@ -473,19 +592,32 @@ docker compose ps
 2. Verify web health endpoint:
 
 ```powershell
-curl http://localhost:5000/health
+curl http://localhost:5000/api/health
 ```
 
-3. Verify Redis connectivity:
+3. Verify metrics endpoint:
+
+```powershell
+curl http://localhost:5000/metrics
+```
+
+4. Verify Redis connectivity:
 
 ```powershell
 docker compose exec redis redis-cli ping
 ```
 
-4. Verify Celery worker is connected:
+5. Verify Celery worker is connected:
 
 ```powershell
 docker compose --profile prod exec celery-worker celery -A backend.celery_config inspect ping
+```
+
+6. Verify monitoring services:
+
+```powershell
+curl http://localhost:9090/-/ready
+curl http://localhost:3000/api/health
 ```
 
 Expected output includes `pong` from at least one worker.

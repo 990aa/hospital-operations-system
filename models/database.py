@@ -33,6 +33,7 @@ def set_sqlite_pragma(dbapi_conn, connection_record):
         # PRAGMA tuning is best-effort and should never block app startup.
         return
 
+
 # Association table for User-Role relationship
 roles_users = db.Table(
     "roles_users",
@@ -111,7 +112,7 @@ class User(db.Model, UserMixin):  # type: ignore[misc]
         if self.password.startswith("$argon2"):
             try:
                 return _ph.verify(self.password, raw)
-            except (VerifyMismatchError, InvalidHashError):
+            except VerifyMismatchError, InvalidHashError:
                 return False
 
         try:
@@ -552,7 +553,10 @@ def _serialize_instance(instance, action):
     """Serialize changed fields for create/update/delete audit entries."""
     state = inspect(instance)
     if action in {"create", "delete"}:
-        return {column.key: getattr(instance, column.key) for column in state.mapper.column_attrs}
+        return {
+            column.key: getattr(instance, column.key)
+            for column in state.mapper.column_attrs
+        }
 
     changes = {}
     for column in state.mapper.column_attrs:

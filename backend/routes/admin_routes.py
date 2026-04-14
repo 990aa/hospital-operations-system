@@ -303,7 +303,7 @@ def update_doctor(id):
                     {"message": "appointment_cost must be non-negative"}
                 ), 400
             doctor.appointment_cost = cost
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return jsonify({"message": "appointment_cost must be a number"}), 400
 
     availability_payload, availability_error = _normalize_availability_payload(
@@ -831,7 +831,11 @@ def get_audit_logs():
     if actor_user_id:
         query = query.filter(AuditLog.actor_user_id == actor_user_id)
 
-    rows = query.order_by(AuditLog.created_at.desc(), AuditLog.id.desc()).limit(limit).all()
+    rows = (
+        query.order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
+        .limit(limit)
+        .all()
+    )
     return jsonify(
         {
             "entries": [row.to_dict() for row in rows],

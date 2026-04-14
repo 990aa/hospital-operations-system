@@ -17,7 +17,7 @@ def test_compose_includes_monitoring_profile_services():
     compose = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
     assert "prometheus:" in compose
     assert "grafana:" in compose
-    assert "profiles: [\"monitoring\"]" in compose
+    assert 'profiles: ["monitoring"]' in compose
     assert "/api/health" in compose
 
 

@@ -127,7 +127,9 @@ def _health_payload() -> dict:
         "database": _probe_database(),
         "cache": _probe_cache(),
     }
-    status = "healthy" if all(v["status"] == "up" for v in checks.values()) else "degraded"
+    status = (
+        "healthy" if all(v["status"] == "up" for v in checks.values()) else "degraded"
+    )
     return {
         "status": status,
         "timestamp": datetime.now().isoformat(),
@@ -225,7 +227,9 @@ def create_app(test_config=None):
     # Request context fields are bound by middleware so every log line can be
     # correlated across services by request_id.
     _configure_structlog(app.config.get("LOG_LEVEL", "INFO"))
-    app.logger.setLevel(getattr(logging, app.config.get("LOG_LEVEL", "INFO").upper(), logging.INFO))
+    app.logger.setLevel(
+        getattr(logging, app.config.get("LOG_LEVEL", "INFO").upper(), logging.INFO)
+    )
 
     # Caching Configuration
     # Using Redis for caching - improves performance for frequently accessed data
@@ -256,7 +260,12 @@ def create_app(test_config=None):
         force_https=False,
         content_security_policy={
             "default-src": "'self'",
-            "script-src": ["'self'", "'unsafe-inline'", "cdn.jsdelivr.net", "unpkg.com"],
+            "script-src": [
+                "'self'",
+                "'unsafe-inline'",
+                "cdn.jsdelivr.net",
+                "unpkg.com",
+            ],
         },
     )
 

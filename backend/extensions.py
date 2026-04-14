@@ -35,6 +35,6 @@ talisman: Talisman = Talisman()
 
 # Rate limiting singleton with Redis fallback to in-memory storage in tests/dev.
 limiter: Limiter = Limiter(
-	key_func=get_remote_address,
-	default_limits=[],
+    key_func=get_remote_address,
+    default_limits=[],
 )
