@@ -14,9 +14,11 @@ Author: Abdul Ahad
 
 import os
 import secrets
+from time import perf_counter
 
 from flask import Blueprint, request, jsonify, send_file
 from flask_security import login_required, current_user, roles_required
+from prometheus_client import Counter, Histogram
 from sqlalchemy import or_, and_
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timedelta, date
@@ -59,6 +61,27 @@ WEEKDAY_TO_INDEX = {
     "Sun": 6,
 }
 INDEX_TO_WEEKDAY = {value: key for key, value in WEEKDAY_TO_INDEX.items()}
+
+# Custom booking metrics complement HTTP-level exporter metrics with
+# business-specific outcomes for capacity planning and incident triage.
+APPOINTMENT_BOOKING_ATTEMPTS = Counter(
+    "hos_appointment_booking_attempts_total",
+    "Number of patient appointment booking attempts by outcome.",
+    ["outcome"],
+)
+APPOINTMENT_BOOKING_DURATION = Histogram(
+    "hos_appointment_booking_duration_seconds",
+    "Latency of appointment booking endpoint segmented by outcome.",
+    ["outcome"],
+)
+
+
+def _record_booking_metric(outcome, started_at):
+    """Track booking attempts and duration with a stable outcome label."""
+    APPOINTMENT_BOOKING_ATTEMPTS.labels(outcome=outcome).inc()
+    APPOINTMENT_BOOKING_DURATION.labels(outcome=outcome).observe(
+        max(perf_counter() - started_at, 0)
+    )
 
 
 def _has_active_completed_payment(appointment_id):
@@ -350,15 +373,19 @@ def book_appointment(data: BookAppointmentRequest):
     Returns:
         Success message or error if time slot unavailable
     """
+    started_at = perf_counter()
+
     # Get current patient's profile
     patient = Patient.query.filter_by(user_id=current_user.id).first()
     if not patient:
+        _record_booking_metric("not_found", started_at)
         return problem(404, "Not Found", "Patient profile not found")
 
     doctor_id = data.doctor_id
     date_str = data.date
     doctor = Doctor.query.get(doctor_id)
     if not doctor:
+        _record_booking_metric("not_found", started_at)
         return problem(404, "Not Found", "Doctor not found")
 
     # Validate date is not in the past and within next 7 days.
@@ -366,14 +393,17 @@ def book_appointment(data: BookAppointmentRequest):
     try:
         appointment_date = datetime.strptime(date_str, "%Y-%m-%d").date()
         if appointment_date < datetime.now().date():
+            _record_booking_metric("validation_failed", started_at)
             return problem(400, "Bad Request", "Cannot book appointments in the past")
         if appointment_date > datetime.now().date() + timedelta(days=6):
+            _record_booking_metric("validation_failed", started_at)
             return problem(
                 400,
                 "Bad Request",
                 "Appointments can be booked only within next 7 days",
             )
     except ValueError:
+        _record_booking_metric("validation_failed", started_at)
         return problem(422, "Validation Error", "Invalid date format. Use YYYY-MM-DD")
 
     # Create appointment with retry-safe serial assignment.
@@ -383,6 +413,7 @@ def book_appointment(data: BookAppointmentRequest):
         date_str=date_str,
     )
     if not new_app:
+        _record_booking_metric("conflict", started_at)
         return problem(409, "Conflict", "Doctor is not available on this date")
 
     # Invalidate relevant caches so stats and appointment lists reflect changes immediately.
@@ -391,6 +422,8 @@ def book_appointment(data: BookAppointmentRequest):
     cache.delete(f"patient_appointments_{patient.id}_Booked")
     cache.delete(f"patient_appointments_{patient.id}_Completed")
     cache.delete(f"patient_appointments_{patient.id}_Cancelled")
+
+    _record_booking_metric("success", started_at)
 
     return (
         jsonify(
