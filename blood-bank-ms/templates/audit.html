@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 
 {% block content %}
+{% set ep = endpoint_prefix|default('') %}
 <div class="row mb-4 align-items-center">
     <div class="col">
         <h2 class="fw-bold">System Audit Trail</h2>
@@ -61,9 +62,9 @@
         <small class="text-muted">Page {{ page }} of {{ total_pages }} ({{ total_logs }} total logs)</small>
         <div class="btn-group btn-group-sm" role="group" aria-label="Audit pagination">
             <a class="btn btn-outline-secondary {{ 'disabled' if page <= 1 else '' }}"
-               href="{{ url_for('audit', page=page-1) if page > 1 else '#' }}">Previous</a>
+                    href="{{ url_for(ep ~ 'audit', page=page-1) if page > 1 else '#' }}">Previous</a>
             <a class="btn btn-outline-secondary {{ 'disabled' if page >= total_pages else '' }}"
-               href="{{ url_for('audit', page=page+1) if page < total_pages else '#' }}">Next</a>
+                    href="{{ url_for(ep ~ 'audit', page=page+1) if page < total_pages else '#' }}">Next</a>
         </div>
     </div>
     {% endif %}

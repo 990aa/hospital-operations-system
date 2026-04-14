@@ -4,7 +4,13 @@ import os
 import sqlite3
 
 import db
-from app.settings import EXPIRING_SOON_DAYS
+
+# Standalone runs import from app.settings, while integrated HMS runs can have
+# a top-level module named "app" that is not this package.
+try:
+    from app.settings import EXPIRING_SOON_DAYS
+except (ImportError, ModuleNotFoundError):
+    from settings import EXPIRING_SOON_DAYS
 
 
 def init_db(db_name: str | None = None) -> None:

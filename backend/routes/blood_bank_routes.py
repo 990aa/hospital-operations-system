@@ -20,8 +20,10 @@ from flask_security import current_user, login_required
 # The blood-bank app lives in a sibling folder with a hyphenated name.
 # We add that directory to sys.path and import its modules directly.
 _BLOOD_BANK_ROOT = Path(__file__).resolve().parents[2] / "blood-bank-ms"
-if str(_BLOOD_BANK_ROOT) not in sys.path:
-    sys.path.insert(0, str(_BLOOD_BANK_ROOT))
+_BLOOD_BANK_APP_ROOT = _BLOOD_BANK_ROOT / "app"
+for _import_path in (_BLOOD_BANK_ROOT, _BLOOD_BANK_APP_ROOT):
+    if str(_import_path) not in sys.path:
+        sys.path.insert(0, str(_import_path))
 
 import db as bb_db
 import db_init as bb_db_init

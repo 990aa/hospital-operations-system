@@ -1,7 +1,11 @@
 """Flask application routes and request-level orchestration logic."""
 
+import os
 import sqlite3
+from pathlib import Path
 
+import db as bb_db
+from dotenv import load_dotenv
 from flask import Flask, flash, redirect, render_template, request, url_for
 from flask.typing import ResponseReturnValue
 
@@ -21,8 +25,22 @@ from app.settings import (
 )
 from db import get_db_connection
 
+# Load root .env so standalone runs match integrated HMS/docker configuration.
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+load_dotenv()
+
 app = Flask(__name__)
-app.secret_key = "super_secret_key"
+app.secret_key = os.environ.get("BLOODBANK_SECRET_KEY") or os.environ.get(
+    "SECRET_KEY", "blood-bank-dev-secret"
+)
+
+# Keep standalone DB location aligned with docker/integrated configuration.
+configured_db_path = os.environ.get("BLOODBANK_DB_PATH", "").strip()
+if configured_db_path:
+    configured_dir = os.path.dirname(configured_db_path)
+    if configured_dir:
+        os.makedirs(configured_dir, exist_ok=True)
+    bb_db.DB_NAME = configured_db_path
 
 VALID_BLOOD_GROUPS = {"A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"}
 VALID_URGENCY_LEVELS = {"Normal", "Critical"}
@@ -538,4 +556,8 @@ def audit() -> ResponseReturnValue:
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    debug_env = os.environ.get("FLASK_DEBUG", "true").strip().lower()
+    debug_enabled = debug_env in {"1", "true", "yes", "on"}
+    host = os.environ.get("FLASK_HOST", "127.0.0.1")
+    port = int(os.environ.get("FLASK_PORT", "5000"))
+    app.run(host=host, port=port, debug=debug_enabled)

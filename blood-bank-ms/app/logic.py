@@ -4,11 +4,20 @@ from datetime import date, datetime, timedelta, timezone
 import sqlite3
 from typing import TypedDict
 
-from app.settings import (
-    COMPONENT_SPLIT_RATIO,
-    DONATION_SAFETY_DAYS,
-    SHORTAGE_ALERT_DAYS_THRESHOLD,
-)
+# Standalone runs import from app.settings, while integrated HMS runs can have
+# a top-level module named "app" that is not this package.
+try:
+    from app.settings import (
+        COMPONENT_SPLIT_RATIO,
+        DONATION_SAFETY_DAYS,
+        SHORTAGE_ALERT_DAYS_THRESHOLD,
+    )
+except (ImportError, ModuleNotFoundError):
+    from settings import (
+        COMPONENT_SPLIT_RATIO,
+        DONATION_SAFETY_DAYS,
+        SHORTAGE_ALERT_DAYS_THRESHOLD,
+    )
 from db import get_db_connection
 
 
