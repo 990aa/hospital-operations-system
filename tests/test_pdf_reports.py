@@ -6,7 +6,9 @@ from models.database import Patient, User
 
 
 def _login(client, username, password):
-    response = client.post("/api/login", json={"username": username, "password": password})
+    response = client.post(
+        "/api/login", json={"username": username, "password": password}
+    )
     assert response.status_code == 200
 
 

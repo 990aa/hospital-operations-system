@@ -20,7 +20,9 @@ import db as bb_db  # type: ignore[import-not-found]
 from db_init import init_db  # type: ignore[import-not-found]
 
 _LOGIC_PATH = BLOOD_BANK_APP_ROOT / "logic.py"
-_LOGIC_SPEC = importlib.util.spec_from_file_location("blood_bank_logic_test", _LOGIC_PATH)
+_LOGIC_SPEC = importlib.util.spec_from_file_location(
+    "blood_bank_logic_test", _LOGIC_PATH
+)
 if _LOGIC_SPEC is None or _LOGIC_SPEC.loader is None:
     raise RuntimeError(f"Unable to load blood-bank logic module from {_LOGIC_PATH}")
 _LOGIC_MODULE = importlib.util.module_from_spec(_LOGIC_SPEC)
@@ -43,7 +45,11 @@ def setup_bb_db(tmp_path):
 
 
 @settings(max_examples=50, suppress_health_check=[HealthCheck.function_scoped_fixture])
-@given(quantity=st.floats(min_value=0.001, max_value=10000, allow_nan=False, allow_infinity=False))
+@given(
+    quantity=st.floats(
+        min_value=0.001, max_value=10000, allow_nan=False, allow_infinity=False
+    )
+)
 def test_donation_always_creates_bag_or_fails_cleanly(quantity, setup_bb_db):
     conn = bb_db.get_db_connection()
     conn.execute(

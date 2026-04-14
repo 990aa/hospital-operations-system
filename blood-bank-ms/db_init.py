@@ -9,7 +9,7 @@ import db
 # a top-level module named "app" that is not this package.
 try:
     from app.settings import EXPIRING_SOON_DAYS
-except (ImportError, ModuleNotFoundError):
+except ImportError, ModuleNotFoundError:
     from settings import EXPIRING_SOON_DAYS
 
 

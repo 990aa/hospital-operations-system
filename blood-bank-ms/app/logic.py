@@ -12,7 +12,7 @@ try:
         DONATION_SAFETY_DAYS,
         SHORTAGE_ALERT_DAYS_THRESHOLD,
     )
-except (ImportError, ModuleNotFoundError):
+except ImportError, ModuleNotFoundError:
     from settings import (
         COMPONENT_SPLIT_RATIO,
         DONATION_SAFETY_DAYS,

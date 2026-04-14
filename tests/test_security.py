@@ -77,9 +77,7 @@ def test_jwt_refresh_unknown_user_returns_401(test_client):
             identity="999999", additional_claims={"role": "admin"}
         )
 
-    test_client.set_cookie(
-        "refresh_token_cookie", refresh_token, domain="localhost"
-    )
+    test_client.set_cookie("refresh_token_cookie", refresh_token, domain="localhost")
     response = test_client.post("/api/token/refresh")
     assert response.status_code == 401
 

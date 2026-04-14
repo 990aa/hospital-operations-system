@@ -334,9 +334,7 @@ def complete_appointment(id, data: CompleteAppointmentRequest):
     # Update patient's medical history with summary
     patient = appointment.patient
     if data.diagnosis:
-        new_entry = (
-            f"\n[{appointment.date}] Dr. {doctor.user.name}: {data.diagnosis}"
-        )
+        new_entry = f"\n[{appointment.date}] Dr. {doctor.user.name}: {data.diagnosis}"
         patient.medical_history = (patient.medical_history or "") + new_entry
 
     db.session.commit()
@@ -422,7 +420,9 @@ def reschedule_appointment(id, data: RescheduleAppointmentRequest):
     if appointment.doctor_id != doctor.id:
         return problem(403, "Forbidden", "Unauthorized - not your appointment")
     if appointment.status != "Booked":
-        return problem(400, "Bad Request", "Only booked appointments can be rescheduled")
+        return problem(
+            400, "Bad Request", "Only booked appointments can be rescheduled"
+        )
 
     new_date_str = data.new_date
 

@@ -6,7 +6,9 @@ from models.database import ExportJob, Patient, User, db
 
 
 def _login(client, username, password):
-    response = client.post("/api/login", json={"username": username, "password": password})
+    response = client.post(
+        "/api/login", json={"username": username, "password": password}
+    )
     assert response.status_code == 200
 
 
@@ -26,7 +28,9 @@ def test_admin_doctor_patients_and_appointments_filters(test_client):
     appointment = _book_for_patient(test_client)
 
     _login(test_client, "admin", "admin")
-    doctor_patients = test_client.get(f"/api/admin/doctors/{appointment['doctor_id']}/patients")
+    doctor_patients = test_client.get(
+        f"/api/admin/doctors/{appointment['doctor_id']}/patients"
+    )
     assert doctor_patients.status_code == 200
     assert len(doctor_patients.get_json()) >= 1
 
@@ -67,7 +71,9 @@ def test_admin_payments_filters_and_summary(test_client):
     assert pay_response.status_code == 201
 
     _login(test_client, "admin", "admin")
-    response = test_client.get("/api/admin/payments?status=completed&method=credit_card")
+    response = test_client.get(
+        "/api/admin/payments?status=completed&method=credit_card"
+    )
     assert response.status_code == 200
     payload = response.get_json()
     assert "payments" in payload

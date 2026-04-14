@@ -54,7 +54,7 @@ def _parse_positive_int(value: str | None) -> int | None:
     """
     try:
         parsed = int(value) if value is not None else None
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
     return parsed if parsed is not None and parsed > 0 else None
 
@@ -66,7 +66,7 @@ def _parse_float(value: str | None) -> float | None:
     """
     try:
         return float(value) if value is not None else None
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
 
 

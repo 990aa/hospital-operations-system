@@ -6,7 +6,13 @@ import re
 from typing import Literal
 
 from flask import request
-from pydantic import BaseModel, EmailStr, ValidationError, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    EmailStr,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 from backend.errors import problem
 
@@ -30,7 +36,9 @@ class LoginRequest(BaseModel):
     @classmethod
     def valid_username(cls, value: str) -> str:
         if not USERNAME_PATTERN.match(value):
-            raise ValueError("Username must be 3-50 chars and use letters, numbers, ., _, or -")
+            raise ValueError(
+                "Username must be 3-50 chars and use letters, numbers, ., _, or -"
+            )
         return value
 
 
@@ -45,7 +53,9 @@ class RegisterRequest(BaseModel):
     @classmethod
     def valid_username(cls, value: str) -> str:
         if not USERNAME_PATTERN.match(value):
-            raise ValueError("Username must be 3-50 chars and use letters, numbers, ., _, or -")
+            raise ValueError(
+                "Username must be 3-50 chars and use letters, numbers, ., _, or -"
+            )
         return value
 
     @field_validator("name")
@@ -91,7 +101,9 @@ class CreateDoctorRequest(BaseModel):
     @classmethod
     def valid_username(cls, value: str) -> str:
         if not USERNAME_PATTERN.match(value):
-            raise ValueError("Username must be 3-50 chars and use letters, numbers, ., _, or -")
+            raise ValueError(
+                "Username must be 3-50 chars and use letters, numbers, ., _, or -"
+            )
         return value
 
     @field_validator("name")
