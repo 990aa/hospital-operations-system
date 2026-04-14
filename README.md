@@ -7,13 +7,14 @@ The platform includes two tightly integrated modules in one runtime:
 - Hospital Operations module (appointments, doctor/patient/admin workflows, reports, exports, payments).
 - Blood Bank Operations module (inventory, donor workflows, smart allocation, shortage alerts, audit trail).
 
-Both modules share the same authentication/session layer and are deployed together in one Docker stack.
+Both modules share the same authentication core (session + JWT support) and are deployed together in one Docker stack.
 
 ## Table of Contents
 
 - [Project Highlights](#project-highlights)
 - [Architecture Overview](#architecture-overview)
 - [RBAC and Access Control](#rbac-and-access-control)
+- [Security Hardening and API Standards](#security-hardening-and-api-standards)
 - [Tech Stack](#tech-stack)
 - [Repository Structure](#repository-structure)
 - [Environment Configuration](#environment-configuration)
@@ -21,6 +22,7 @@ Both modules share the same authentication/session layer and are deployed togeth
 - [Run with Docker Compose (Recommended)](#run-with-docker-compose-recommended)
 - [Manual Run (Equivalent to 4 Terminals)](#manual-run-equivalent-to-4-terminals)
 - [Usage Notes](#usage-notes)
+- [API Documentation and Auth Endpoints](#api-documentation-and-auth-endpoints)
 - [Blood Bank Module Details](#blood-bank-module-details)
 - [Testing Both Modules](#testing-both-modules)
 - [Verification and Health Checks](#verification-and-health-checks)
@@ -29,6 +31,15 @@ Both modules share the same authentication/session layer and are deployed togeth
 ## Project Highlights
 
 - Role-based authentication/authorization for Admin, Doctor, Patient, and Blood Bank Staff.
+- Password security hardened with Argon2 hashing on the `User` model (`set_password` / `check_password`).
+- One-time demo-user password migration script (`scripts/migrate_passwords.py`) auto-invoked during startup seeding.
+- JWT stateless auth added alongside session auth (`/api/token` and `/api/token/refresh`).
+- Auth rate limiting enabled via Flask-Limiter (`10/min`, `50/hour` on login/token issue routes).
+- Security headers middleware enabled via Flask-Talisman (HSTS/XFO/XCTO/CSP baseline).
+- Pydantic v2 request schemas and reusable validation decorator for mutating API payloads.
+- RFC 7807-style problem JSON helper for consistent error response structure.
+- OpenAPI/Swagger UI via Flask-Smorest at `/api/openapi.json` and `/api/docs`.
+- SQLite PRAGMA tuning (WAL, foreign keys ON, busy timeout) for better concurrent behavior.
 - Appointment booking with conflict prevention and status workflow.
 - Doctor Operations with departments, availability slots, profile metadata, and fixed consultation cost.
 - Treatment history and CSV export (async via Celery task).
@@ -78,25 +89,52 @@ Blood bank authorization behavior:
 - Access requires authentication and either `admin` or `blood_bank_staff` role.
 - Unauthorized users are redirected back to the main HOS interface.
 
+## Security Hardening and API Standards
+
+This implementation now includes production-grade API hardening primitives:
+
+- Password storage and verification:
+	- Argon2 hashing through `User.set_password()` and `User.check_password()` in `models/database.py`.
+	- Legacy/demo credentials are upgraded by `scripts/migrate_passwords.py`.
+- Dual authentication modes:
+	- Session auth remains for browser workflows.
+	- JWT auth enables stateless API clients (mobile apps, Postman, service integrations).
+- JWT token policy:
+	- Access token expiry: 15 minutes.
+	- Refresh token expiry: 7 days (HttpOnly refresh cookie).
+- Request validation:
+	- Pydantic v2 schemas in `backend/schemas.py`.
+	- Shared `@validate(...)` decorator for consistent 422 validation behavior.
+- Error contract:
+	- RFC 7807-like `problem(...)` responses from `backend/errors.py`.
+	- Global API error handlers in `app.py` for 404/403/422/unhandled exceptions.
+- Abuse protection and headers:
+	- Flask-Limiter rate limits on auth endpoints.
+	- Flask-Talisman CSP and core browser security headers.
+
 ## Tech Stack
 
 - Backend: Flask, Flask-SQLAlchemy, Flask-Security-Too, Flask-Mail, Flask-Caching
+- API hardening: Flask-JWT-Extended, Flask-Limiter, Flask-Talisman, Pydantic v2
+- API docs: Flask-Smorest (OpenAPI + Swagger UI)
 - Async & Scheduling: Celery, Redis
 - Data: SQLite (default), SQLAlchemy ORM
 - Frontend: Vue.js + Bootstrap
 - Blood Bank Engine: integrated SQL-heavy module (triggers, views, allocation logic)
 - Reporting: PyMuPDF, Pandas
-- Packaging: `requirements.txt` generated from `pyproject.toml`
+- Packaging: `pyproject.toml` + `uv.lock`
 - Containerization: Docker + Docker Compose
 
 ## Repository Structure
 
 - `app.py`: Flask app factory and main entrypoint.
-- `backend/`: routes, tasks, celery config, validators, extensions.
+- `backend/`: routes, tasks, celery config, schemas, errors, extensions.
 - `models/`: database models and ORM definitions.
 - `frontend/`: static assets and `index.html` template.
 - `blood-bank-ms/`: integrated blood-bank domain logic, templates, seed/test scripts.
+- `scripts/migrate_passwords.py`: one-time demo password re-hashing helper.
 - `tests/`: pytest suite.
+- `tests/factories.py`: factory_boy factories for model-heavy tests.
 - `Dockerfile`: image build instructions.
 - `docker-compose.yml`: multi-service orchestration.
 - `.env.example`: template for required environment variables.
@@ -125,7 +163,9 @@ FLASK_PORT=5000
 FLASK_DEBUG=true
 
 SECRET_KEY=change-this-secret-key
+JWT_SECRET_KEY=change-this-jwt-secret-key
 SECURITY_PASSWORD_SALT=change-this-password-salt
+BLOODBANK_SECRET_KEY=change-this-blood-bank-secret-key
 
 SQLALCHEMY_DATABASE_URI=sqlite:///hospital.db
 CACHE_TYPE=RedisCache
@@ -296,6 +336,46 @@ After login, authorized users can enter the blood bank module directly at `http:
 - SQLite data is persisted in Docker volume `hos_instance_data`.
 - Export CSV files are persisted in Docker volume `hos_exports_data`.
 
+## API Documentation and Auth Endpoints
+
+OpenAPI and docs endpoints:
+
+- `GET /api/openapi.json`: machine-readable OpenAPI spec.
+- `GET /api/docs`: interactive Swagger UI.
+- `GET /api/meta/ping`: docs-metadata health endpoint.
+
+Session auth endpoints:
+
+- `POST /api/login`
+- `POST /api/logout`
+- `POST /api/register`
+- `GET /api/current-user`
+
+JWT auth endpoints:
+
+- `POST /api/token`: returns short-lived access token and sets refresh cookie.
+- `POST /api/token/refresh`: issues a new access token from the refresh cookie.
+
+Example token issue request:
+
+```json
+{
+	"username": "admin",
+	"password": "admin"
+}
+```
+
+Error responses follow a problem-style JSON shape:
+
+```json
+{
+	"type": "https://hospital-operations-system.example/errors/validation-error",
+	"title": "Validation Error",
+	"status": 422,
+	"detail": "Request validation failed"
+}
+```
+
 ## Blood Bank Module Details
 
 Integrated blood bank pages:
@@ -314,11 +394,39 @@ Data and persistence:
 
 ## Testing Both Modules
 
-Run HOS tests:
+Primary quality gate (coverage enforced):
 
 ```powershell
 uv run pytest tests -q
 ```
+
+The root test suite enforces:
+
+- `--cov=backend --cov=models`
+- terminal missing-line report
+- fail-under threshold: 85%
+
+Targeted test categories added in this hardening phase:
+
+- `tests/test_security.py`:
+	- Argon2 password storage checks
+	- JWT issue/refresh flows
+	- auth rate limiting and access-control assertions
+- `tests/test_validation.py`:
+	- 422 validation behavior for mutating endpoints
+	- SQL injection-style and XSS payload rejection checks
+- `tests/test_concurrency.py`:
+	- concurrent booking race test (single-slot contention)
+- `tests/test_blood_bank_logic.py`:
+	- Hypothesis property-based donation behavior test
+- `tests/test_celery_tasks.py`:
+	- eager-mode Celery task execution and email fallback coverage
+- `tests/test_pdf_reports.py`:
+	- PDF binary validation and data-isolation checks
+- `tests/test_api_docs.py`:
+	- OpenAPI JSON and Swagger UI availability checks
+- `tests/test_coverage_expansion.py`:
+	- additional integration coverage across admin/doctor/patient branches
 
 Run integrated blood-bank RBAC/route tests from HOS suite:
 
@@ -332,6 +440,16 @@ Run original blood-bank module tests:
 Push-Location blood-bank-ms
 uv run pytest tests/test_logic.py -q
 Pop-Location
+```
+
+Factory-based test data helper:
+
+- `tests/factories.py` uses `factory_boy` for model factories.
+
+Mutation testing (optional but recommended):
+
+```powershell
+make mutation-test
 ```
 
 Seed blood bank demo data (optional, standalone verification utility):
