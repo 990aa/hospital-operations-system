@@ -36,7 +36,7 @@ app.secret_key = os.environ.get("BLOODBANK_SECRET_KEY") or os.environ.get(
 
 # Keep standalone DB location aligned with docker/integrated configuration.
 configured_db_path = os.environ.get("BLOODBANK_DB_PATH", "").strip()
-if configured_db_path:
+if configured_db_path and bb_db.DB_NAME == "bloodbank.db":
     configured_dir = os.path.dirname(configured_db_path)
     if configured_dir:
         os.makedirs(configured_dir, exist_ok=True)
