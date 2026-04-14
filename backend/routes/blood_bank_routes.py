@@ -1,4 +1,5 @@
 import os
+import sqlite3
 import sys
 import threading
 import importlib.util
@@ -88,7 +89,12 @@ def blood_bank_role_required(func):
 def _configure_blood_bank_db_path() -> str:
     configured_path = os.environ.get("BLOODBANK_DB_PATH", "").strip()
     if configured_path:
-        db_path = configured_path
+        # Docker-oriented paths like /app/... are not valid local filesystem
+        # targets on Windows outside containers.
+        if os.name == "nt" and configured_path.startswith("/app/"):
+            db_path = os.path.join(current_app.instance_path, "bloodbank.db")
+        else:
+            db_path = configured_path
     else:
         db_path = os.path.join(current_app.instance_path, "bloodbank.db")
 
@@ -97,10 +103,34 @@ def _configure_blood_bank_db_path() -> str:
     return db_path
 
 
+def _has_required_blood_bank_schema(db_path: str) -> bool:
+    """Return True when the target DB contains required BBMS tables/views."""
+    try:
+        conn = sqlite3.connect(db_path)
+        has_core_table = conn.execute(
+            """
+            SELECT 1
+            FROM sqlite_master
+            WHERE type='table' AND name='TRANSFUSION_REQ'
+            """
+        ).fetchone()
+        has_core_view = conn.execute(
+            """
+            SELECT 1
+            FROM sqlite_master
+            WHERE type='view' AND name='vw_critical_pending'
+            """
+        ).fetchone()
+        conn.close()
+        return bool(has_core_table and has_core_view)
+    except sqlite3.Error:
+        return False
+
+
 def _ensure_blood_bank_db_initialized() -> None:
     with _init_lock:
         db_path = _configure_blood_bank_db_path()
-        if not os.path.exists(db_path):
+        if not os.path.exists(db_path) or not _has_required_blood_bank_schema(db_path):
             bb_db_init.init_db()
 
 
