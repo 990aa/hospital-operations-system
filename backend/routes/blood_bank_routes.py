@@ -105,6 +105,7 @@ def _configure_blood_bank_db_path() -> str:
 
 def _has_required_blood_bank_schema(db_path: str) -> bool:
     """Return True when the target DB contains required BBMS tables/views."""
+    conn = None
     try:
         conn = sqlite3.connect(db_path)
         has_core_table = conn.execute(
@@ -121,10 +122,12 @@ def _has_required_blood_bank_schema(db_path: str) -> bool:
             WHERE type='view' AND name='vw_critical_pending'
             """
         ).fetchone()
-        conn.close()
         return bool(has_core_table and has_core_view)
     except sqlite3.Error:
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def _ensure_blood_bank_db_initialized() -> None:
