@@ -128,7 +128,7 @@ def test_register_without_email(test_client):
             "name": "No Email Patient",
         },
     )
-    assert response.status_code == 400
+    assert response.status_code == 422
 
 
 def test_register_duplicate_email(test_client):

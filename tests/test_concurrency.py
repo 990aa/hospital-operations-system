@@ -54,8 +54,10 @@ def concurrency_app(tmp_path):
         doctor = Doctor(
             user_id=doctor_user.id,
             department_id=dept.id,
-            availability="Tue 09:00-09:30",
-            availability_days="Tue",
+            availability="Dynamic 09:00-09:30",
+            availability_days=(datetime.now().date() + timedelta(days=1)).strftime(
+                "%a"
+            ),
             availability_start="09:00",
             availability_end="09:30",
             slot_minutes=30,
@@ -80,17 +82,8 @@ def concurrency_app(tmp_path):
     yield app
 
 
-def _next_tuesday_within_7_days():
-    today = datetime.now().date()
-    for offset in range(1, 8):
-        candidate = today + timedelta(days=offset)
-        if candidate.strftime("%a") == "Tue":
-            return candidate.isoformat()
-    return (today + timedelta(days=1)).isoformat()
-
-
 def test_simultaneous_booking_same_slot_allows_single_success(concurrency_app):
-    target_date = _next_tuesday_within_7_days()
+    target_date = (datetime.now().date() + timedelta(days=1)).isoformat()
     results = []
     lock = threading.Lock()
 

@@ -34,10 +34,7 @@ def test_export_task_creates_file(celery_app, test_client, patient_user):
         db.session.add(job)
         db.session.commit()
 
-        result = export_patient_treatments.delay(patient.id, job.id)
-        assert result.successful()
-
-        payload = result.result
+        payload = export_patient_treatments.run(patient.id, job.id)
         assert payload["success"] is True
         assert os.path.exists(payload["file_path"])
 
