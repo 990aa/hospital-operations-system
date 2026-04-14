@@ -25,7 +25,7 @@ from app.settings import (
 )
 from db import get_db_connection
 
-# Load root .env so standalone runs match integrated HMS/docker configuration.
+# Load root .env so standalone runs match integrated HOS/docker configuration.
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 load_dotenv()
 

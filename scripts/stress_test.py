@@ -21,10 +21,7 @@ import string
 from typing import Any
 import requests
 
-BASE_URL = os.environ.get(
-    "HOS_BASE_URL",
-    os.environ.get("HMS_BASE_URL", "http://127.0.0.1:5000"),
-)
+BASE_URL = os.environ.get("HOS_BASE_URL", "http://127.0.0.1:5000")
 API = f"{BASE_URL}/api"
 TIMEOUT = 20
 

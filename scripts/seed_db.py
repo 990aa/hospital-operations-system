@@ -1,5 +1,5 @@
 """
-Database Seed Script — Hospital Management System
+Database Seed Script — Hospital Operations System
 
 
 Populates the database with realistic test data for all roles and entities.
@@ -534,7 +534,7 @@ def seed():
     create_initial_data(app)
 
     with app.app_context():
-        print("\n=== Hospital Management System — Database Seed ===\n")
+        print("\n=== Hospital Operations System — Database Seed ===\n")
 
         print("[1/4] Clearing existing data ...")
         _clear_data()

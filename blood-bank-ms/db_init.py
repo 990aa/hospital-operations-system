@@ -5,7 +5,7 @@ import sqlite3
 
 import db
 
-# Standalone runs import from app.settings, while integrated HMS runs can have
+# Standalone runs import from app.settings, while integrated HOS runs can have
 # a top-level module named "app" that is not this package.
 try:
     from app.settings import EXPIRING_SOON_DAYS
