@@ -78,7 +78,6 @@ def concurrency_app(tmp_path):
         patient = Patient(user_id=patient_user.id, medical_history="")
         db.session.add(patient)
         db.session.commit()
-
     yield app
 
 

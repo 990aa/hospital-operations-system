@@ -44,6 +44,8 @@ def test_client():
         "SECURITY_PASSWORD_SALT": "testsalt",
         "SECRET_KEY": "testkey",
         "CACHE_TYPE": "SimpleCache",
+        "RATELIMIT_ENABLED": True,
+        "RATELIMIT_STORAGE_URI": "memory://",
         "task_always_eager": True,
         "result_backend": "cache",
         "cache_backend": "memory",
