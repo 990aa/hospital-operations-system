@@ -25,6 +25,7 @@ services:
       FLASK_HOST: 0.0.0.0
       FLASK_PORT: 5000
       FLASK_DEBUG: "true"
+      METRICS_ENABLED: "true"
       REDIS_URL: redis://redis:6379/0
       CACHE_REDIS_URL: redis://redis:6379/0
       BLOODBANK_DB_PATH: /app/instance/bloodbank.db
@@ -40,7 +41,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health', timeout=5)"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/api/health', timeout=5)"]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -59,6 +60,7 @@ services:
       FLASK_HOST: 0.0.0.0
       FLASK_PORT: 5000
       FLASK_DEBUG: "false"
+      METRICS_ENABLED: "true"
       REDIS_URL: redis://redis:6379/0
       CACHE_REDIS_URL: redis://redis:6379/0
       GUNICORN_WORKERS: ${GUNICORN_WORKERS:-3}
@@ -77,7 +79,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health', timeout=5)"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/api/health', timeout=5)"]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -184,8 +186,45 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  prometheus:
+    profiles: ["monitoring"]
+    image: prom/prometheus:v2.55.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - hos_prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      web:
+        condition: service_healthy
+    restart: unless-stopped
+
+  grafana:
+    profiles: ["monitoring"]
+    image: grafana/grafana:11.2.0
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - hos_grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      prometheus:
+        condition: service_started
+    restart: unless-stopped
+
 volumes:
   hos_redis_data:
   hos_instance_data:
   hos_exports_data:
   hos_celery_data:
+  hos_prometheus_data:
+  hos_grafana_data:

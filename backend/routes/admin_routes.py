@@ -36,6 +36,7 @@ from models.database import (
     Department,
     Payment,
     Treatment,
+    AuditLog,
 )
 
 # Create Blueprint for admin routes
@@ -810,6 +811,34 @@ def admin_appointments():
 
 
 # Export Job Monitoring Routes
+
+
+@admin_bp.route("/admin/audit-logs", methods=["GET"])
+@roles_required("admin")
+def get_audit_logs():
+    """Return recent audit entries for admin forensic and compliance review."""
+    action = (request.args.get("action") or "").strip().lower()
+    entity_type = (request.args.get("entity_type") or "").strip()
+    actor_user_id = request.args.get("actor_user_id", type=int)
+    limit = request.args.get("limit", 100, type=int) or 100
+    limit = max(1, min(limit, 500))
+
+    query = AuditLog.query
+    if action in {"create", "update", "delete"}:
+        query = query.filter(AuditLog.action == action)
+    if entity_type:
+        query = query.filter(AuditLog.entity_type == entity_type)
+    if actor_user_id:
+        query = query.filter(AuditLog.actor_user_id == actor_user_id)
+
+    rows = query.order_by(AuditLog.created_at.desc(), AuditLog.id.desc()).limit(limit).all()
+    return jsonify(
+        {
+            "entries": [row.to_dict() for row in rows],
+            "count": len(rows),
+            "limit": limit,
+        }
+    )
 
 
 @admin_bp.route("/admin/export-jobs", methods=["GET"])

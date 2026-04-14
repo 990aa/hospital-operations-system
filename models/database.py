@@ -1,10 +1,14 @@
+import json
+
+from flask import has_request_context, request, g
 from flask_sqlalchemy import SQLAlchemy
-from flask_security import UserMixin, RoleMixin
+from flask_security import UserMixin, RoleMixin, current_user
 from flask_security.utils import verify_password as security_verify_password
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError, InvalidHashError
-from sqlalchemy import event
+from sqlalchemy import event, inspect
 from sqlalchemy.engine import Engine
+from sqlalchemy.orm import Session
 
 # Initialize the SQLAlchemy instance
 db = SQLAlchemy()
@@ -465,3 +469,162 @@ class Payment(db.Model):  # type: ignore[misc]
             ),
             "notes": self.notes,
         }
+
+
+class AuditLog(db.Model):  # type: ignore[misc]
+    """Immutable audit trail for admin-driven data changes."""
+
+    __tablename__ = "audit_log"
+    id = db.Column(db.Integer, primary_key=True)
+    actor_user_id = db.Column(db.Integer, nullable=True)
+    actor_username = db.Column(db.String(255), nullable=True)
+    actor_roles = db.Column(db.String(255), nullable=True)
+    action = db.Column(db.String(20), nullable=False)
+    entity_type = db.Column(db.String(80), nullable=False)
+    entity_id = db.Column(db.String(80), nullable=True)
+    request_id = db.Column(db.String(64), nullable=True)
+    path = db.Column(db.String(255), nullable=True)
+    method = db.Column(db.String(16), nullable=True)
+    changes = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
+
+    def to_dict(self):
+        """Return dictionary representation of an audit entry."""
+        parsed_changes = None
+        if self.changes:
+            try:
+                parsed_changes = json.loads(self.changes)
+            except ValueError:
+                parsed_changes = self.changes
+        return {
+            "id": self.id,
+            "actor_user_id": self.actor_user_id,
+            "actor_username": self.actor_username,
+            "actor_roles": self.actor_roles,
+            "action": self.action,
+            "entity_type": self.entity_type,
+            "entity_id": self.entity_id,
+            "request_id": self.request_id,
+            "path": self.path,
+            "method": self.method,
+            "changes": parsed_changes,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+_AUDIT_EXCLUDED_TABLES = {"audit_log", "roles_users"}
+
+
+def _json_default(value):
+    """Convert non-JSON-safe SQLAlchemy values into strings."""
+    if hasattr(value, "isoformat"):
+        try:
+            return value.isoformat()
+        except Exception:
+            pass
+    return str(value)
+
+
+def _audit_actor_context():
+    """Read request + authenticated user details for audit metadata."""
+    if not has_request_context():
+        return None
+
+    if not getattr(current_user, "is_authenticated", False):
+        return None
+
+    actor_roles = [role.name for role in (getattr(current_user, "roles", []) or [])]
+    is_admin = "admin" in actor_roles
+    if not is_admin:
+        return None
+
+    return {
+        "actor_user_id": getattr(current_user, "id", None),
+        "actor_username": getattr(current_user, "username", None),
+        "actor_roles": ",".join(sorted(actor_roles)),
+        "request_id": getattr(g, "request_id", None),
+        "path": request.path,
+        "method": request.method,
+    }
+
+
+def _serialize_instance(instance, action):
+    """Serialize changed fields for create/update/delete audit entries."""
+    state = inspect(instance)
+    if action in {"create", "delete"}:
+        return {column.key: getattr(instance, column.key) for column in state.mapper.column_attrs}
+
+    changes = {}
+    for column in state.mapper.column_attrs:
+        history = state.attrs[column.key].history
+        if not history.has_changes():
+            continue
+        old_value = history.deleted[0] if history.deleted else None
+        new_value = history.added[0] if history.added else getattr(instance, column.key)
+        changes[column.key] = {"old": old_value, "new": new_value}
+    return changes
+
+
+@event.listens_for(Session, "before_flush")
+def add_audit_trail_entries(session, flush_context, instances):
+    """Persist audit entries for admin-driven writes within request scope."""
+    if session.info.get("_audit_in_progress"):
+        return
+
+    actor = _audit_actor_context()
+    if not actor:
+        return
+
+    pending_entries = []
+
+    for obj in session.new:
+        table_name = getattr(getattr(obj, "__table__", None), "name", None)
+        if table_name in _AUDIT_EXCLUDED_TABLES:
+            continue
+        if table_name is None:
+            continue
+        pending_entries.append(("create", obj, _serialize_instance(obj, "create")))
+
+    for obj in session.dirty:
+        table_name = getattr(getattr(obj, "__table__", None), "name", None)
+        if table_name in _AUDIT_EXCLUDED_TABLES:
+            continue
+        if table_name is None:
+            continue
+        if not session.is_modified(obj, include_collections=False):
+            continue
+        changes = _serialize_instance(obj, "update")
+        if not changes:
+            continue
+        pending_entries.append(("update", obj, changes))
+
+    for obj in session.deleted:
+        table_name = getattr(getattr(obj, "__table__", None), "name", None)
+        if table_name in _AUDIT_EXCLUDED_TABLES:
+            continue
+        if table_name is None:
+            continue
+        pending_entries.append(("delete", obj, _serialize_instance(obj, "delete")))
+
+    if not pending_entries:
+        return
+
+    session.info["_audit_in_progress"] = True
+    try:
+        for action, obj, changes in pending_entries:
+            session.add(
+                AuditLog(
+                    actor_user_id=actor["actor_user_id"],
+                    actor_username=actor["actor_username"],
+                    actor_roles=actor["actor_roles"],
+                    action=action,
+                    entity_type=obj.__class__.__name__,
+                    entity_id=str(getattr(obj, "id", "")) or None,
+                    request_id=actor["request_id"],
+                    path=actor["path"],
+                    method=actor["method"],
+                    changes=json.dumps(changes, default=_json_default),
+                )
+            )
+    finally:
+        session.info["_audit_in_progress"] = False
