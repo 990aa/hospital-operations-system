@@ -1,0 +1,15 @@
+flowchart TD
+    S1[Fetch Pending + Partially Fulfilled Requests] --> S2[Sort by Urgency and Required Volume]
+    S2 --> S3[Pick One Request]
+    S3 --> S4[Find Compatible Bags via COMPATIBILITY_MATRIX]
+    S4 --> S5[Sort Candidate Bags by Preference and Expiry FIFO]
+    S5 --> S6{Need Fully Satisfied?}
+    S6 -->|No| S7[Take min Needed vs Bag Volume]
+    S7 --> S8[Insert FULFILLMENT_LOG]
+    S8 --> S9[Update BLOOD_BAG current_volume_ml]
+    S9 --> S10[DB Triggers Update Request Status and Audit]
+    S10 --> S6
+    S6 -->|Yes| S11[Move to Next Request]
+    S11 --> S12{More Requests?}
+    S12 -->|Yes| S3
+    S12 -->|No| S13[Commit Transaction and Return Summary]

@@ -1,0 +1,10 @@
+stateDiagram-v2
+    [*] --> Pending
+    Pending --> PartiallyFulfilled: First valid allocation
+    Pending --> Fulfilled: Full allocation in one run
+    PartiallyFulfilled --> PartiallyFulfilled: Additional partial allocations
+    PartiallyFulfilled --> Fulfilled: Remaining volume reaches zero
+    Pending --> Cancelled: Manual cancellation
+    PartiallyFulfilled --> Cancelled: Manual cancellation
+    Fulfilled --> [*]
+    Cancelled --> [*]

@@ -1,7 +1,7 @@
-# 🩸 Blood Bank Management System (BBMS)
+# Blood Bank Management System 
 
 A full-featured, web-based Blood Bank Management System built with **Python / Flask / SQLite**.  
-It showcases advanced relational database techniques including triggers, views, audit trails, domain normalization, and an intelligent allocation engine.
+Designed as a DBMS course project, it showcases advanced relational database techniques including triggers, views, audit trails, domain normalization, and an intelligent allocation engine.
 
 ---
 
@@ -33,34 +33,6 @@ It showcases advanced relational database techniques including triggers, views, 
 | Package Manager | [uv](https://docs.astral.sh/uv/) |
 | Linting | ruff, ty |
 | Testing | pytest (95 tests) |
-
----
-
-## Project Structure
-
-```
-blood-bank-ms/
-├── main.py              # Flask routes (Dashboard, Donor, Hospital, Audit)
-├── db.py                # Database connection helper
-├── db_init.py           # Schema initialisation (all DDL + triggers + views)
-├── seed_demo.py         # Demo data injection script
-├── pyproject.toml       # Project metadata & dependencies
-├── app/
-│   ├── __init__.py
-│   └── logic.py         # Core business logic (donation, allocation, alerts)
-├── templates/
-│   ├── base.html        # Layout with Bootstrap navbar
-│   ├── home.html        # Dashboard (alerts, stock ticker, tabs)
-│   ├── donor.html       # Donor registration, donation, loyalty leaderboard
-│   ├── hospital.html    # Hospital management, blood requests, waitlist
-│   └── audit.html       # Full audit trail table
-├── tests/
-│   └── test_logic.py    # 95 tests (unit, integration, edge, stress, routes)
-└── docs/
-    ├── er_diagram.mmd   # Mermaid ER diagram
-    ├── PROJECT_REPORT.md # Detailed project report
-    └── DEMO_GUIDE.md    # Step-by-step demo walkthrough
-```
 
 ---
 
@@ -98,31 +70,6 @@ uv run python main.py
 ```
 
 Open **http://127.0.0.1:5000** in your browser.
-
----
-
-## Running Tests
-
-```bash
-uv run pytest tests/test_logic.py -v
-```
-
-**95 tests** covering:
-- Granular allocation & multi-bag fulfillment
-- Priority ordering (Critical > Normal, quantity descending)
-- All 3 DB triggers (auto-expire, safety lock, volume guard)
-- All 3 SQL views
-- Audit trail completeness
-- Domain normalization (FK rejection of invalid data)
-- Component tracking (split + shelf lives)
-- Soft deletes (donor + recipient)
-- Predictive shortage alerts
-- Cross-match compatibility scoring
-- Donor loyalty scores & eligibility
-- Partial fulfillment & incremental allocation
-- Edge cases (tiny/large donations, idempotent allocation, nonexistent donors)
-- Stress tests (50 donors, 30 requests, concurrent reads)
-- Flask route integration tests (all GET/POST endpoints + 404)
 
 ---
 

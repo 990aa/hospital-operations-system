@@ -1,0 +1,24 @@
+flowchart TD
+    U1[Donor User] --> FE[Flask + Jinja UI]
+    U2[Hospital User] --> FE
+    U3[Admin User] --> FE
+
+    FE --> API[Route Layer in main.py]
+    API --> LOGIC[Business Logic in app/logic.py]
+    LOGIC --> DB[(SQLite Database)]
+
+    DB --> T1[Triggers\nSafety + Status + Audit]
+    DB --> V1[Views\nInventory + Critical + Expiring]
+    DB --> M1[Master Tables\nBlood Groups, Urgency, Status, Components]
+
+    LOGIC --> A1[Smart Allocation Engine]
+    LOGIC --> A2[Shortage Forecast Engine]
+    LOGIC --> A3[Donor Loyalty Engine]
+
+    A1 --> DB
+    A2 --> DB
+    A3 --> DB
+
+    DB --> OUT1[Audit Trail]
+    DB --> OUT2[Inventory Dashboards]
+    DB --> OUT3[Fulfillment History]

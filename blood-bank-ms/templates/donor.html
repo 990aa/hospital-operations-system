@@ -50,7 +50,7 @@
                 </div>
                 <div class="col-md-3">
                     <label>Quantity (ml)</label>
-                    <input type="number" name="quantity" class="form-control" value="450" required>
+                    <input type="number" name="quantity" class="form-control" value="450" min="50" step="10" required>
                 </div>
                 <div class="col-md-2 d-flex align-items-end">
                     <div class="form-check">
@@ -63,7 +63,7 @@
                 </div>
             </form>
             <small class="text-muted mt-2 d-block">
-                Splitting creates separate RBC (200ml/42d), Platelets (50ml/5d), and Plasma (200ml/365d) bags.
+                Splitting creates RBC (44.4%), Platelets (11.1%), and Plasma (44.4%) bags based on the donated quantity.
                 The 56-day donation safety interval is enforced by a database trigger.
             </small>
         </div>
@@ -115,6 +115,7 @@
                             <form method="POST" style="display:inline">
                                 <input type="hidden" name="deactivate" value="true">
                                 <input type="hidden" name="donor_id" value="{{ d.donor_id }}">
+                                <input type="hidden" name="status" value="{{ donor_status_filter }}">
                                 <button type="submit" class="btn btn-outline-danger btn-sm"
                                     onclick="return confirm('Soft-delete this donor?')">
                                     Deactivate
@@ -125,6 +126,71 @@
                     {% endfor %}
                 </tbody>
             </table>
+        </div>
+
+        <div class="card p-4 mt-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0"><i class="bi bi-people-fill me-1"></i> Donor Registry</h5>
+                <form method="GET" class="d-flex align-items-center gap-2">
+                    <label for="donorStatusFilter" class="small text-muted">Show</label>
+                    <select id="donorStatusFilter" name="status" class="form-select form-select-sm">
+                        <option value="active" {{ 'selected' if donor_status_filter == 'active' else '' }}>Active</option>
+                        <option value="inactive" {{ 'selected' if donor_status_filter == 'inactive' else '' }}>Inactive</option>
+                        <option value="all" {{ 'selected' if donor_status_filter == 'all' else '' }}>All</option>
+                    </select>
+                    <button type="submit" class="btn btn-outline-secondary btn-sm">Apply</button>
+                </form>
+            </div>
+
+            {% if donor_registry %}
+            <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>ID</th>
+                            <th>Name</th>
+                            <th>Blood Group</th>
+                            <th>Phone</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for donor in donor_registry %}
+                        <tr>
+                            <td>{{ donor.donor_id }}</td>
+                            <td>{{ donor.name }}</td>
+                            <td>{{ donor.blood_group }}</td>
+                            <td>{{ donor.phone or 'N/A' }}</td>
+                            <td>
+                                {% if donor.is_active %}
+                                <span class="badge bg-success">Active</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Inactive</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <form method="POST" class="d-inline">
+                                    <input type="hidden" name="donor_id" value="{{ donor.donor_id }}">
+                                    <input type="hidden" name="status" value="{{ donor_status_filter }}">
+                                    {% if donor.is_active %}
+                                    <input type="hidden" name="deactivate" value="true">
+                                    <button type="submit" class="btn btn-outline-danger btn-sm"
+                                        onclick="return confirm('Deactivate this donor?')">Deactivate</button>
+                                    {% else %}
+                                    <input type="hidden" name="reactivate" value="true">
+                                    <button type="submit" class="btn btn-outline-success btn-sm">Reactivate</button>
+                                    {% endif %}
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted mb-0">No donors match this filter.</p>
+            {% endif %}
         </div>
     </div>
 </div>

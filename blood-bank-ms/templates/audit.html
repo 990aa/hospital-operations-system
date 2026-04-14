@@ -6,7 +6,7 @@
         <h2 class="fw-bold">System Audit Trail</h2>
         <p class="text-muted">
             Complete forensic log of all INSERT / UPDATE operations on sensitive tables.
-            Populated automatically via database triggers (HIPAA-style compliance).
+            Populated automatically via database triggers.
         </p>
     </div>
 </div>
@@ -23,7 +23,6 @@
                     <th>Record ID</th>
                     <th>Old Value</th>
                     <th>New Value</th>
-                    <th>Performed By</th>
                 </tr>
             </thead>
             <tbody>
@@ -46,7 +45,6 @@
                     <td>#{{ log.record_id }}</td>
                     <td><small class="text-muted">{{ log.old_value or '—' }}</small></td>
                     <td><small>{{ log.new_value or '—' }}</small></td>
-                    <td>{{ log.performed_by }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -55,6 +53,18 @@
     {% if not logs %}
     <div class="text-center py-4 text-muted">
         <p>No audit entries yet. Actions on BLOOD_BAG, TRANSFUSION_REQ, DONATION_LOG and FULFILLMENT_LOG are automatically recorded.</p>
+    </div>
+    {% endif %}
+
+    {% if total_pages > 1 %}
+    <div class="d-flex justify-content-between align-items-center mt-3">
+        <small class="text-muted">Page {{ page }} of {{ total_pages }} ({{ total_logs }} total logs)</small>
+        <div class="btn-group btn-group-sm" role="group" aria-label="Audit pagination">
+            <a class="btn btn-outline-secondary {{ 'disabled' if page <= 1 else '' }}"
+               href="{{ url_for('audit', page=page-1) if page > 1 else '#' }}">Previous</a>
+            <a class="btn btn-outline-secondary {{ 'disabled' if page >= total_pages else '' }}"
+               href="{{ url_for('audit', page=page+1) if page < total_pages else '#' }}">Next</a>
+        </div>
     </div>
     {% endif %}
 </div>

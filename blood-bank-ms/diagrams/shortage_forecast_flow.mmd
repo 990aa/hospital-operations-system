@@ -1,0 +1,9 @@
+flowchart LR
+    I1[Current Available Inventory by Group] --> C1[Compute 30-Day Average Consumption]
+    C1 --> C2[Projected Stock Days = Current / Daily Rate]
+    C2 --> C3{Projected Days < 3?}
+    C3 -->|Yes| A1[Create Shortage Alert]
+    C3 -->|No| A2[No Alert]
+    A1 --> D1[Fetch Eligible Donors by Group]
+    D1 --> D2[Rank by Donations and Days Since Last]
+    D2 --> O1[Display Suggested Donors on Dashboard]
