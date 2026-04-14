@@ -3,6 +3,7 @@
 from datetime import datetime, timezone
 
 import jwt
+from flask_jwt_extended import create_refresh_token
 
 from models.database import User
 
@@ -48,6 +49,49 @@ def test_jwt_issue_sets_refresh_cookie_and_expiry_window(test_client):
 
     set_cookie_headers = response.headers.getlist("Set-Cookie")
     assert any("refresh_token_cookie=" in header for header in set_cookie_headers)
+
+
+def test_jwt_refresh_issues_new_access_token(test_client):
+    issue_response = test_client.post(
+        "/api/token", json={"username": "admin", "password": "admin"}
+    )
+    assert issue_response.status_code == 200
+
+    refresh_response = test_client.post("/api/token/refresh")
+    assert refresh_response.status_code == 200
+    refresh_payload = refresh_response.get_json()
+    assert "access_token" in refresh_payload
+    assert refresh_payload["role"] == "admin"
+
+
+def test_issue_token_invalid_credentials_returns_401(test_client):
+    response = test_client.post(
+        "/api/token", json={"username": "admin", "password": "wrong-password"}
+    )
+    assert response.status_code == 401
+
+
+def test_jwt_refresh_unknown_user_returns_401(test_client):
+    with test_client.application.app_context():
+        refresh_token = create_refresh_token(
+            identity="999999", additional_claims={"role": "admin"}
+        )
+
+    response = test_client.post(
+        "/api/token/refresh",
+        headers={"Cookie": f"refresh_token_cookie={refresh_token}"},
+    )
+    assert response.status_code == 401
+
+
+def test_login_role_hint_for_unregistered_patient_returns_flag(test_client):
+    response = test_client.post(
+        "/api/login",
+        json={"username": "ghost", "password": "whatever", "role": "patient"},
+    )
+    assert response.status_code == 401
+    payload = response.get_json()
+    assert payload.get("not_registered") is True
 
 
 def test_rate_limit_blocks_after_10_login_attempts(test_client):

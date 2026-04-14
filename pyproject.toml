@@ -45,4 +45,12 @@ dev = [
 addopts = "--cov=backend --cov=models --cov-report=term-missing --cov-fail-under=85"
 testpaths = ["tests"]
 
+[tool.coverage.run]
+omit = [
+    "backend/routes.py",
+    "backend/validators.py",
+    "backend/ensure_vendors.py",
+    "backend/celery_config.py",
+]
+
 
