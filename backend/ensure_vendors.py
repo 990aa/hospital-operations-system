@@ -94,7 +94,7 @@ def _download(url: str, dest: Path) -> None:
     logger.info("Downloading %s …", url)
     headers = {
         "User-Agent": (
-            "Mozilla/5.0 (compatible; hospital-management-system/1.0; "
+            "Mozilla/5.0 (compatible; hospital-operations-system/1.0; "
             "+https://github.com/placeholder)"
         )
     }

@@ -506,7 +506,7 @@ wheels = [
 ]
 
 [[package]]
-name = "hospital-management-system"
+name = "hospital-operations-system"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

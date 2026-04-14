@@ -1,5 +1,5 @@
 """
-Hospital Management System - Main Application Entry Point.
+Hospital Operations System - Main Application Entry Point.
 
 This is the main Flask application that initializes all components:
 - Flask web server

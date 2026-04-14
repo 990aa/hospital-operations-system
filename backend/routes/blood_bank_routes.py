@@ -37,12 +37,24 @@ if _LOGIC_SPEC is None or _LOGIC_SPEC.loader is None:
 _LOGIC_MODULE = importlib.util.module_from_spec(_LOGIC_SPEC)
 _LOGIC_SPEC.loader.exec_module(_LOGIC_MODULE)
 
+_SETTINGS_MODULE_PATH = _BLOOD_BANK_ROOT / "app" / "settings.py"
+_SETTINGS_SPEC = importlib.util.spec_from_file_location(
+    "blood_bank_settings", _SETTINGS_MODULE_PATH
+)
+if _SETTINGS_SPEC is None or _SETTINGS_SPEC.loader is None:
+    raise RuntimeError(
+        f"Unable to load blood-bank settings module: {_SETTINGS_MODULE_PATH}"
+    )
+_SETTINGS_MODULE = importlib.util.module_from_spec(_SETTINGS_SPEC)
+_SETTINGS_SPEC.loader.exec_module(_SETTINGS_MODULE)
+
 get_donor_scores = _LOGIC_MODULE.get_donor_scores
 get_eligible_donors_for_group = _LOGIC_MODULE.get_eligible_donors_for_group
 get_shortage_alerts = _LOGIC_MODULE.get_shortage_alerts
 get_db_connection = _LOGIC_MODULE.get_db_connection
 process_donation = _LOGIC_MODULE.process_donation
 smart_allocate_all = _LOGIC_MODULE.smart_allocate_all
+AUDIT_PAGE_SIZE = _SETTINGS_MODULE.AUDIT_PAGE_SIZE
 
 blood_bank_bp = Blueprint(
     "blood_bank",
@@ -334,6 +346,34 @@ def hospital():
 @blood_bank_role_required
 def audit():
     conn = get_db_connection()
-    logs = conn.execute("SELECT * FROM AUDIT_LOG ORDER BY timestamp DESC").fetchall()
+
+    page = request.args.get("page", 1, type=int) or 1
+    page = max(page, 1)
+    offset = (page - 1) * AUDIT_PAGE_SIZE
+
+    total_logs = conn.execute("SELECT COUNT(*) AS cnt FROM AUDIT_LOG").fetchone()["cnt"]
+    total_pages = max(1, (total_logs + AUDIT_PAGE_SIZE - 1) // AUDIT_PAGE_SIZE)
+
+    if page > total_pages:
+        page = total_pages
+        offset = (page - 1) * AUDIT_PAGE_SIZE
+
+    logs = conn.execute(
+        """
+        SELECT *
+        FROM   AUDIT_LOG
+        ORDER  BY timestamp DESC
+        LIMIT  ? OFFSET ?
+        """,
+        (AUDIT_PAGE_SIZE, offset),
+    ).fetchall()
+
     conn.close()
-    return render_template("audit.html", endpoint_prefix="blood_bank.", logs=logs)
+    return render_template(
+        "audit.html",
+        endpoint_prefix="blood_bank.",
+        logs=logs,
+        page=page,
+        total_pages=total_pages,
+        total_logs=total_logs,
+    )

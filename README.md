@@ -1,11 +1,11 @@
 # Hospital Operations System
 
-Hospital Management System is a full-stack, role-based web application for managing hospital operations with integrated Blood Bank Management capabilities.
+Hospital Operations System is a full-stack, role-based web application for managing hospital operations with integrated Blood Bank Operations capabilities.
 
 The platform includes two tightly integrated modules in one runtime:
 
-- Hospital Management module (appointments, doctor/patient/admin workflows, reports, exports, payments).
-- Blood Bank Management module (inventory, donor workflows, smart allocation, shortage alerts, audit trail).
+- Hospital Operations module (appointments, doctor/patient/admin workflows, reports, exports, payments).
+- Blood Bank Operations module (inventory, donor workflows, smart allocation, shortage alerts, audit trail).
 
 Both modules share the same authentication/session layer and are deployed together in one Docker stack.
 
@@ -30,7 +30,7 @@ Both modules share the same authentication/session layer and are deployed togeth
 
 - Role-based authentication/authorization for Admin, Doctor, Patient, and Blood Bank Staff.
 - Appointment booking with conflict prevention and status workflow.
-- Doctor management with departments, availability slots, profile metadata, and fixed consultation cost.
+- Doctor Operations with departments, availability slots, profile metadata, and fixed consultation cost.
 - Treatment history and CSV export (async via Celery task).
 - Automated notifications:
 	- Daily appointment reminders.
@@ -38,7 +38,7 @@ Both modules share the same authentication/session layer and are deployed togeth
 - PDF generation support for reporting.
 - Redis-backed caching and Celery broker/backend integration.
 - Vue.js frontend served by Flask.
-- Integrated Blood Bank Management System under `/blood-bank`:
+- Integrated Blood Bank Operations System under `/blood-bank`:
 	- Donor registration and donation logging (whole blood + component split).
 	- Smart compatibility-based allocation engine.
 	- Critical shortage and predictive alert dashboard.
@@ -303,7 +303,7 @@ Integrated blood bank pages:
 - `GET /blood-bank/`: dashboard with inventory and predictive alerts.
 - `POST /blood-bank/allocate_all`: run smart allocation engine.
 - `GET/POST /blood-bank/donor`: donor registration, donation logging, loyalty view.
-- `GET/POST /blood-bank/hospital`: recipient/hospital management and blood requests.
+- `GET/POST /blood-bank/hospital`: recipient/hospital Operations and blood requests.
 - `GET /blood-bank/audit`: forensic audit trail view.
 
 Data and persistence:

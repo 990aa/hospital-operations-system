@@ -2,7 +2,7 @@
 Celery Configuration for Background Jobs.
 
 This module configures Celery for handling asynchronous tasks and scheduled jobs
-in the Hospital Management System. It uses Redis as the message broker and backend.
+in the Hospital operations System. It uses Redis as the message broker and backend.
 
 Tasks include:
 - Daily appointment reminders (sent via email/SMS/Google Chat)
