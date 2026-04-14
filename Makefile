@@ -1,4 +1,3 @@
-SHELL := /bin/sh
 UV ?= uv
 DOCKER_COMPOSE ?= docker compose
 
