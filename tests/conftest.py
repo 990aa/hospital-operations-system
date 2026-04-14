@@ -19,7 +19,6 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app import create_app
 from models.database import db, User, Department, Doctor, Patient, Appointment
-from flask_security import hash_password
 
 
 @pytest.fixture(scope="function")
@@ -68,15 +67,16 @@ def test_client():
 
         # Create test admin (username = password for easy login)
         if not user_datastore.find_user(username="admin"):
-            user_datastore.create_user(
+            admin_user = user_datastore.create_user(
                 username="admin",
                 email="admin@test.com",
                 phone="1234567890",
-                password=hash_password("admin"),
+                password="admin",
                 roles=["admin"],
                 name="Test Admin",
                 active=True,
             )
+            admin_user.set_password("admin")
             db.session.commit()
 
         # Create multiple test departments
@@ -109,11 +109,12 @@ def test_client():
                     username=uname,
                     email=email,
                     phone=phone,
-                    password=hash_password(uname),  # username = password
+                    password=uname,  # username = password
                     roles=["doctor"],
                     name=fullname,
                     active=True,
                 )
+                doc_user.set_password(uname)
                 db.session.commit()
                 doc = Doctor(
                     user_id=doc_user.id,
@@ -140,11 +141,12 @@ def test_client():
                     username=uname,
                     email=email,
                     phone=phone,
-                    password=hash_password(uname),  # username = password
+                    password=uname,  # username = password
                     roles=["patient"],
                     name=fullname,
                     active=True,
                 )
+                p_user.set_password(uname)
                 db.session.commit()
                 p = Patient(
                     user_id=p_user.id,
@@ -156,15 +158,16 @@ def test_client():
 
         # Create blood bank staff user.
         if not user_datastore.find_user(username="bbstaff"):
-            user_datastore.create_user(
+            bbstaff_user = user_datastore.create_user(
                 username="bbstaff",
                 email="bbstaff@test.com",
                 phone="3556789015",
-                password=hash_password("bbstaff"),
+                password="bbstaff",
                 roles=["blood_bank_staff"],
                 name="Test Blood Bank Staff",
                 active=True,
             )
+            bbstaff_user.set_password("bbstaff")
             db.session.commit()
 
     testing_client = app.test_client()

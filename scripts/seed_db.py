@@ -70,7 +70,6 @@ from models.database import (
     Payment,
     ExportJob,
 )
-from flask_security.utils import hash_password
 
 
 def _clear_data():
@@ -198,10 +197,11 @@ def _seed_doctors(app, depts):
             username=d["username"],
             email=d["email"],
             phone=d["phone"],
-            password=hash_password("password"),
+            password="password",
             name=d["name"],
             active=True,
         )
+        user.set_password("password")
         user_datastore.add_role_to_user(user, "doctor")
         db.session.flush()
 
@@ -280,10 +280,11 @@ def _seed_patients(app):
             username=p["username"],
             email=p["email"],
             phone=p["phone"],
-            password=hash_password("password"),
+            password="password",
             name=p["name"],
             active=True,
         )
+        user.set_password("password")
         user_datastore.add_role_to_user(user, "patient")
         db.session.flush()
 
