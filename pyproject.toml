@@ -16,6 +16,7 @@ dependencies = [
     "flask-caching",
     "flask-mail",
     "python-dotenv",
+    "pydantic>=2.11.5",
     "bcrypt",
     "werkzeug",
     "email_validator",
