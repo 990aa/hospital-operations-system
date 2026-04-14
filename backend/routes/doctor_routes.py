@@ -18,7 +18,15 @@ from flask_security import current_user, roles_required
 from sqlalchemy import and_
 from datetime import datetime, timedelta
 
+from backend.errors import problem
 from backend.extensions import cache
+from backend.schemas import (
+    CompleteAppointmentRequest,
+    RescheduleAppointmentRequest,
+    UpdateAvailabilityRequest,
+    UpdateTreatmentRequest,
+    validate,
+)
 from models.database import db, Doctor, Patient, Appointment, Treatment, Payment
 from backend.pdf_reports import (
     generate_monthly_report_pdf,
@@ -124,16 +132,18 @@ def doctor_profile():
 
 @doctor_bp.route("/doctor/availability", methods=["PUT"])
 @roles_required("doctor")
-def update_doctor_availability():
+@validate(UpdateAvailabilityRequest)
+def update_doctor_availability(data: UpdateAvailabilityRequest):
     """Allow doctors to update their upcoming schedule configuration."""
     doctor = Doctor.query.filter_by(user_id=current_user.id).first()
     if not doctor:
-        return jsonify({"message": "Doctor profile not found"}), 404
+        return problem(404, "Not Found", "Doctor profile not found")
 
-    data = request.json or {}
-    payload, error = _normalize_availability_payload(data, doctor)
+    payload, error = _normalize_availability_payload(
+        data.model_dump(exclude_unset=True), doctor
+    )
     if error:
-        return jsonify({"message": error}), 400
+        return problem(400, "Bad Request", error)
 
     doctor.availability_days = ",".join(payload["availability_days"])
     doctor.availability_start = payload["availability_start"]
@@ -223,7 +233,8 @@ def doctor_appointments():
 
 @doctor_bp.route("/appointments/<int:id>/complete", methods=["POST"])
 @roles_required("doctor")
-def complete_appointment(id):
+@validate(CompleteAppointmentRequest)
+def complete_appointment(id, data: CompleteAppointmentRequest):
     """
     Complete an appointment and add treatment record.
 
@@ -242,33 +253,33 @@ def complete_appointment(id):
     Returns:
         Success message or error if unauthorized
     """
-    data = request.json
     appointment = Appointment.query.get_or_404(id)
 
     # Check if this appointment belongs to the current doctor
     doctor = Doctor.query.filter_by(user_id=current_user.id).first()
     if not doctor:
-        return jsonify({"message": "Doctor profile not found"}), 404
+        return problem(404, "Not Found", "Doctor profile not found")
 
     if appointment.doctor_id != doctor.id:
-        return jsonify({"message": "Unauthorized - not your appointment"}), 403
+        return problem(403, "Forbidden", "Unauthorized - not your appointment")
 
     # Check if appointment is already completed or cancelled
     if appointment.status == "Completed":
-        return jsonify({"message": "Appointment already completed"}), 400
+        return problem(400, "Bad Request", "Appointment already completed")
 
     if appointment.status == "Cancelled":
-        return jsonify({"message": "Cannot complete cancelled appointment"}), 400
+        return problem(400, "Bad Request", "Cannot complete cancelled appointment")
 
     if not _has_active_completed_payment(appointment.id):
-        return (
-            jsonify({"message": "Payment required before consultation completion"}),
+        return problem(
             400,
+            "Bad Request",
+            "Payment required before consultation completion",
         )
 
     # Optional doctor-scheduled follow-up date. Uses the same booking policy
     # as patient booking: date format validation + within upcoming 7 days.
-    follow_up_date = data.get("next_visit_date")
+    follow_up_date = data.next_visit_date
     follow_up_result = None
     if follow_up_date:
         try:
@@ -276,16 +287,17 @@ def complete_appointment(id):
             if follow_up_dt < datetime.now().date():
                 return jsonify({"message": "Follow-up date cannot be in the past"}), 400
             if follow_up_dt > datetime.now().date() + timedelta(days=6):
-                return (
-                    jsonify(
-                        {
-                            "message": "Follow-up must be scheduled within the next 7 days"
-                        }
-                    ),
+                return problem(
                     400,
+                    "Bad Request",
+                    "Follow-up must be scheduled within the next 7 days",
                 )
         except ValueError:
-            return jsonify({"message": "Invalid next_visit_date. Use YYYY-MM-DD"}), 400
+            return problem(
+                422,
+                "Validation Error",
+                "Invalid next_visit_date. Use YYYY-MM-DD",
+            )
 
     if follow_up_date:
         follow_up_appointment, follow_up_time = _create_serial_appointment(
@@ -296,13 +308,10 @@ def complete_appointment(id):
             follow_up_source_appointment_id=appointment.id,
         )
         if not follow_up_appointment:
-            return (
-                jsonify(
-                    {
-                        "message": "Could not auto-schedule follow-up appointment for selected date",
-                    }
-                ),
+            return problem(
                 409,
+                "Conflict",
+                "Could not auto-schedule follow-up appointment for selected date",
             )
         follow_up_result = {
             "appointment_id": follow_up_appointment.id,
@@ -316,17 +325,17 @@ def complete_appointment(id):
     # Create treatment record
     treatment = Treatment(
         appointment_id=id,
-        diagnosis=data["diagnosis"],
-        prescription=data["prescription"],
-        notes=data.get("notes", ""),
+        diagnosis=data.diagnosis,
+        prescription=data.prescription,
+        notes=data.notes or "",
     )
     db.session.add(treatment)
 
     # Update patient's medical history with summary
     patient = appointment.patient
-    if data.get("diagnosis"):
+    if data.diagnosis:
         new_entry = (
-            f"\n[{appointment.date}] Dr. {doctor.user.name}: {data['diagnosis']}"
+            f"\n[{appointment.date}] Dr. {doctor.user.name}: {data.diagnosis}"
         )
         patient.medical_history = (patient.medical_history or "") + new_entry
 
@@ -354,33 +363,33 @@ def complete_appointment(id):
 
 @doctor_bp.route("/doctor/appointments/<int:id>/treatment", methods=["PUT"])
 @roles_required("doctor")
-def update_treatment(id):
+@validate(UpdateTreatmentRequest)
+def update_treatment(id, data: UpdateTreatmentRequest):
     """Update treatment details for a completed appointment."""
     appointment = Appointment.query.get_or_404(id)
     doctor = Doctor.query.filter_by(user_id=current_user.id).first()
     if not doctor:
-        return jsonify({"message": "Doctor profile not found"}), 404
+        return problem(404, "Not Found", "Doctor profile not found")
     if appointment.doctor_id != doctor.id:
-        return jsonify({"message": "Unauthorized - not your appointment"}), 403
+        return problem(403, "Forbidden", "Unauthorized - not your appointment")
     if appointment.status != "Completed":
-        return (
-            jsonify(
-                {"message": "Treatment can be updated only for completed appointments"}
-            ),
+        return problem(
             400,
+            "Bad Request",
+            "Treatment can be updated only for completed appointments",
         )
 
     treatment = Treatment.query.filter_by(appointment_id=appointment.id).first()
     if not treatment:
-        return jsonify({"message": "Treatment record not found"}), 404
+        return problem(404, "Not Found", "Treatment record not found")
 
-    data = request.json or {}
-    if "diagnosis" in data:
-        treatment.diagnosis = data["diagnosis"]
-    if "prescription" in data:
-        treatment.prescription = data["prescription"]
-    if "notes" in data:
-        treatment.notes = data.get("notes", "")
+    payload = data.model_dump(exclude_unset=True)
+    if "diagnosis" in payload:
+        treatment.diagnosis = payload["diagnosis"]
+    if "prescription" in payload:
+        treatment.prescription = payload["prescription"]
+    if "notes" in payload:
+        treatment.notes = payload.get("notes", "")
 
     db.session.commit()
 
@@ -392,7 +401,8 @@ def update_treatment(id):
 
 @doctor_bp.route("/doctor/appointments/<int:id>/reschedule", methods=["POST"])
 @roles_required("doctor")
-def reschedule_appointment(id):
+@validate(RescheduleAppointmentRequest)
+def reschedule_appointment(id, data: RescheduleAppointmentRequest):
     """Reschedule an upcoming appointment to a new date.
 
     Only the doctor assigned to the appointment can reschedule.
@@ -408,27 +418,28 @@ def reschedule_appointment(id):
     appointment = Appointment.query.get_or_404(id)
     doctor = Doctor.query.filter_by(user_id=current_user.id).first()
     if not doctor:
-        return jsonify({"message": "Doctor profile not found"}), 404
+        return problem(404, "Not Found", "Doctor profile not found")
     if appointment.doctor_id != doctor.id:
-        return jsonify({"message": "Unauthorized – not your appointment"}), 403
+        return problem(403, "Forbidden", "Unauthorized - not your appointment")
     if appointment.status != "Booked":
-        return jsonify({"message": "Only booked appointments can be rescheduled"}), 400
+        return problem(400, "Bad Request", "Only booked appointments can be rescheduled")
 
-    data = request.json or {}
-    new_date_str = data.get("new_date")
-    if not new_date_str:
-        return jsonify({"message": "new_date is required"}), 400
+    new_date_str = data.new_date
 
     try:
         new_date = datetime.strptime(new_date_str, "%Y-%m-%d").date()
     except ValueError:
-        return jsonify({"message": "Invalid date format. Use YYYY-MM-DD"}), 400
+        return problem(422, "Validation Error", "Invalid date format. Use YYYY-MM-DD")
 
     today = datetime.now().date()
     if new_date < today:
-        return jsonify({"message": "Cannot reschedule to a past date"}), 400
+        return problem(400, "Bad Request", "Cannot reschedule to a past date")
     if new_date > today + timedelta(days=6):
-        return jsonify({"message": "Can only reschedule within the next 7 days"}), 400
+        return problem(
+            400,
+            "Bad Request",
+            "Can only reschedule within the next 7 days",
+        )
 
     # Cancel the old appointment and create a new one at the first available slot
     appointment.status = "Cancelled"
@@ -445,7 +456,7 @@ def reschedule_appointment(id):
         # Rollback cancellation
         appointment.status = "Booked"
         db.session.commit()
-        return jsonify({"message": "No available slots on the selected date"}), 409
+        return problem(409, "Conflict", "No available slots on the selected date")
 
     # --- Refund old payment & auto-pay new appointment ---
     # When doctor reschedules, if the old appointment was already paid,

@@ -9,6 +9,10 @@ dependencies = [
     "gunicorn",
     "flask-sqlalchemy",
     "flask-security-too",
+    "flask-jwt-extended>=4.7.1",
+    "flask-limiter>=3.12",
+    "flask-talisman>=1.1.0",
+    "flask-smorest>=0.46.2",
     "flask-caching",
     "flask-mail",
     "python-dotenv",
@@ -31,6 +35,13 @@ dev = ["pytest"]
 dev = [
     "pytest>=9.0.2",
     "pytest-cov>=7.0.0",
+    "factory-boy>=3.3.3",
+    "hypothesis>=6.142.4",
+    "mutmut>=3.3.1",
 ]
+
+[tool.pytest.ini_options]
+addopts = "--cov=backend --cov=models --cov-report=term-missing --cov-fail-under=85"
+testpaths = ["tests"]
 
 
