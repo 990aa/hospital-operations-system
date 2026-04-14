@@ -39,7 +39,7 @@ def generate_monthly_report_pdf(doctor_name, month, year, appointments_data, sta
 
     # Header
     page.insert_text(
-        (50, 50), "HOSPITAL MANAGEMENT SYSTEM", fontsize=18, color=primary_blue
+        (50, 50), "HOSPITAL OPERATIONS SYSTEM", fontsize=18, color=primary_blue
     )
     page.insert_text((50, 75), "Monthly Activity Report", fontsize=24, color=dark_gray)
 
@@ -180,7 +180,7 @@ def generate_monthly_report_pdf(doctor_name, month, year, appointments_data, sta
     )
     page.insert_text(
         (50, footer_y),
-        "Hospital Management System • Confidential Report",
+        "Hospital Operations System • Confidential Report",
         fontsize=8,
         color=light_gray,
     )
@@ -218,7 +218,7 @@ def generate_patient_history_pdf(patient_name, patient_id, appointments_data):
 
     # Header
     page.insert_text(
-        (50, 50), "HOSPITAL MANAGEMENT SYSTEM", fontsize=18, color=primary_blue
+        (50, 50), "HOSPITAL OPERATIONS SYSTEM", fontsize=18, color=primary_blue
     )
     page.insert_text((50, 75), "Patient Medical History", fontsize=24, color=dark_gray)
 
@@ -302,7 +302,7 @@ def generate_patient_history_pdf(patient_name, patient_id, appointments_data):
     )
     page.insert_text(
         (50, footer_y),
-        "Hospital Management System • Confidential Report",
+        "Hospital Operations System • Confidential Report",
         fontsize=8,
         color=light_gray,
     )

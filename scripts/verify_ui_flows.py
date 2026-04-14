@@ -1,4 +1,4 @@
-"""Manual flow verifier for Hospital Management System.
+"""Manual flow verifier for Hospital Operations System.
 
 This script mirrors the requested UI flows using HTTP sessions and prints
 PASS/FAIL with details. It is intended to run against a live local server.

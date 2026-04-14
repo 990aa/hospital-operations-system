@@ -76,7 +76,7 @@ Blood bank authorization behavior:
 
 - Blood bank module is mounted at `/blood-bank`.
 - Access requires authentication and either `admin` or `blood_bank_staff` role.
-- Unauthorized users are redirected back to the main HMS interface.
+- Unauthorized users are redirected back to the main HOS interface.
 
 ## Tech Stack
 
@@ -163,7 +163,7 @@ For Gmail:
 
 ## Run with Docker Compose (Recommended)
 
-The compose setup has profile-based runtimes and includes both HMS and Blood Bank modules in the same `web` service:
+The compose setup has profile-based runtimes and includes both HOS and Blood Bank modules in the same `web` service:
 
 - `dev` profile: Flask dev server + live code mount.
 - `prod` profile: Gunicorn + non-root runtime (with startup volume permission initialization).
@@ -259,7 +259,7 @@ uv sync
 2. Terminal A: Redis
 
 ```powershell
-docker run --name hms-redis -p 6379:6379 -d redis:7-alpine
+docker run --name hos-redis -p 6379:6379 -d redis:7-alpine
 ```
 
 3. Terminal B: Flask web app
@@ -293,8 +293,8 @@ After login, authorized users can enter the blood bank module directly at `http:
 	- Username: `bbstaff`
 	- Password: `bbstaff`
 - In production, change default credentials and all security secrets.
-- SQLite data is persisted in Docker volume `hms_instance_data`.
-- Export CSV files are persisted in Docker volume `hms_exports_data`.
+- SQLite data is persisted in Docker volume `hos_instance_data`.
+- Export CSV files are persisted in Docker volume `hos_exports_data`.
 
 ## Blood Bank Module Details
 
@@ -314,13 +314,13 @@ Data and persistence:
 
 ## Testing Both Modules
 
-Run HMS tests:
+Run HOS tests:
 
 ```powershell
 uv run pytest tests -q
 ```
 
-Run integrated blood-bank RBAC/route tests from HMS suite:
+Run integrated blood-bank RBAC/route tests from HOS suite:
 
 ```powershell
 uv run pytest tests/test_blood_bank_integration.py -q

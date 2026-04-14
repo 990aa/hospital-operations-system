@@ -10,7 +10,7 @@ def test_home_page_renders(test_client):
     """Verify that index.html renders without Jinja2 TemplateSyntaxErrors."""
     response = test_client.get("/")
     assert response.status_code == 200
-    assert b"Hospital Management System" in response.data
+    assert b"Hospital Operations System" in response.data
     # Verify Vue.js is loaded from local vendor (not CDN)
     assert b"vue.global.prod.js" in response.data
 

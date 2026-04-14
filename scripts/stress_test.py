@@ -1,4 +1,4 @@
-"""Stress and concurrency validation script for Hospital Management System.
+"""Stress and concurrency validation script for Hospital Operations System.
 
 This script executes a high-usage scenario against a running local server:
 - Creates multiple doctors and patients
@@ -21,7 +21,10 @@ import string
 from typing import Any
 import requests
 
-BASE_URL = os.environ.get("HMS_BASE_URL", "http://127.0.0.1:5000")
+BASE_URL = os.environ.get(
+    "HOS_BASE_URL",
+    os.environ.get("HMS_BASE_URL", "http://127.0.0.1:5000"),
+)
 API = f"{BASE_URL}/api"
 TIMEOUT = 20
 

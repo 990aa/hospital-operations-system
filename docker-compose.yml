@@ -3,7 +3,7 @@ services:
     image: redis:7-alpine
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
-      - hms_redis_data:/data
+      - hos_redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -31,9 +31,9 @@ services:
       - "5000:5000"
     volumes:
       - ./:/app
-      - hms_instance_data:/app/instance
-      - hms_exports_data:/app/exports
-      - hms_celery_data:/app/celery
+      - hos_instance_data:/app/instance
+      - hos_exports_data:/app/exports
+      - hos_celery_data:/app/celery
     depends_on:
       redis:
         condition: service_healthy
@@ -68,9 +68,9 @@ services:
     ports:
       - "5000:5000"
     volumes:
-      - hms_instance_data:/app/instance
-      - hms_exports_data:/app/exports
-      - hms_celery_data:/app/celery
+      - hos_instance_data:/app/instance
+      - hos_exports_data:/app/exports
+      - hos_celery_data:/app/celery
     depends_on:
       redis:
         condition: service_healthy
@@ -98,9 +98,9 @@ services:
     command: ["celery", "-A", "backend.celery_config", "worker", "--loglevel=info"]
     volumes:
       - ./:/app
-      - hms_instance_data:/app/instance
-      - hms_exports_data:/app/exports
-      - hms_celery_data:/app/celery
+      - hos_instance_data:/app/instance
+      - hos_exports_data:/app/exports
+      - hos_celery_data:/app/celery
     depends_on:
       redis:
         condition: service_healthy
@@ -122,9 +122,9 @@ services:
       BLOODBANK_DB_PATH: /app/instance/bloodbank.db
     command: ["celery", "-A", "backend.celery_config", "worker", "--loglevel=info"]
     volumes:
-      - hms_instance_data:/app/instance
-      - hms_exports_data:/app/exports
-      - hms_celery_data:/app/celery
+      - hos_instance_data:/app/instance
+      - hos_exports_data:/app/exports
+      - hos_celery_data:/app/celery
     depends_on:
       redis:
         condition: service_healthy
@@ -148,9 +148,9 @@ services:
     command: ["celery", "-A", "backend.celery_config", "beat", "--loglevel=info", "--schedule", "/app/celery/celerybeat-schedule"]
     volumes:
       - ./:/app
-      - hms_instance_data:/app/instance
-      - hms_exports_data:/app/exports
-      - hms_celery_data:/app/celery
+      - hos_instance_data:/app/instance
+      - hos_exports_data:/app/exports
+      - hos_celery_data:/app/celery
     depends_on:
       redis:
         condition: service_healthy
@@ -172,9 +172,9 @@ services:
       BLOODBANK_DB_PATH: /app/instance/bloodbank.db
     command: ["celery", "-A", "backend.celery_config", "beat", "--loglevel=info", "--schedule", "/app/celery/celerybeat-schedule"]
     volumes:
-      - hms_instance_data:/app/instance
-      - hms_exports_data:/app/exports
-      - hms_celery_data:/app/celery
+      - hos_instance_data:/app/instance
+      - hos_exports_data:/app/exports
+      - hos_celery_data:/app/celery
     depends_on:
       redis:
         condition: service_healthy
@@ -183,7 +183,7 @@ services:
     restart: unless-stopped
 
 volumes:
-  hms_redis_data:
-  hms_instance_data:
-  hms_exports_data:
-  hms_celery_data:
+  hos_redis_data:
+  hos_instance_data:
+  hos_exports_data:
+  hos_celery_data:
