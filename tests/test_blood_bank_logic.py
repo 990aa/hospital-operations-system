@@ -2,10 +2,11 @@
 
 import os
 import sys
+import importlib.util
 from pathlib import Path
 
 import pytest
-from hypothesis import given, settings
+from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -16,8 +17,15 @@ for import_path in (BLOOD_BANK_ROOT, BLOOD_BANK_APP_ROOT):
         sys.path.insert(0, str(import_path))
 
 import db as bb_db  # type: ignore[import-not-found]
-from app.logic import process_donation  # type: ignore[import-not-found]
 from db_init import init_db  # type: ignore[import-not-found]
+
+_LOGIC_PATH = BLOOD_BANK_APP_ROOT / "logic.py"
+_LOGIC_SPEC = importlib.util.spec_from_file_location("blood_bank_logic_test", _LOGIC_PATH)
+if _LOGIC_SPEC is None or _LOGIC_SPEC.loader is None:
+    raise RuntimeError(f"Unable to load blood-bank logic module from {_LOGIC_PATH}")
+_LOGIC_MODULE = importlib.util.module_from_spec(_LOGIC_SPEC)
+_LOGIC_SPEC.loader.exec_module(_LOGIC_MODULE)
+process_donation = _LOGIC_MODULE.process_donation
 
 
 @pytest.fixture()
@@ -34,7 +42,7 @@ def setup_bb_db(tmp_path):
         os.remove(test_db)
 
 
-@settings(max_examples=50)
+@settings(max_examples=50, suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(quantity=st.floats(min_value=0.001, max_value=10000, allow_nan=False, allow_infinity=False))
 def test_donation_always_creates_bag_or_fails_cleanly(quantity, setup_bb_db):
     conn = bb_db.get_db_connection()

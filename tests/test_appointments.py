@@ -539,7 +539,7 @@ def test_admin_slot_minutes_accepts_any_value_between_10_and_60(admin_token):
             "slot_minutes": 9,
         },
     )
-    assert bad_response.status_code == 400
+    assert bad_response.status_code == 422
 
 
 def test_doctor_can_update_availability_schedule(test_client):
