@@ -1,8 +1,33 @@
 from flask_sqlalchemy import SQLAlchemy
 from flask_security import UserMixin, RoleMixin
+from flask_security.utils import verify_password as security_verify_password
+from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError, InvalidHashError
+from sqlalchemy import event
+from sqlalchemy.engine import Engine
 
 # Initialize the SQLAlchemy instance
 db = SQLAlchemy()
+_ph = PasswordHasher()
+
+
+@event.listens_for(Engine, "connect")
+def set_sqlite_pragma(dbapi_conn, connection_record):
+    """Apply SQLite pragmas that improve integrity and write-contention behavior."""
+    try:
+        import sqlite3
+
+        if not isinstance(dbapi_conn, sqlite3.Connection):
+            return
+
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.execute("PRAGMA busy_timeout=5000")
+        cursor.close()
+    except Exception:
+        # PRAGMA tuning is best-effort and should never block app startup.
+        return
 
 # Association table for User-Role relationship
 roles_users = db.Table(
@@ -69,6 +94,26 @@ class User(db.Model, UserMixin):  # type: ignore[misc]
     )
     doctor_profile = db.relationship("Doctor", backref="user", uselist=False)
     patient_profile = db.relationship("Patient", backref="user", uselist=False)
+
+    def set_password(self, raw: str) -> None:
+        """Hash and store a password using Argon2."""
+        self.password = _ph.hash(raw)
+
+    def check_password(self, raw: str) -> bool:
+        """Verify password using Argon2 first, then legacy Flask-Security hash formats."""
+        if not raw or not self.password:
+            return False
+
+        if self.password.startswith("$argon2"):
+            try:
+                return _ph.verify(self.password, raw)
+            except (VerifyMismatchError, InvalidHashError):
+                return False
+
+        try:
+            return bool(security_verify_password(raw, self.password))
+        except Exception:
+            return self.password == raw
 
     def to_dict(self):
         """Return dictionary representation of the user."""

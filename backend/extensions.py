@@ -10,7 +10,30 @@ gives static type checkers (ty, mypy) a concrete type to work with, eliminating
 ``unresolved-attribute`` false positives in route modules.
 """
 
+import os
+
 from flask_caching import Cache
+from flask_jwt_extended import JWTManager
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from flask_smorest import Api
+from flask_talisman import Talisman
 
 # Cache singleton – initialised with app.init_app() inside create_app()
 cache: Cache = Cache()
+
+# JWT singleton for stateless API authentication
+jwt: JWTManager = JWTManager()
+
+# API docs singleton (OpenAPI/Swagger UI)
+api_docs: Api = Api()
+
+# Security header middleware singleton
+talisman: Talisman = Talisman()
+
+# Rate limiting singleton with Redis fallback to in-memory storage in tests/dev.
+limiter: Limiter = Limiter(
+	key_func=get_remote_address,
+	storage_uri=os.environ.get("REDIS_URL", "memory://"),
+	default_limits=[],
+)
