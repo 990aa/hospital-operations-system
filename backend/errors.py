@@ -10,6 +10,7 @@ def problem(status: int, title: str, detail: str, **extra):
         "title": title,
         "status": status,
         "detail": detail,
+        "message": detail,
         **extra,
     }
     return jsonify(body), status
