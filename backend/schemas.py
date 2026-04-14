@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from functools import wraps
+import re
 from typing import Literal
 
 from flask import request
@@ -11,12 +12,26 @@ from backend.errors import problem
 
 
 WEEKDAY_LITERAL = Literal["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+USERNAME_PATTERN = re.compile(r"^[A-Za-z0-9_.-]{3,50}$")
+
+
+def _reject_script_markup(value: str, field_name: str) -> str:
+    if "<" in value or ">" in value:
+        raise ValueError(f"{field_name} contains disallowed markup")
+    return value
 
 
 class LoginRequest(BaseModel):
     username: str
     password: str
     role: str | None = None
+
+    @field_validator("username")
+    @classmethod
+    def valid_username(cls, value: str) -> str:
+        if not USERNAME_PATTERN.match(value):
+            raise ValueError("Username must be 3-50 chars and use letters, numbers, ., _, or -")
+        return value
 
 
 class RegisterRequest(BaseModel):
@@ -25,6 +40,18 @@ class RegisterRequest(BaseModel):
     name: str
     email: EmailStr
     phone: str | None = None
+
+    @field_validator("username")
+    @classmethod
+    def valid_username(cls, value: str) -> str:
+        if not USERNAME_PATTERN.match(value):
+            raise ValueError("Username must be 3-50 chars and use letters, numbers, ., _, or -")
+        return value
+
+    @field_validator("name")
+    @classmethod
+    def safe_name(cls, value: str) -> str:
+        return _reject_script_markup(value, "name")
 
     @field_validator("password")
     @classmethod
@@ -60,6 +87,18 @@ class CreateDoctorRequest(BaseModel):
     email_notifications: bool = True
     appointment_cost: float = 500.0
 
+    @field_validator("username")
+    @classmethod
+    def valid_username(cls, value: str) -> str:
+        if not USERNAME_PATTERN.match(value):
+            raise ValueError("Username must be 3-50 chars and use letters, numbers, ., _, or -")
+        return value
+
+    @field_validator("name")
+    @classmethod
+    def safe_name(cls, value: str) -> str:
+        return _reject_script_markup(value, "name")
+
     @field_validator("password")
     @classmethod
     def strong_password(cls, value: str) -> str:
@@ -71,6 +110,13 @@ class CreateDoctorRequest(BaseModel):
     @classmethod
     def valid_time(cls, value: str) -> str:
         datetime.strptime(value, "%H:%M")
+        return value
+
+    @field_validator("slot_minutes")
+    @classmethod
+    def slot_range(cls, value: int) -> int:
+        if value < 10 or value > 60:
+            raise ValueError("slot_minutes must be between 10 and 60")
         return value
 
 
@@ -122,6 +168,13 @@ class UpdateAvailabilityRequest(BaseModel):
     availability_end: str | None = None
     slot_minutes: int | None = None
 
+    @field_validator("slot_minutes")
+    @classmethod
+    def slot_range(cls, value: int | None) -> int | None:
+        if value is not None and (value < 10 or value > 60):
+            raise ValueError("slot_minutes must be between 10 and 60")
+        return value
+
 
 class CompleteAppointmentRequest(BaseModel):
     diagnosis: str
@@ -169,6 +222,13 @@ class UpdateProfileRequest(BaseModel):
     phone: str | None = None
     history: str | None = None
     notification_pref: Literal["email"] | None = None
+
+    @field_validator("name")
+    @classmethod
+    def safe_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        return _reject_script_markup(value, "name")
 
     @model_validator(mode="after")
     def at_least_one_field(self):
