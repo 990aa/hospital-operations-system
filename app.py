@@ -15,6 +15,7 @@ Author: Abdul Ahad
 import os
 import logging
 import traceback
+from datetime import timedelta
 from dotenv import load_dotenv
 from sqlalchemy import inspect
 from werkzeug.exceptions import HTTPException
@@ -23,15 +24,15 @@ from flask import Flask, render_template, jsonify, request
 from flask_mail import Mail
 from models.database import db, User, Role, Department
 from flask_security import Security, SQLAlchemyUserDatastore
-from flask_security.utils import hash_password
+from backend.errors import problem
 
 # Load environment variables from .env file in project root.
 # This keeps sensitive credentials (SMTP password) out of the codebase
 # and avoids polluting the system environment on Windows.
 load_dotenv()
 
-# Shared extension singleton (Cache) initialised inside create_app()
-from backend.extensions import cache
+# Shared extension singletons initialised inside create_app()
+from backend.extensions import cache, jwt, limiter, talisman, api_docs
 
 # Ensure all front-end vendor assets are present before serving requests.
 # Downloads only on first run (or when files are missing); no-op thereafter.
@@ -45,6 +46,7 @@ from backend.routes.admin_routes import admin_bp
 from backend.routes.doctor_routes import doctor_bp
 from backend.routes.patient_routes import patient_bp
 from backend.routes.blood_bank_routes import blood_bank_bp
+from backend.routes.docs_routes import docs_blp
 
 # Import Celery configuration
 from backend.celery_config import celery
@@ -105,6 +107,31 @@ def create_app(test_config=None):
     if test_config:
         app.config.update(test_config)
 
+    # OpenAPI / Swagger configuration (flask-smorest)
+    app.config.setdefault("API_TITLE", "Hospital Operations API")
+    app.config.setdefault("API_VERSION", "v1")
+    app.config.setdefault("OPENAPI_VERSION", "3.0.3")
+    app.config.setdefault("OPENAPI_URL_PREFIX", "/api")
+    app.config.setdefault("OPENAPI_JSON_PATH", "openapi.json")
+    app.config.setdefault("OPENAPI_SWAGGER_UI_PATH", "/docs")
+    app.config.setdefault(
+        "OPENAPI_SWAGGER_UI_URL", "https://cdn.jsdelivr.net/npm/swagger-ui-dist/"
+    )
+
+    # JWT configuration for stateless API auth (session auth remains enabled).
+    app.config.setdefault(
+        "JWT_SECRET_KEY", os.environ.get("JWT_SECRET_KEY", app.config["SECRET_KEY"])
+    )
+    app.config.setdefault("JWT_ACCESS_TOKEN_EXPIRES", timedelta(minutes=15))
+    app.config.setdefault("JWT_REFRESH_TOKEN_EXPIRES", timedelta(days=7))
+    app.config.setdefault("JWT_TOKEN_LOCATION", ["headers", "cookies"])
+    app.config.setdefault("JWT_COOKIE_CSRF_PROTECT", False)
+    app.config.setdefault("JWT_REFRESH_COOKIE_PATH", "/api/token/refresh")
+    app.config.setdefault(
+        "JWT_COOKIE_SECURE",
+        bool(os.environ.get("APP_ENV", "development").lower() == "production"),
+    )
+
     # Logging configuration
     # We keep logging at INFO so normal startup and request logs are visible,
     # while explicit error logs (CLIENT_ERROR/API_EXCEPTION) are emitted
@@ -127,6 +154,17 @@ def create_app(test_config=None):
     # route modules can import it directly with a static type instead of going
     # through the dynamic ``current_app.cache`` attribute.
     cache.init_app(app)
+    jwt.init_app(app)
+    limiter.init_app(app)
+    api_docs.init_app(app)
+    talisman.init_app(
+        app,
+        force_https=False,
+        content_security_policy={
+            "default-src": "'self'",
+            "script-src": ["'self'", "'unsafe-inline'", "cdn.jsdelivr.net", "unpkg.com"],
+        },
+    )
 
     # Flask-Mail Configuration
     # Credentials are loaded from the .env file via python-dotenv.
@@ -179,6 +217,7 @@ def create_app(test_config=None):
     app.register_blueprint(patient_bp, url_prefix="/api")
     # Server-rendered blood bank module pages live under /blood-bank.
     app.register_blueprint(blood_bank_bp)
+    api_docs.register_blueprint(docs_blp, url_prefix="/api")
 
     # Routes
     @app.route("/")
@@ -232,11 +271,23 @@ def create_app(test_config=None):
 
     @app.errorhandler(404)
     def not_found_error(error):
-        """Return JSON for unknown API routes while keeping normal web 404 behavior."""
+        """Return problem+json for unknown API routes while keeping normal web 404 behavior."""
         if request.path.startswith("/api"):
             app.logger.error("API_404 path=%s", request.path)
-            return jsonify({"message": "Route not found"}), 404
+            return problem(404, "Not Found", str(error))
         return error, 404
+
+    @app.errorhandler(403)
+    def forbidden_error(error):
+        if request.path.startswith("/api"):
+            return problem(403, "Forbidden", str(error))
+        return error, 403
+
+    @app.errorhandler(422)
+    def unprocessable_error(error):
+        if request.path.startswith("/api"):
+            return problem(422, "Validation Error", str(error))
+        return error, 422
 
     @app.errorhandler(Exception)
     def unhandled_exception(error):
@@ -255,7 +306,7 @@ def create_app(test_config=None):
                     error.code,
                     error.description,
                 )
-                return jsonify({"message": error.description}), error.code
+                return problem(error.code or 500, error.name, error.description)
             return error
 
         if request.path.startswith("/api"):
@@ -266,7 +317,7 @@ def create_app(test_config=None):
                 str(error),
                 traceback.format_exc(),
             )
-            return jsonify({"message": "Internal server error"}), 500
+            return problem(500, "Internal Server Error", "Internal server error")
         app.logger.error("WEB_EXCEPTION %s\n%s", str(error), traceback.format_exc())
         return "Internal server error", 500
 
@@ -383,29 +434,31 @@ def create_initial_data(app):
 
         # Create admin user if doesn't exist
         if not app.user_datastore.find_user(username="admin"):
-            app.user_datastore.create_user(
+            admin_user = app.user_datastore.create_user(
                 username="admin",
                 email="admin@hospital.com",
-                password=hash_password("admin"),
+                password="admin",
                 roles=["admin"],
                 name="Admin",
                 active=True,
                 fs_uniquifier="admin_uniq",
             )
+            admin_user.set_password("admin")
             db.session.commit()
             print("Admin created: username='admin', password='admin'")
 
         # Seed a dedicated blood bank operator account for demonstrations.
         if not app.user_datastore.find_user(username="bbstaff"):
-            app.user_datastore.create_user(
+            blood_bank_user = app.user_datastore.create_user(
                 username="bbstaff",
                 email="bbstaff@hospital.com",
-                password=hash_password("bbstaff"),
+                password="bbstaff",
                 roles=["blood_bank_staff"],
                 name="Blood Bank Staff",
                 active=True,
                 fs_uniquifier="bbstaff_uniq",
             )
+            blood_bank_user.set_password("bbstaff")
             db.session.commit()
             print("Blood bank staff created: username='bbstaff', password='bbstaff'")
 
@@ -438,6 +491,13 @@ def create_initial_data(app):
         if invalid_patients:
             db.session.commit()
             print(f"Removed {len(invalid_patients)} invalid patient profiles")
+
+        # One-time hardening pass: re-hash known seeded/demo users to Argon2.
+        from scripts.migrate_passwords import migrate_passwords
+
+        migrated_count = migrate_passwords(app)
+        if migrated_count:
+            print(f"Migrated {migrated_count} legacy password hashes to Argon2")
 
 
 # Create the Flask application instance

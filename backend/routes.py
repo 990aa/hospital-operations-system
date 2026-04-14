@@ -24,7 +24,7 @@ def login():
 
     user = User.query.filter_by(username=username).first()
 
-    if user and user.password == password:  # In real app use check_password_hash
+    if user and user.check_password(password):
         login_user(user)
         return jsonify(
             {"message": "Login successful", "role": user.role, "user": user.to_dict()}
@@ -51,10 +51,11 @@ def register():
     # Create User
     new_user = User(
         username=data["username"],
-        password=data["password"],  # In real app use generate_password_hash
+        password="",
         role="patient",
         name=data["name"],
     )
+    new_user.set_password(data["password"])
     db.session.add(new_user)
     db.session.commit()
 
@@ -111,10 +112,11 @@ def manage_doctors():
 
         new_user = User(
             username=data["username"],
-            password=data["password"],
+            password="",
             role="doctor",
             name=data["name"],
         )
+        new_user.set_password(data["password"])
         db.session.add(new_user)
         db.session.commit()
 

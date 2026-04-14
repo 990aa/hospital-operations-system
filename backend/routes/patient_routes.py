@@ -20,8 +20,17 @@ from flask_security import login_required, current_user, roles_required
 from sqlalchemy import or_, and_
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timedelta, date
+from pydantic import ValidationError
 
+from backend.errors import problem
 from backend.extensions import cache
+from backend.schemas import (
+    BookAppointmentRequest,
+    ProcessPaymentRequest,
+    UpdateAppointmentStatusRequest,
+    UpdateProfileRequest,
+    validate,
+)
 from models.database import (
     db,
     User,
@@ -325,7 +334,8 @@ def doctor_availability(doctor_id):
 
 @patient_bp.route("/appointments", methods=["POST"])
 @roles_required("patient")
-def book_appointment():
+@validate(BookAppointmentRequest)
+def book_appointment(data: BookAppointmentRequest):
     """
     Book a new appointment with conflict prevention.
 
@@ -340,34 +350,31 @@ def book_appointment():
     Returns:
         Success message or error if time slot unavailable
     """
-    data = request.json
-
     # Get current patient's profile
     patient = Patient.query.filter_by(user_id=current_user.id).first()
     if not patient:
-        return jsonify({"message": "Patient profile not found"}), 404
+        return problem(404, "Not Found", "Patient profile not found")
 
-    doctor_id = data.get("doctor_id")
-    date_str = data.get("date")
+    doctor_id = data.doctor_id
+    date_str = data.date
     doctor = Doctor.query.get(doctor_id)
     if not doctor:
-        return jsonify({"message": "Doctor not found"}), 404
+        return problem(404, "Not Found", "Doctor not found")
 
     # Validate date is not in the past and within next 7 days.
     # This enforces the product rule that booking window is one week ahead.
     try:
         appointment_date = datetime.strptime(date_str, "%Y-%m-%d").date()
         if appointment_date < datetime.now().date():
-            return jsonify({"message": "Cannot book appointments in the past"}), 400
+            return problem(400, "Bad Request", "Cannot book appointments in the past")
         if appointment_date > datetime.now().date() + timedelta(days=6):
-            return (
-                jsonify(
-                    {"message": "Appointments can be booked only within next 7 days"}
-                ),
+            return problem(
                 400,
+                "Bad Request",
+                "Appointments can be booked only within next 7 days",
             )
     except ValueError:
-        return jsonify({"message": "Invalid date format. Use YYYY-MM-DD"}), 400
+        return problem(422, "Validation Error", "Invalid date format. Use YYYY-MM-DD")
 
     # Create appointment with retry-safe serial assignment.
     new_app, assigned_time = _create_serial_appointment(
@@ -376,7 +383,7 @@ def book_appointment():
         date_str=date_str,
     )
     if not new_app:
-        return jsonify({"message": "Doctor is not available on this date"}), 409
+        return problem(409, "Conflict", "Doctor is not available on this date")
 
     # Invalidate relevant caches so stats and appointment lists reflect changes immediately.
     cache.delete("admin_stats")
@@ -562,7 +569,8 @@ def cancel_appointment(id):
 
 @patient_bp.route("/appointments/<int:id>/status", methods=["PUT"])
 @login_required
-def update_appointment_status(id):
+@validate(UpdateAppointmentStatusRequest)
+def update_appointment_status(id, data: UpdateAppointmentStatusRequest):
     """
     Update appointment status dynamically.
 
@@ -580,15 +588,7 @@ def update_appointment_status(id):
         Updated appointment details
     """
     appointment = Appointment.query.get_or_404(id)
-    data = request.json
-    new_status = data.get("status")
-
-    # Validate status
-    if new_status not in ["Completed", "Cancelled"]:
-        return (
-            jsonify({"message": "Invalid status. Must be 'Completed' or 'Cancelled'"}),
-            400,
-        )
+    new_status = data.status
 
     # Check permissions
     can_update = False
@@ -849,7 +849,16 @@ def update_profile():
         return jsonify(profile_data)
 
     # POST - Update profile
-    data = request.json
+    payload = request.get_json(silent=True) or {}
+    try:
+        data = UpdateProfileRequest(**payload).model_dump(exclude_unset=True)
+    except ValidationError as exc:
+        return problem(
+            422,
+            "Validation Error",
+            "Request validation failed",
+            errors=exc.errors(),
+        )
 
     # Product rule: doctors cannot edit profile fields; only admin can edit doctor data.
     if user.has_role("doctor"):
@@ -891,7 +900,8 @@ def update_profile():
 
 @patient_bp.route("/patient/payment/appointment/<int:appointment_id>", methods=["POST"])
 @roles_required("patient")
-def process_payment(appointment_id):
+@validate(ProcessPaymentRequest)
+def process_payment(appointment_id, data: ProcessPaymentRequest):
     """
     Process a payment for an appointment (dummy portal - no actual processing).
 
@@ -910,46 +920,41 @@ def process_payment(appointment_id):
     # Get current patient
     patient = Patient.query.filter_by(user_id=current_user.id).first()
     if not patient:
-        return jsonify({"message": "Patient profile not found"}), 404
+        return problem(404, "Not Found", "Patient profile not found")
 
     # Get appointment
     appointment = Appointment.query.get_or_404(appointment_id)
 
     # Verify appointment belongs to the patient
     if appointment.patient_id != patient.id:
-        return jsonify({"message": "Unauthorized - not your appointment"}), 403
+        return problem(403, "Forbidden", "Unauthorized - not your appointment")
 
     # Consultation payments must be completed before doctor marks appointment complete.
     if appointment.status != "Booked":
-        return (
-            jsonify({"message": "Payments are only allowed for booked appointments"}),
+        return problem(
             400,
+            "Bad Request",
+            "Payments are only allowed for booked appointments",
         )
 
     # Avoid duplicate active payments for same appointment.
     if _has_active_completed_payment(appointment_id):
-        return jsonify({"message": "Appointment already paid"}), 409
-
-    # Get request data
-    data = request.json
-    if not data:
-        return jsonify({"message": "Request body required"}), 400
+        return problem(409, "Conflict", "Appointment already paid")
 
     # Amount is fixed to the doctor's appointment_cost — patients cannot override it.
     amount = appointment.doctor.appointment_cost or 500.0
 
-    payment_method = data.get("payment_method", "credit_card")
+    payment_method = data.payment_method
     # Only credit card and debit card are accepted; insurance has been removed.
     if payment_method not in ("credit_card", "debit_card"):
-        return (
-            jsonify(
-                {"message": "Invalid payment method. Use credit_card or debit_card."}
-            ),
-            400,
+        return problem(
+            422,
+            "Validation Error",
+            "Invalid payment method. Use credit_card or debit_card.",
         )
 
-    card_number = data.get("card_number", "")
-    notes = data.get("notes", "")
+    card_number = data.card_number
+    notes = data.notes or ""
 
     # Extract last 4 digits of card
     card_last4 = card_number[-4:] if len(card_number) >= 4 else "0000"

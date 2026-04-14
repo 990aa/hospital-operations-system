@@ -14,10 +14,18 @@ Author: Abdul Ahad
 
 from flask import Blueprint, request, jsonify, current_app
 from flask_security import roles_required, current_user
-from flask_security.utils import hash_password
 from sqlalchemy import or_
 from sqlalchemy.orm import aliased
+from pydantic import ValidationError
+
+from backend.errors import problem
 from backend.extensions import cache
+from backend.schemas import (
+    CreateDepartmentRequest,
+    CreateDoctorRequest,
+    UpdateDoctorRequest,
+    UpdatePatientRequest,
+)
 from models.database import (
     db,
     User,
@@ -151,7 +159,17 @@ def manage_doctors():
         POST: Success message
     """
     if request.method == "POST":
-        data = request.json
+        payload = request.get_json(silent=True) or {}
+        try:
+            data = CreateDoctorRequest(**payload).model_dump(exclude_unset=True)
+        except ValidationError as exc:
+            return problem(
+                422,
+                "Validation Error",
+                "Request validation failed",
+                errors=exc.errors(),
+            )
+
         user_datastore = current_app.extensions["security"].datastore
 
         availability_payload, availability_error = _normalize_availability_payload(data)
@@ -171,10 +189,11 @@ def manage_doctors():
             username=data["username"],
             email=data.get("email"),
             phone=data.get("phone"),
-            password=hash_password(data["password"]),
+            password=data["password"],
             name=data["name"],
             active=True,
         )
+        new_user.set_password(data["password"])
         user_datastore.add_role_to_user(new_user, "doctor")
         db.session.commit()  # Commit to get user ID
 
@@ -238,7 +257,16 @@ def update_doctor(id):
     """Update doctor and linked user profile information."""
     doctor = Doctor.query.get_or_404(id)
     user = User.query.get_or_404(doctor.user_id)
-    data = request.json or {}
+    payload = request.get_json(silent=True) or {}
+    try:
+        data = UpdateDoctorRequest(**payload).model_dump(exclude_unset=True)
+    except ValidationError as exc:
+        return problem(
+            422,
+            "Validation Error",
+            "Request validation failed",
+            errors=exc.errors(),
+        )
 
     if "username" in data and data["username"] != user.username:
         if User.query.filter(
@@ -258,7 +286,7 @@ def update_doctor(id):
     if "phone" in data:
         user.phone = data.get("phone")
     if data.get("password"):
-        user.password = hash_password(data["password"])
+        user.set_password(data["password"])
 
     if "department_id" in data:
         doctor.department_id = int(data["department_id"])
@@ -325,9 +353,19 @@ def manage_departments():
         if not current_user.is_authenticated or not current_user.has_role("admin"):
             return jsonify({"message": "Unauthorized"}), 403
 
-        data = request.json or {}
-        name = (data.get("name") or "").strip()
-        description = (data.get("description") or "").strip()
+        payload = request.get_json(silent=True) or {}
+        try:
+            data = CreateDepartmentRequest(**payload)
+        except ValidationError as exc:
+            return problem(
+                422,
+                "Validation Error",
+                "Request validation failed",
+                errors=exc.errors(),
+            )
+
+        name = (data.name or "").strip()
+        description = (data.description or "").strip()
 
         if not name:
             return jsonify({"message": "Department name is required"}), 400
@@ -617,7 +655,16 @@ def update_patient(id):
     """Update patient profile and linked user details."""
     patient = Patient.query.get_or_404(id)
     user = User.query.get_or_404(patient.user_id)
-    data = request.json or {}
+    payload = request.get_json(silent=True) or {}
+    try:
+        data = UpdatePatientRequest(**payload).model_dump(exclude_unset=True)
+    except ValidationError as exc:
+        return problem(
+            422,
+            "Validation Error",
+            "Request validation failed",
+            errors=exc.errors(),
+        )
 
     if "name" in data:
         user.name = data.get("name") or user.name
@@ -629,7 +676,7 @@ def update_patient(id):
     if "phone" in data:
         user.phone = data.get("phone")
     if data.get("password"):
-        user.password = hash_password(data["password"])
+        user.set_password(data["password"])
 
     if "medical_history" in data:
         patient.medical_history = data.get("medical_history") or ""
