@@ -1,6 +1,6 @@
 """Consistent RFC 7807-style error helpers."""
 
-from flask import jsonify
+from flask import jsonify, has_request_context, g
 
 
 def _json_safe(value):
@@ -18,12 +18,17 @@ def _json_safe(value):
 
 def problem(status: int, title: str, detail: str, **extra):
     """Return a Problem Details JSON response tuple."""
+    request_id = None
+    if has_request_context():
+        request_id = getattr(g, "request_id", None)
+
     body = {
         "type": f"https://hospital-operations-system.example/errors/{title.lower().replace(' ', '-')}",
         "title": title,
         "status": status,
         "detail": detail,
         "message": detail,
+        "request_id": request_id,
         **_json_safe(extra),
     }
     return jsonify(body), status
