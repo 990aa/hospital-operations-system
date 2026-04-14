@@ -237,7 +237,7 @@ def validate_numeric_range(field_name, min_value=None, max_value=None):
             if data and field_name in data:
                 try:
                     value = float(data[field_name])
-                except (ValueError, TypeError):
+                except ValueError, TypeError:
                     return jsonify(
                         {"message": f"Field '{field_name}' must be a number"}
                     ), 400

@@ -39,7 +39,10 @@ def test_blood_bank_access_for_admin(test_client):
         _login(test_client, "admin", "admin")
         response = test_client.get("/blood-bank/", follow_redirects=True)
         assert response.status_code == 200
-        assert b"Blood Bank Dashboard" in response.data or b"CRITICAL SHORTAGES" in response.data
+        assert (
+            b"Blood Bank Dashboard" in response.data
+            or b"CRITICAL SHORTAGES" in response.data
+        )
     finally:
         _logout_if_needed(test_client)
         if os.path.exists(db_path):
