@@ -10,8 +10,6 @@ gives static type checkers (ty, mypy) a concrete type to work with, eliminating
 ``unresolved-attribute`` false positives in route modules.
 """
 
-import os
-
 from flask_caching import Cache
 from flask_jwt_extended import JWTManager
 from flask_limiter import Limiter
@@ -34,6 +32,5 @@ talisman: Talisman = Talisman()
 # Rate limiting singleton with Redis fallback to in-memory storage in tests/dev.
 limiter: Limiter = Limiter(
 	key_func=get_remote_address,
-	storage_uri=os.environ.get("REDIS_URL", "memory://"),
 	default_limits=[],
 )

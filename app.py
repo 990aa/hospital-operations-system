@@ -132,6 +132,12 @@ def create_app(test_config=None):
         bool(os.environ.get("APP_ENV", "development").lower() == "production"),
     )
 
+    app.config.setdefault(
+        "RATELIMIT_STORAGE_URI", os.environ.get("REDIS_URL", "memory://")
+    )
+    if app.config.get("TESTING"):
+        app.config["RATELIMIT_STORAGE_URI"] = "memory://"
+
     # Logging configuration
     # We keep logging at INFO so normal startup and request logs are visible,
     # while explicit error logs (CLIENT_ERROR/API_EXCEPTION) are emitted

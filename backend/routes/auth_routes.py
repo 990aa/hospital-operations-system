@@ -83,11 +83,11 @@ def register(data: RegisterRequest):
     phone = sanitize_string(data.phone, max_length=20) if data.phone else None
 
     if User.query.filter_by(username=username).first():
-        return problem(409, "Conflict", "Username already exists")
+        return problem(400, "Bad Request", "Username already exists")
 
     # Email is mandatory for patients (all notifications go via email).
     if User.query.filter_by(email=email).first():
-        return problem(409, "Conflict", "Email already in use")
+        return problem(400, "Bad Request", "Email already in use")
 
     # Create User
     user_datastore = current_app.extensions["security"].datastore
@@ -109,7 +109,7 @@ def register(data: RegisterRequest):
     db.session.add(new_patient)
     db.session.commit()
 
-    return jsonify({"message": "Registration successful"}), 201
+    return jsonify({"message": "Registration successful"})
 
 
 @auth_bp.route("/token", methods=["POST"])
