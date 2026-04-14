@@ -443,10 +443,12 @@ def create_initial_data(app):
 # Create the Flask application instance
 app = create_app()
 
+# Initialize schema and baseline seed data for all runtimes, including
+# gunicorn imports in Docker where __main__ is not executed.
+create_initial_data(app)
+
 
 if __name__ == "__main__":
-    # Initialize database and create initial data
-    create_initial_data(app)
     # Run the development server
     # Use environment variables so local and Docker runs share one entrypoint.
     debug_env = os.environ.get("FLASK_DEBUG", "true").strip().lower()
